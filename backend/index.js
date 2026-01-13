@@ -1,41 +1,41 @@
-import 'dotenv/config';
-import express from 'express';
-import cors from 'cors';
-import OpenAI from 'openai';
+const express = require('express');
+const cors = require('cors');
+require('dotenv').config();
+const { OpenAI } = require('openai');
 
 const app = express();
 const PORT = process.env.PORT || 4000;
-const OPENAI_MODEL = process.env.OPENAI_MODEL || 'gpt-4o';
-const organKeywords = ['foie', 'poumon', 'rein', 'cerveau', 'coeur'];
 
 app.use(cors());
 app.use(express.json());
 
-const openaiClient = process.env.OPENAI_API_KEY
+const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
 
 const buildSystemPrompt = () => `
-Tu es "Percisio Insight", un assistant médical expert en radiologie et médecine interne.
-Ton rôle est d'analyser des contextes médicaux et de répondre aux questions avec précision, professionnalisme et clarté.
+You are "Percisio Sense", an expert medical assistant in radiology and internal medicine.
+Your role is to analyze medical contexts and answer questions with precision, professionalism, and clarity.
 
-RÈGLES DE RÉPONSE :
-1. ANALYSE : Si on te donne un rapport, identifie chaque anomalie et classe-les par importance.
-2. STRUCTURE : Utilise du Markdown pour formater ta réponse (gras pour les termes clés, listes à puces pour la lisibilité).
-3. TON : Sois empathique mais factuel. Vulgarise les termes complexes si nécessaire.
-4. SYNTHÈSE : Ne sois pas trop verbeux, mais sois complet sur les points critiques.
+RESPONSE RULES:
+1. ANALYSIS: If provided with a report, identify every anomaly and rank them by importance.
+2. STRUCTURE: Use Markdown to format your response (bold for key terms, bullet points for readability).
+3. TONE: Be empathetic but factual. Explain complex terms if necessary.
+4. SYNTHESIS: Do not be overly verbose, but be comprehensive on critical points.
 
-FORMAT DE SORTIE OBLIGATOIRE (JSON SEULEMENT) :
-Réponds UNIQUEMENT avec cet objet JSON, sans rien autour :
+MANDATORY OUTPUT FORMAT (JSON ONLY):
+Reply ONLY with this JSON object, with no surrounding text:
 {
-  "reply": "Ton texte de réponse ici (formaté en markdown).",
-  "focus": "foie|poumon|rein|cerveau|coeur|null"
+  "reply": "Your response text here (formatted in markdown).",
+  "focus": "liver|lung|kidney|brain|heart|null"
 }
 
-LOGIQUE DE FOCUS 3D :
-- Si l'utilisateur pose une question spécifique sur un organe ou si le rapport signale une anomalie MAJEURE sur un organe précis, mets son nom dans "focus".
-- Sinon, mets "focus": null.
+3D FOCUS LOGIC:
+- If the user asks a specific question about an organ or if the report signals a MAJOR anomaly on a specific organ, put its name in "focus".
+- Otherwise, set "focus": null.
 `;
+
+const organKeywords = ['liver', 'lung', 'kidney', 'brain', 'heart'];
 
 const extractOrgan = (text) => {
   const lower = (text || '').toLowerCase();
@@ -43,74 +43,65 @@ const extractOrgan = (text) => {
 };
 
 /**
- * /chat : appelle GPT-4o si API KEY dispo, sinon mock local.
+ * /chat: calls GPT-4o if API KEY available, else local mock.
  */
 app.post('/chat', async (req, res) => {
   const { message } = req.body || {};
 
   if (typeof message !== 'string') {
-    return res.status(400).json({ error: 'message must be a string' });
+    return res.status(400).json({ error: 'Message required' });
   }
 
-  // Fallback mock si pas de clé
-  if (!openaiClient) {
-    const foundOrgan = extractOrgan(message);
-    let reply = 'Voici un résumé général du scanner :\n';
-    reply += '- Structures principales visibles.\n';
-    reply += '- Aucune anomalie majeure détectée dans cette simulation.\n';
-    if (foundOrgan) {
-      reply += `\nJ'ai détecté que vous vous intéressez au ${foundOrgan}. Je vais centrer la vue dessus.`;
-    }
-    return res.json({ reply, focus: foundOrgan });
-  }
+  // extract potential focus from user message (fallback/hint)
+  const detectedOrgan = extractOrgan(message);
 
-  try {
-    const response = await openaiClient.chat.completions.create({
-      model: OPENAI_MODEL,
-      messages: [
-        { role: 'system', content: buildSystemPrompt() },
-        {
-          role: 'user',
-          content: `Message utilisateur: """${message}"""`,
-        },
-      ],
-      temperature: 0.2,
-      response_format: { type: 'json_object' },
-    });
-
-    const content = response.choices?.[0]?.message?.content;
-    let parsed;
-
+  if (openai) {
     try {
-      parsed = JSON.parse(content);
+      const completion = await openai.chat.completions.create({
+        model: process.env.OPENAI_MODEL || 'gpt-4o',
+        messages: [
+          { role: 'system', content: buildSystemPrompt() },
+          { role: 'user', content: message },
+        ],
+        temperature: 0.7,
+      });
+
+      const rawContent = completion.choices[0]?.message?.content?.trim();
+      // eslint-disable-next-line no-console
+      console.log('OpenAI Raw:', rawContent);
+
+      try {
+        // Try parsing JSON
+        const parsed = JSON.parse(rawContent);
+        return res.json({
+          reply: parsed.reply,
+          focus: parsed.focus || null,
+        });
+      } catch (e) {
+        // Fallback if JSON is broken
+        // eslint-disable-next-line no-console
+        console.error('JSON Parse Error:', e);
+        return res.json({
+          reply: rawContent, // raw text
+          focus: detectedOrgan, // fallback to regex detection
+        });
+      }
     } catch (err) {
-      parsed = null;
+      // eslint-disable-next-line no-console
+      console.error('OpenAI Error:', err);
+      return res.status(500).json({ error: 'AI Error' });
     }
-
-    const fallbackReply =
-      'Résumé non structuré disponible. Veuillez reformuler votre demande.';
-
-    const reply = parsed?.reply || fallbackReply;
-    const focusRaw = parsed?.focus || extractOrgan(message) || null;
-    const focus = organKeywords.includes(focusRaw) ? focusRaw : null;
-
-    return res.json({ reply, focus });
-  } catch (err) {
-    // eslint-disable-next-line no-console
-    console.error(err);
-    return res.status(500).json({
-      error: 'openai_error',
-      message: 'Erreur lors de l’appel OpenAI.',
+  } else {
+    // MOCK MODE
+    await new Promise((r) => setTimeout(r, 600)); // Latency sim
+    return res.json({
+      reply: `(Mock) I heard: "${message}". No API Key configured.`,
+      focus: detectedOrgan,
     });
   }
-});
-
-app.get('/', (_req, res) => {
-  res.json({ status: 'ok', model: OPENAI_MODEL, openai: !!openaiClient });
 });
 
 app.listen(PORT, () => {
-  // eslint-disable-next-line no-console
-  console.log(`Backend API listening on http://localhost:${PORT}`);
+    // eslint-disable-next-line no-console
+  console.log(`Backend running on http://localhost:${PORT}`);
 });
-

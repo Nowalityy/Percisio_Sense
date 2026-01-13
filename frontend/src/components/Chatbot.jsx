@@ -46,7 +46,7 @@ export default function Chatbot() {
     if (analyzedReport) {
        const autoSummarize = async () => {
          setIsLoading(true);
-         const prompt = `[SYSTEM]: Un nouveau document médical a été chargé. Analyse-le en profondeur. Donne un résumé complet, liste les anomalies par organe, et conclus avec un diagnostic probable ou des recommandations.\n\n[DOCUMENT]:\n${analyzedReport}`;
+         const prompt = `[SYSTEM]: A new medical document has been uploaded. Analyze it in depth. Provide a complete summary, list anomalies by organ, and conclude with a probable diagnosis or recommendations.\n\n[DOCUMENT]:\n${analyzedReport}`;
          
          try {
            const res = await fetch(BACKEND_URL, {
@@ -65,7 +65,7 @@ export default function Chatbot() {
              {
                id: Date.now(),
                from: 'assistant',
-               text: reply || "J'ai bien reçu le document, mais je n'arrive pas à le résumer.",
+               text: reply || "I received the document, but I cannot summarize it.",
              },
            ]);
            setLastReply(reply || '');
@@ -80,7 +80,7 @@ export default function Chatbot() {
              {
                id: Date.now(),
                from: 'assistant',
-               text: "Erreur lors de l'analyse automatique du document.",
+               text: "Error during automatic document analysis.",
              },
            ]);
          } finally {
@@ -108,9 +108,9 @@ export default function Chatbot() {
     const report = useSceneStore.getState().analyzedReport;
     let messageToSend = trimmed;
     
-    // Si un rapport est analysé, on l'ajoute au contexte de la question
+    // If a report is analyzed, add it to the question context
     if (report) {
-      messageToSend = `[CONTEXTE - DOCUMENT ANALYSÉ]:\n${report}\n\n[QUESTION UTILISATEUR]:\n${trimmed}`;
+      messageToSend = `[CONTEXT - ANALYZED DOCUMENT]:\n${report}\n\n[USER QUESTION]:\n${trimmed}`;
     }
 
     try {
@@ -185,17 +185,17 @@ export default function Chatbot() {
         className="border-t border-border px-3 py-2 flex items-center gap-2 bg-white"
       >
         <input
-          className="flex-1 bg-gray-50 rounded-full px-3 py-2 text-sm outline-none border border-border focus:border-accent focus:bg-white transition-colors text-text placeholder:text-text-secondary"
-          placeholder="Posez une question sur le scanner…"
+          className="flex-1 bg-gray-50 rounded-full px-3 py-2 text-base md:text-sm outline-none border border-border focus:border-accent focus:bg-white transition-colors text-text placeholder:text-text-secondary"
+          placeholder="Ask a question..."
           value={input}
           onChange={(e) => setInput(e.target.value)}
         />
         <button
           type="submit"
           disabled={isLoading || !input.trim()}
-          className="px-4 py-2 rounded-full text-xs font-medium bg-accent text-white disabled:opacity-50 disabled:cursor-not-allowed transition-opacity hover:bg-blue-600"
+          className="px-3 md:px-4 py-2 rounded-full text-sm font-medium bg-accent text-white disabled:opacity-50 disabled:cursor-not-allowed transition-opacity hover:bg-blue-600 shrink-0"
         >
-          {isLoading ? '...' : 'Envoyer'}
+          {isLoading ? '...' : 'Send'}
         </button>
       </form>
     </div>

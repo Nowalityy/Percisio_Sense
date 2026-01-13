@@ -1,22 +1,22 @@
 import { Suspense, useRef, useEffect, useState, Component } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Environment, Html, useGLTF, AdaptiveDpr, AdaptiveEvents, PerformanceMonitor } from '@react-three/drei';
 import * as THREE from 'three';
 import { useSceneStore } from '../store.js';
 
 /**
- * Exemple de mapping organes -> objets 3D.
+ * Example of organ -> 3D object mapping.
  */
 const ORGAN_MAPPING = {
-  foie: 'liver',
-  poumon: 'lung',
-  rein: 'kidney',
-  cerveau: 'brain',
-  coeur: 'heart',
+  liver: 'liver',
+  lung: 'lung',
+  kidney: 'kidney',
+  brain: 'brain',
+  heart: 'heart',
 };
 
 /**
- * ErrorBoundary pour capturer les erreurs de chargement du modèle
+ * ErrorBoundary to capture model loading errors
  */
 class ModelErrorBoundary extends Component {
   constructor(props) {
@@ -30,7 +30,7 @@ class ModelErrorBoundary extends Component {
 
   componentDidCatch(error, errorInfo) {
     // eslint-disable-next-line no-console
-    console.error('Erreur lors du chargement du modèle:', error, errorInfo);
+    console.error('Error loading model:', error, errorInfo);
   }
 
   render() {
@@ -38,9 +38,9 @@ class ModelErrorBoundary extends Component {
       return (
         <Html center>
           <div className="px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-900 max-w-md shadow-sm">
-            <p className="font-semibold mb-2">Erreur de chargement</p>
+            <p className="font-semibold mb-2">Loading Error</p>
             <p className="text-xs text-red-700">
-              Le modèle est trop volumineux pour être chargé.
+              The model is too large to be loaded.
             </p>
           </div>
         </Html>
@@ -52,13 +52,13 @@ class ModelErrorBoundary extends Component {
 }
 
 /**
- * Composant pour charger et afficher le modèle Model.glb
+ * Component to load and display the Model.glb
  */
 function ScannerModel({ rotation = { x: 0, y: 0, z: 0 }, isAutoSpinning }) {
   const { scene } = useGLTF('/models/Model.glb', true);
   const groupRef = useRef();
 
-  // Appliquer la rotation via manual state + auto-spin
+  // Apply rotation via manual state + auto-spin
   useFrame((state, delta) => {
     if (groupRef.current) {
       if (isAutoSpinning) {
@@ -71,18 +71,18 @@ function ScannerModel({ rotation = { x: 0, y: 0, z: 0 }, isAutoSpinning }) {
     }
   });
 
-  // Centrer et ajuster le modèle après chargement
+  // Center and adjust model after loading
   useEffect(() => {
     if (scene) {
       try {
-        // Nettoyer les éléments indésirables (comme un cube blanc interne)
-        // ET AUDIT DES NOMS (Temporary)
+        // Clean up unwanted elements (like internal white cube)
+        // AND AUDIT NAMES (Temporary)
         // console.group("🔍 3D Model Audit - Mesh Names");
         scene.traverse((child) => {
           if (child.isMesh) {
             // console.log(`Mesh found: "${child.name}"`, { type: child.type, parent: child.parent?.name });
             
-            // Si le nom contient Cube ou Box, on le cache
+            // If name contains Cube or Box, hide it
             if (child.name.toLowerCase().includes('cube') || child.name.toLowerCase().includes('box')) {
               child.visible = false;
             }
@@ -107,7 +107,7 @@ function ScannerModel({ rotation = { x: 0, y: 0, z: 0 }, isAutoSpinning }) {
         scene.scale.set(scale, scale, scale);
       } catch (err) {
         // eslint-disable-next-line no-console
-        console.error('❌ Erreur lors du centrage du modèle:', err);
+        console.error('❌ Error centering model:', err);
       }
     }
   }, [scene]);
@@ -126,12 +126,12 @@ useGLTF.preload('/models/Model.glb', true);
 function ModelErrorDisplay() {
   return (
     <div className="px-6 py-4 rounded-lg bg-red-50 border border-red-200 text-sm text-red-900 max-w-2xl shadow-sm">
-      <p className="font-semibold mb-2 text-base">Erreur de chargement du modèle</p>
+      <p className="font-semibold mb-2 text-base">Model Loading Error</p>
       <p className="text-xs text-red-700 mb-2">
-        Le fichier Model.glb est trop volumineux pour être chargé directement dans le navigateur.
+        The Model.glb file is too large to be loaded directly in the browser.
       </p>
       <p className="text-xs text-red-600 mb-3">
-        Veuillez compresser le modèle avant de l'utiliser.
+        Please compress the model before using it.
       </p>
     </div>
   );
@@ -146,6 +146,7 @@ function Scene({ rotation, isAutoSpinning }) {
       <Environment preset="city" />
 
       <group position={[0, 0, 0]}>
+        <InitialCameraAdjustment />
         <ModelErrorBoundary>
           <Suspense fallback={<CanvasLoader />}>
             <ScannerModel rotation={rotation} isAutoSpinning={isAutoSpinning} />
@@ -160,10 +161,26 @@ function CanvasLoader() {
   return (
     <Html center>
       <div className="text-[10px] font-bold uppercase tracking-widest text-slate-400 animate-pulse bg-white/50 backdrop-blur-sm px-4 py-2 rounded-full shadow-sm">
-        Chargement 3D…
+        Loading 3D…
       </div>
     </Html>
   );
+}
+
+function InitialCameraAdjustment() {
+  const { camera } = useThree();
+  
+  useEffect(() => {
+    // ADJUSTMENT: On mobile (portrait), move camera back to fit the model width
+    if (window.innerWidth < 768) {
+       camera.position.set(0, -1.2, 14); // Mobile: Lower camera, looking at -1.2
+    } else {
+       camera.position.set(0, -1.2, 8); // Desktop: Lower camera, looking at -1.2
+    }
+    camera.lookAt(0, -1.2, 0);
+  }, [camera]);
+  
+  return null;
 }
 
 function FocusCamera() {
@@ -210,7 +227,7 @@ function FocusCamera() {
       zoomSpeed={1.2}
       minDistance={0.01}
       maxDistance={2000}
-      target={[0, 0, 0]}
+      target={[0, -2.0, 0]}
     />
   );
 }
@@ -225,7 +242,8 @@ export default function Viewer3D() {
   const [hasError, setHasError] = useState(false);
   const [rotation, setRotation] = useState({ x: 0, y: 0, z: 0 });
   const [isAutoSpinning, setIsAutoSpinning] = useState(false);
-  const [dpr, setDpr] = useState(1.5);
+  // OPTIMIZATION: Cap initial DPR to 1.5 max for performance, even on high-end phones
+  const [dpr, setDpr] = useState(Math.min(window.devicePixelRatio, 1.5));
   const [hoveredMesh, setHoveredMesh] = useState(null); // INFO: Inspector State
   const currentFocus = useSceneStore((s) => s.currentFocus);
 

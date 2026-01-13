@@ -2,16 +2,16 @@ import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
 
 /**
- * Global store pour la scène 3D et l'IA.
- * - currentFocus: organe actuellement ciblé par l'IA (string ou null)
- * - setFocus: définit l'organe ciblé
- * - clearFocus: reset de la focalisation
- * - lastReply: dernier texte de réponse IA (pour debug éventuel)
+ * Global store for the 3D scene and Chat.
+ * Uses 'subscribeWithSelector' to allow components (like the Chat)
+ * to listen to specific state changes (e.g. analyzedReport).
  */
 export const useSceneStore = create(
   subscribeWithSelector((set) => ({
     currentFocus: null,
     lastReply: '',
+    analyzedReport: null, // Stores the content of the analyzed file
+
     setFocus: (organKey) =>
       set({
         currentFocus: organKey,
@@ -24,11 +24,9 @@ export const useSceneStore = create(
       set({
         lastReply: reply,
       }),
-    analyzedReport: null,
-    setAnalyzedReport: (report) =>
+    setAnalyzedReport: (content) =>
       set({
-        analyzedReport: report,
+        analyzedReport: content,
       }),
   })),
 );
-
