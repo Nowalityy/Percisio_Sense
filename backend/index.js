@@ -1,45 +1,141 @@
-const express = require('express');
-const cors = require('cors');
-require('dotenv').config();
-const { OpenAI } = require('openai');
+import express from 'express';
+import cors from 'cors';
+import dotenv from 'dotenv';
+import OpenAI from 'openai';
+
+dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 4000;
 
-app.use(cors());
+const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS 
+  ? process.env.ALLOWED_ORIGINS.split(',') 
+  : null; // null = allow all localhost origins in dev
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    // In development, allow all localhost origins (any port)
+    if (!ALLOWED_ORIGINS) {
+      if (origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:')) {
+        return callback(null, true);
+      }
+    } else {
+      // In production, check against allowed list
+      if (ALLOWED_ORIGINS.includes(origin)) {
+        return callback(null, true);
+      }
+    }
+    
+    // Log blocked origins for debugging
+    console.warn(`⚠️ CORS blocked origin: ${origin}`);
+    if (ALLOWED_ORIGINS) {
+      console.log(`Allowed origins: ${ALLOWED_ORIGINS.join(', ')}`);
+    }
+    callback(new Error('Not allowed by CORS'));
+  },
+  methods: ['GET', 'POST', 'OPTIONS'],
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
 
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
 
-const buildSystemPrompt = () => `
-You are "Percisio Sense", an expert medical assistant in radiology and internal medicine.
-Your role is to analyze medical contexts and answer questions with precision, professionalism, and clarity.
+if (!openai) {
+  console.warn('⚠️ WARNING: OPENAI_API_KEY is missing. Running in MOCK mode.');
+}
 
-RESPONSE RULES:
-1. ANALYSIS: If provided with a report, identify every anomaly and rank them by importance.
-2. STRUCTURE: Use Markdown to format your response (bold for key terms, bullet points for readability).
-3. TONE: Be empathetic but factual. Explain complex terms if necessary.
-4. SYNTHESIS: Do not be overly verbose, but be comprehensive on critical points.
+const SEGMENTS = [
+  'aorta', 'brachiocephalic-trunk', 'esophagus', 'heart', 'inferior-lobe-of-left-lung',
+  'inferior-lobe-of-right-lung', 'inferior-vena-cava', 'left-atrial-appendage',
+  'left-brachiocephalic-vein', 'left-clavicle', 'left-common-carotid-artery',
+  'left-deep-back-muscle', 'left-humerus', 'left-scapula', 'left-subclavian-artery',
+  'liver', 'middle-lobe-of-right-lung', 'pancreas', 'portal-vein-and-splenic-vein',
+  'pulmonary-venous-system', 'right-adrenal-gland', 'right-brachiocephalic-vein',
+  'right-clavicle', 'right-common-carotid-artery', 'right-deep-back-muscle',
+  'right-humerus', 'right-scapula', 'right-subclavian-artery', 'segment_1', 'spinal-cord',
+  'spleen', 'sternum', 'stomach', 'superior-lobe-of-left-lung',
+  'superior-lobe-of-right-lung', 'superior-vena-cava', 'thyroid', 'trachea'
+];
+
+const ORGAN_SYNONYMS = {
+  'aorte': 'aorta',
+  'foie': 'liver',
+  'poumon': 'lung',
+  'coeur': 'heart',
+  'cœur': 'heart',
+  'oesophage': 'esophagus',
+  'œsophage': 'esophagus',
+  'pancreas': 'pancreas',
+  'rate': 'spleen',
+  'estomac': 'stomach',
+  'thyroide': 'thyroid',
+  'trachee': 'trachea',
+  'rein': 'kidney',
+  'cerveau': 'brain',
+  'clavicule': 'clavicle',
+  'omoplate': 'scapula',
+  'artere': 'artery',
+  'veine': 'vein',
+  'tronce': 'trunk',
+  'pulmonaire': 'pulmonary',
+  'thyroide': 'thyroid',
+  'moelle': 'spinal',
+  'vertèbre': 'spinal',
+  'sternum': 'sternum',
+  'estomac': 'stomach',
+  'pancreas': 'pancreas',
+  'rate': 'spleen'
+};
+
+const buildSystemPrompt = () => `
+You are a Senior Radiologist with 20 years of clinical experience.
+You specialize in:
+- Medical imaging (CT, MRI, X-Ray, Ultrasound)
+- Accurate diagnostics
+- Patient safety and ethics
+
+Instructions:
+- Keep answers concise, professional, and medically accurate
+- Output must always be valid JSON
+- Output MUST be a JSON object with "reply" and "focus" keys.
 
 MANDATORY OUTPUT FORMAT (JSON ONLY):
-Reply ONLY with this JSON object, with no surrounding text:
 {
-  "reply": "Your response text here (formatted in markdown).",
-  "focus": "liver|lung|kidney|brain|heart|null"
+  "reply": "Your final response text here (formatted in markdown).",
+  "focus": "name_of_organ_or_null"
 }
 
 3D FOCUS LOGIC:
-- If the user asks a specific question about an organ or if the report signals a MAJOR anomaly on a specific organ, put its name in "focus".
-- Otherwise, set "focus": null.
+- If the user asks about a specific anatomical structure, set "focus" to its EXACT name from this list:
+${SEGMENTS.join(', ')}
+- CATEGORY VIEW: If the user asks for a general organ that has multiple parts (like "lungs", "veins", "bones", "muscles"), you can use a broad keyword like "lung", "vein", "clavicle", "scapula", "artery", "trunk", "muscle" to focus on all related segments at once.
+- Example: "focus": "lung" will zoom on all lung lobes.
+- If no specific segment or category matches, set "focus": null.
 `;
-
-const organKeywords = ['liver', 'lung', 'kidney', 'brain', 'heart'];
 
 const extractOrgan = (text) => {
   const lower = (text || '').toLowerCase();
-  return organKeywords.find((k) => lower.includes(k)) || null;
+  
+  // Try direct match with known segments
+  const direct = SEGMENTS.find((s) => lower.includes(s));
+  if (direct) return direct;
+
+  // Try synonyms and return the English keyword
+  for (const [syn, eng] of Object.entries(ORGAN_SYNONYMS)) {
+    if (lower.includes(syn)) {
+      return eng;
+    }
+  }
+
+  return null;
 };
 
 /**
@@ -47,13 +143,20 @@ const extractOrgan = (text) => {
  */
 app.post('/chat', async (req, res) => {
   const { message } = req.body || {};
+  
+  // eslint-disable-next-line no-console
+  console.log(`📨 Received request: ${message?.substring(0, 50)}...`);
 
   if (typeof message !== 'string') {
+    // eslint-disable-next-line no-console
+    console.error('❌ Invalid message type:', typeof message);
     return res.status(400).json({ error: 'Message required' });
   }
 
   // extract potential focus from user message (fallback/hint)
   const detectedOrgan = extractOrgan(message);
+  // eslint-disable-next-line no-console
+  console.log(`🔍 Detected organ: ${detectedOrgan || 'none'}`);
 
   if (openai) {
     try {
@@ -70,20 +173,40 @@ app.post('/chat', async (req, res) => {
       // eslint-disable-next-line no-console
       console.log('OpenAI Raw:', rawContent);
 
+      let cleanContent = rawContent;
+      // Handle the case where the model wraps JSON in markdown blocks
+      if (cleanContent.includes('```json')) {
+        cleanContent = cleanContent.split('```json')[1].split('```')[0].trim();
+      } else if (cleanContent.includes('```')) {
+        cleanContent = cleanContent.split('```')[1].split('```')[0].trim();
+      }
+
       try {
-        // Try parsing JSON
-        const parsed = JSON.parse(rawContent);
+        // Try parsing the cleaned content
+        const parsed = JSON.parse(cleanContent);
         return res.json({
           reply: parsed.reply,
           focus: parsed.focus || null,
         });
       } catch (e) {
-        // Fallback if JSON is broken
-        // eslint-disable-next-line no-console
+        // If parsing still fails, it might be partial JSON or plain text.
+        // Try to find anything between { and }
+        const braceMatch = rawContent.match(/\{[\s\S]*\}/);
+        if (braceMatch) {
+          try {
+            const forcedParsed = JSON.parse(braceMatch[0]);
+            return res.json({
+              reply: forcedParsed.reply,
+              focus: forcedParsed.focus || null,
+            });
+          } catch (e2) { /* nested fail, go to final fallback */ }
+        }
+
+        // Final fallback if JSON is truly broken: return as raw text but try to extract a focus key
         console.error('JSON Parse Error:', e);
         return res.json({
-          reply: rawContent, // raw text
-          focus: detectedOrgan, // fallback to regex detection
+          reply: rawContent, 
+          focus: detectedOrgan,
         });
       }
     } catch (err) {
@@ -101,7 +224,11 @@ app.post('/chat', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-    // eslint-disable-next-line no-console
-  console.log(`Backend running on http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  // eslint-disable-next-line no-console
+  console.log(`✅ Backend running on http://localhost:${PORT}`);
+  // eslint-disable-next-line no-console
+  console.log(`📡 CORS: ${ALLOWED_ORIGINS ? `Restricted to: ${ALLOWED_ORIGINS.join(', ')}` : '✅ All localhost origins allowed (dev mode)'}`);
+  // eslint-disable-next-line no-console
+  console.log(`🤖 OpenAI API: ${openai ? '✅ Configured' : '⚠️ Mock mode (no API key)'}`);
 });

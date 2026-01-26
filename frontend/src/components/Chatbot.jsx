@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useSceneStore } from '../store.js';
 import { focusOnOrgan } from './Viewer3D.jsx';
 
-const BACKEND_URL = 'http://localhost:4000/chat';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/chat';
 
 /**
  * Message bubble composant simple.
@@ -99,11 +99,14 @@ export default function Chatbot() {
     const userMsg = {
       id: Date.now(),
       from: 'user',
-      text: trimmed,
+      text: input,
     };
     setMessages((prev) => [...prev, userMsg]);
     setInput('');
     setIsLoading(true);
+
+    // Clear focus when a new question is asked to avoid confusion
+    useSceneStore.getState().clearFocus();
 
     const report = useSceneStore.getState().analyzedReport;
     let messageToSend = trimmed;
@@ -128,6 +131,7 @@ export default function Chatbot() {
 
       const data = await res.json();
       const { reply, focus } = data;
+      console.log('[Chat] Backend Response:', { reply, focus });
 
       setMessages((prev) => [
         ...prev,
