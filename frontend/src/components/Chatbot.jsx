@@ -1,12 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSceneStore } from '../store.js';
 import { focusOnOrgan } from './Viewer3D.jsx';
+import { QuickActions } from './Chatbot/QuickActions';
+import { ConversationHistory } from './Chatbot/ConversationHistory';
 
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/chat';
+const AUTO_SUMMARY_PROMPT_PREFIX = '[SYSTEM]: A new medical document has been uploaded. Analyze it in depth. Provide a complete summary, list anomalies by organ, and conclude with a probable diagnosis or recommendations.\n\n[DOCUMENT]:\n';
+const CONTEXT_PROMPT_TEMPLATE = '[CONTEXT - ANALYZED DOCUMENT]:\n{report}\n\n[USER QUESTION]:\n{question}';
 
-/**
- * Message bubble composant simple.
- */
 function MessageBubble({ from, text }) {
   const isUser = from === 'user';
   return (
@@ -26,13 +27,58 @@ function MessageBubble({ from, text }) {
   );
 }
 
+function LoadingIndicator() {
+  return (
+    <div className="flex justify-start">
+      <div className="bg-gray-100 rounded-2xl px-3 py-2 text-sm border border-border shadow-sm flex items-center gap-2">
+        {[0, 0.15, 0.3].map((delay, idx) => (
+          <span
+            key={idx}
+            className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce"
+            style={{ animationDelay: `${delay}s` }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function createMessage(from, text, idOffset = 0) {
+  return {
+    id: Date.now() + idOffset,
+    from,
+    text,
+  };
+}
+
+async function sendChatRequest(message) {
+  const response = await fetch(BACKEND_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  return response.json();
+}
+
+function buildMessageWithContext(userMessage, analyzedReport) {
+  if (!analyzedReport) {
+    return userMessage;
+  }
+
+  return CONTEXT_PROMPT_TEMPLATE.replace('{report}', analyzedReport).replace('{question}', userMessage);
+}
+
 export default function Chatbot() {
   const [messages, setMessages] = useState([
-    {
-      id: 1,
-      from: 'assistant',
-      text: "Bonjour, je suis votre assistant IA.\nPosez-moi une question sur le scanner ou déposez un compte-rendu pour que je l'analyse.",
-    },
+    createMessage(
+      'assistant',
+      "Bonjour, je suis votre assistant IA.\nPosez-moi une question sur le scanner ou déposez un compte-rendu pour que je l'analyse."
+    ),
   ]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -40,154 +86,101 @@ export default function Chatbot() {
   const setFocus = useSceneStore((s) => s.setFocus);
   const setLastReply = useSceneStore((s) => s.setLastReply);
   const analyzedReport = useSceneStore((s) => s.analyzedReport);
+  const addToConversationHistory = useSceneStore((s) => s.addToConversationHistory);
 
-  // Auto-summarize when a report is uploaded
-  useEffect(() => {
-    if (analyzedReport) {
-       const autoSummarize = async () => {
-         setIsLoading(true);
-         const prompt = `[SYSTEM]: A new medical document has been uploaded. Analyze it in depth. Provide a complete summary, list anomalies by organ, and conclude with a probable diagnosis or recommendations.\n\n[DOCUMENT]:\n${analyzedReport}`;
-         
-         try {
-           const res = await fetch(BACKEND_URL, {
-             method: 'POST',
-             headers: { 'Content-Type': 'application/json' },
-             body: JSON.stringify({ message: prompt }),
-           });
-
-           if (!res.ok) throw new Error('Backend error');
-           
-           const data = await res.json();
-           const { reply, focus } = data;
-
-           setMessages((prev) => [
-             ...prev,
-             {
-               id: Date.now(),
-               from: 'assistant',
-               text: reply || "I received the document, but I cannot summarize it.",
-             },
-           ]);
-           setLastReply(reply || '');
-           if (focus) {
-             setFocus(focus);
-             focusOnOrgan(focus);
-           }
-         } catch (err) {
-           console.error(err);
-           setMessages((prev) => [
-             ...prev,
-             {
-               id: Date.now(),
-               from: 'assistant',
-               text: "Error during automatic document analysis.",
-             },
-           ]);
-         } finally {
-            setIsLoading(false);
-         }
-       };
-       autoSummarize();
-    }
-  }, [analyzedReport, setFocus, setLastReply]);
-
-  const sendMessage = async (e) => {
-    e?.preventDefault();
-    const trimmed = input.trim();
-    if (!trimmed || isLoading) return;
-
-    const userMsg = {
-      id: Date.now(),
-      from: 'user',
-      text: input,
-    };
-    setMessages((prev) => [...prev, userMsg]);
-    setInput('');
-    setIsLoading(true);
-
-    // Clear focus when a new question is asked to avoid confusion
-    useSceneStore.getState().clearFocus();
-
-    const report = useSceneStore.getState().analyzedReport;
-    let messageToSend = trimmed;
-    
-    // If a report is analyzed, add it to the question context
-    if (report) {
-      messageToSend = `[CONTEXT - ANALYZED DOCUMENT]:\n${report}\n\n[USER QUESTION]:\n${trimmed}`;
-    }
-
-    try {
-      const res = await fetch(BACKEND_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ message: messageToSend }),
-      });
-
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
-
-      const data = await res.json();
-      const { reply, focus } = data;
-      console.log('[Chat] Backend Response:', { reply, focus });
-
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now() + 1,
-          from: 'assistant',
-          text: reply || '(pas de réponse)',
-        },
-      ]);
-
-      setLastReply(reply || '');
-
-      // Interaction IA -> 3D
+  const handleFocus = useCallback(
+    (focus) => {
       if (focus) {
         setFocus(focus);
         focusOnOrgan(focus);
       }
+    },
+    [setFocus]
+  );
+
+  const addMessage = useCallback(
+    (from, text, idOffset = 0) => {
+      const message = createMessage(from, text, idOffset);
+      setMessages((prev) => [...prev, message]);
+      addToConversationHistory(message);
+    },
+    [addToConversationHistory]
+  );
+
+  useEffect(() => {
+    if (!analyzedReport) {
+      return;
+    }
+
+    const autoSummarize = async () => {
+      setIsLoading(true);
+      const prompt = AUTO_SUMMARY_PROMPT_PREFIX + analyzedReport;
+
+      try {
+        const data = await sendChatRequest(prompt);
+        const { reply, focus } = data;
+
+        addMessage('assistant', reply || "I received the document, but I cannot summarize it.");
+        setLastReply(reply || '');
+        handleFocus(focus);
+      } catch (err) {
+        console.error(err);
+        addMessage('assistant', 'Error during automatic document analysis.');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    autoSummarize();
+  }, [analyzedReport, addMessage, setLastReply, handleFocus]);
+
+  const sendMessage = async (e) => {
+    e?.preventDefault();
+    const trimmed = input.trim();
+
+    if (!trimmed || isLoading) {
+      return;
+    }
+
+    addMessage('user', input);
+    setInput('');
+    setIsLoading(true);
+
+    useSceneStore.getState().clearFocus();
+
+    const messageToSend = buildMessageWithContext(trimmed, analyzedReport);
+
+    try {
+      const data = await sendChatRequest(messageToSend);
+      const { reply, focus } = data;
+
+      addMessage('assistant', reply || '(pas de réponse)', 1);
+      setLastReply(reply || '');
+      handleFocus(focus);
     } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now() + 2,
-          from: 'assistant',
-          text:
-            "Désolé, je n'arrive pas à contacter l'API backend.\n" +
-            'Vérifiez que le serveur Node tourne sur http://localhost:4000.',
-        },
-      ]);
-      // eslint-disable-next-line no-console
       console.error(err);
+      addMessage(
+        'assistant',
+        "Désolé, je n'arrive pas à contacter l'API backend.\nVérifiez que le serveur Node tourne sur http://localhost:4000.",
+        2
+      );
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-full bg-white relative">
+      <ConversationHistory />
+      <QuickActions />
       <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
         {messages.map((m) => (
           <MessageBubble key={m.id} from={m.from} text={m.text} />
         ))}
-        {isLoading && (
-            <div className="flex justify-start">
-            <div className="bg-gray-100 rounded-2xl px-3 py-2 text-sm border border-border shadow-sm flex items-center gap-2">
-                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0s' }}></span>
-                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.15s' }}></span>
-                <span className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.3s' }}></span>
-            </div>
-            </div>
-        )}
+        {isLoading && <LoadingIndicator />}
       </div>
 
-      <form
-        onSubmit={sendMessage}
-        className="border-t border-border px-3 py-2 flex items-center gap-2 bg-white"
-      >
+      <form onSubmit={sendMessage} className="border-t border-border px-3 py-2 flex items-center gap-2 bg-white">
         <input
           className="flex-1 bg-gray-50 rounded-full px-3 py-2 text-base md:text-sm outline-none border border-border focus:border-accent focus:bg-white transition-colors text-text placeholder:text-text-secondary"
           placeholder="Ask a question..."

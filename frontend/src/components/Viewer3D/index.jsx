@@ -1,4 +1,4 @@
-import { useState, Suspense, useEffect, Component, useRef } from 'react';
+import { useState, Suspense, useEffect, Component, useRef, useCallback } from 'react';
 import * as THREE from 'three';
 import { Canvas, useThree } from '@react-three/fiber';
 import { Html, PerformanceMonitor, AdaptiveDpr, AdaptiveEvents } from '@react-three/drei';
@@ -6,6 +6,10 @@ import { useSceneStore } from '../../store';
 import { SceneLights } from './SceneLights';
 import { ScannerModel } from './ScannerModel';
 import { FocusCamera } from './FocusCamera';
+import { SegmentFilterPanel } from './SegmentFilterPanel';
+import { SegmentInfoPanel } from './SegmentInfoPanel';
+import { SegmentClickHandler } from './SegmentClickHandler';
+import { createHistoryState, canNavigateBack, canNavigateForward } from '../../utils/historyManager';
 
 /**
  * Loading indicator with granular progress
@@ -51,23 +55,65 @@ class ModelErrorBoundary extends Component {
 }
 
 function InitialCameraAdjustment() {
-  const { camera } = useThree();
+  const { camera, scene } = useThree();
   useEffect(() => {
-    // Position initiale plus éloignée pour voir le modèle complet
-    const defaultZ = window.innerWidth < 768 ? 16 : 12;
-    camera.position.set(0, 2, defaultZ);
-    camera.lookAt(0, 0, 0);
-    camera.updateProjectionMatrix();
-  }, [camera]);
+    // Calculer le centre réel du modèle
+    const calculateAndSetCamera = () => {
+      const box = new THREE.Box3();
+      let hasObjects = false;
+      
+      scene.traverse((child) => {
+        if (child.isMesh && child.visible) {
+          box.expandByObject(child);
+          hasObjects = true;
+        }
+      });
+      
+      if (hasObjects) {
+        const center = box.getCenter(new THREE.Vector3());
+        const size = box.getSize(new THREE.Vector3());
+        // Le centre du torse est environ au 1/3 supérieur du modèle
+        const torsoCenterY = center.y + size.y * 0.15;
+        
+        const defaultZ = window.innerWidth < 768 ? 16 : 12;
+        camera.position.set(center.x, torsoCenterY + 2, center.z + defaultZ);
+        camera.lookAt(center.x, torsoCenterY, center.z);
+        camera.updateProjectionMatrix();
+        console.log(`[InitialCamera] Set to center: (${center.x.toFixed(2)}, ${torsoCenterY.toFixed(2)}, ${center.z.toFixed(2)})`);
+      } else {
+        // Fallback si le modèle n'est pas encore chargé
+        const defaultZ = window.innerWidth < 768 ? 16 : 12;
+        camera.position.set(0, 0.8 + 2, defaultZ);
+        camera.lookAt(0, 0.8, 0);
+        camera.updateProjectionMatrix();
+      }
+    };
+    
+    // Essayer plusieurs fois pour s'assurer que le modèle est chargé
+    calculateAndSetCamera();
+    const timer = setTimeout(calculateAndSetCamera, 2000);
+    const timer2 = setTimeout(calculateAndSetCamera, 5000);
+    
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(timer2);
+    };
+  }, [camera, scene]);
   return null;
 }
 
 export default function Viewer3D() {
   const [rotation, setRotation] = useState({ x: 0, y: 0, z: 0 });
   const [isAutoSpinning, setIsAutoSpinning] = useState(false);
-  const [loadingProgress, setLoadingProgress] = useState({ current: 0, total: 38 }); // 38 segments OBJ uniquement
+  const [loadingProgress, setLoadingProgress] = useState({ current: 0, total: 38 });
+  const [selectedSegment, setSelectedSegment] = useState(null);
   
   const currentFocus = useSceneStore((s) => s.currentFocus);
+  const segmentVisibility = useSceneStore((s) => s.segmentVisibility);
+  const navigationHistory = useSceneStore((s) => s.navigationHistory);
+  const historyIndex = useSceneStore((s) => s.historyIndex);
+  const addToHistory = useSceneStore((s) => s.addToHistory);
+  const navigateHistory = useSceneStore((s) => s.navigateHistory);
 
   // useCallback to keep ScannerModel memo stable
   const handleProgress = useRef((curr, tot) => {
@@ -103,8 +149,108 @@ export default function Viewer3D() {
     clearFocus();
   };
 
+  const handleHistoryNavigation = useCallback(
+    (direction) => {
+      navigateHistory(direction);
+      const state = navigationHistory[historyIndex + (direction === 'back' ? -1 : 1)];
+      if (state) {
+        if (state.focus) {
+          useSceneStore.getState().setFocus(state.focus);
+        } else {
+          useSceneStore.getState().clearFocus();
+        }
+        if (state.segmentVisibility) {
+          state.segmentVisibility.forEach((visible, name) => {
+            useSceneStore.getState().setSegmentVisibility(name, visible);
+          });
+        }
+      }
+    },
+    [navigateHistory, navigationHistory, historyIndex]
+  );
+
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        if (canNavigateBack(historyIndex)) {
+          handleHistoryNavigation('back');
+        }
+      } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        if (canNavigateForward(historyIndex, navigationHistory.length)) {
+          handleHistoryNavigation('forward');
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [historyIndex, navigationHistory.length, handleHistoryNavigation]);
+
+  const saveToHistory = useCallback(() => {
+    const cameraState = null;
+    const historyState = createHistoryState(currentFocus, segmentVisibility, cameraState);
+    addToHistory(historyState);
+  }, [currentFocus, segmentVisibility, addToHistory]);
+
+  useEffect(() => {
+    if (historyIndex < 0) {
+      saveToHistory();
+    }
+  }, [saveToHistory, historyIndex]);
+
   return (
     <div className="w-full h-full bg-[#f8fafc] overflow-hidden relative group">
+      <SegmentFilterPanel />
+      {selectedSegment && (
+        <SegmentInfoPanel segmentName={selectedSegment} onClose={() => setSelectedSegment(null)} />
+      )}
+      {/* History Navigation */}
+      <div className="absolute top-4 left-4 z-30 flex items-center gap-2">
+        <button
+          onClick={() => handleHistoryNavigation('back')}
+          disabled={!canNavigateBack(historyIndex)}
+          className="px-3 py-2 bg-white rounded-lg shadow-md border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 text-sm font-medium text-gray-700"
+          title="Précédent (Ctrl+Z)"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M19 12H5" />
+            <path d="M12 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <button
+          onClick={() => handleHistoryNavigation('forward')}
+          disabled={!canNavigateForward(historyIndex, navigationHistory.length)}
+          className="px-3 py-2 bg-white rounded-lg shadow-md border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 text-sm font-medium text-gray-700"
+          title="Suivant (Ctrl+Shift+Z)"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M5 12h14" />
+            <path d="M12 5l7 7-7 7" />
+          </svg>
+        </button>
+      </div>
       {/* Reset Focus Overlay */}
       {currentFocus && (
         <button
@@ -117,15 +263,16 @@ export default function Viewer3D() {
 
       <Canvas 
         shadows={false}
-        dpr={1} // Force 1:1 DPR to avoid resolution flickering
-        camera={{ position: [0, 0, 12], fov: 50, near: 0.01, far: 2000 }}
+        dpr={[1, 2]}
+        camera={{ position: [0, 2.8, 12], fov: 50, near: 0.01, far: 2000 }}
         gl={{ 
           antialias: true, 
           alpha: false,
           powerPreference: "high-performance",
           stencil: false,
           depth: true,
-          logarithmicDepthBuffer: false // Re-disable, some GPUs hate this
+          logarithmicDepthBuffer: false,
+          preserveDrawingBuffer: false,
         }}
         onCreated={({ scene }) => {
           scene.background = new THREE.Color('#f8fafc');
@@ -146,6 +293,7 @@ export default function Viewer3D() {
           </ModelErrorBoundary>
         </group>
         
+        <SegmentClickHandler onSegmentClick={setSelectedSegment} />
         <FocusCamera />
       </Canvas>
       

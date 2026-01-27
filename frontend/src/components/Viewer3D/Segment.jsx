@@ -1,107 +1,175 @@
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
-import { useLoader } from '@react-three/fiber';
+import { useLoader, useThree } from '@react-three/fiber';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader';
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader';
 import { getSegmentColor, SEGMENTS } from './medicalColors';
+import { useSceneStore } from '../../store';
+import { isInFrustum } from '../../utils/performanceUtils';
 
-/**
- * Component to load an individual segment (MTL + OBJ)
- */
+const BONE_KEYWORDS = ['clavicle', 'scapula', 'sternum', 'humerus', 'spinal-cord'];
+const SKIN_SEGMENT_NAME = 'segment_1';
+
+const RENDER_ORDER = {
+  BASE: 10,
+  BONE_OFFSET: 100,
+  SKIN: 200,
+};
+
+const MATERIAL_CONFIG = {
+  DEFAULT: {
+    roughness: 0.6,
+    metalness: 0.1,
+    side: THREE.DoubleSide,
+  },
+  SKIN: {
+    transparent: true,
+    opacity: 0.15,
+    depthWrite: false,
+    side: THREE.FrontSide,
+    roughness: 0.8,
+  },
+  BONE: {
+    color: '#ffffff',
+    roughness: 0.3,
+    metalness: 0.2,
+    emissive: '#ffffff',
+    emissiveIntensity: 0.1,
+  },
+  ORGAN: {
+    transparent: false,
+    opacity: 1.0,
+    depthWrite: true,
+    depthTest: true,
+    roughness: 0.5,
+    metalness: 0.05,
+    emissiveIntensity: 0.3,
+    emissiveMultiplier: 0.2,
+  },
+};
+
+function isBone(segmentName) {
+  return BONE_KEYWORDS.some((keyword) => segmentName.includes(keyword));
+}
+
+function calculateRenderOrder(segmentName, segmentIndex) {
+  if (segmentName === SKIN_SEGMENT_NAME) {
+    return RENDER_ORDER.SKIN;
+  }
+
+  let order = segmentIndex >= 0 ? segmentIndex + RENDER_ORDER.BASE : RENDER_ORDER.BASE;
+  if (isBone(segmentName)) {
+    order += RENDER_ORDER.BONE_OFFSET;
+  }
+
+  return order;
+}
+
+function createMaterial(segmentName, color) {
+  if (segmentName === SKIN_SEGMENT_NAME) {
+    return new THREE.MeshStandardMaterial({
+      ...MATERIAL_CONFIG.DEFAULT,
+      ...MATERIAL_CONFIG.SKIN,
+      color,
+    });
+  }
+
+  if (isBone(segmentName)) {
+    const boneMaterial = new THREE.MeshStandardMaterial({
+      ...MATERIAL_CONFIG.DEFAULT,
+      ...MATERIAL_CONFIG.BONE,
+    });
+    // Forcer la couleur blanche pour les os
+    boneMaterial.color.set('#ffffff');
+    boneMaterial.emissive.set('#ffffff');
+    return boneMaterial;
+  }
+
+  const emissiveColor = new THREE.Color(color);
+  emissiveColor.multiplyScalar(MATERIAL_CONFIG.ORGAN.emissiveMultiplier);
+
+  return new THREE.MeshStandardMaterial({
+    ...MATERIAL_CONFIG.DEFAULT,
+    ...MATERIAL_CONFIG.ORGAN,
+    color,
+    emissive: emissiveColor,
+  });
+}
+
+function applyMaterialToMesh(mesh, segmentName, color) {
+  if (!mesh.material) {
+    mesh.material = createMaterial(segmentName, color);
+    return;
+  }
+
+  const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+  materials.forEach(() => {
+    mesh.material = createMaterial(segmentName, color);
+  });
+}
+
+function configureMesh(mesh, segmentName, color) {
+  mesh.name = segmentName;
+  mesh.visible = true;
+
+  const segmentIndex = SEGMENTS.indexOf(segmentName);
+  mesh.renderOrder = calculateRenderOrder(segmentName, segmentIndex);
+
+  applyMaterialToMesh(mesh, segmentName, color);
+}
+
 export function Segment({ name, onLoad }) {
   const materials = useLoader(MTLLoader, `/models/segments/${name}.mtl`);
   const obj = useLoader(OBJLoader, `/models/segments/${name}.obj`, (loader) => {
     materials.preload();
     loader.setMaterials(materials);
   });
+  const { camera } = useThree();
+  const segmentVisibility = useSceneStore((s) => s.segmentVisibility);
+
+  const isUserVisible = useMemo(() => {
+    return segmentVisibility.get(name) !== false;
+  }, [name, segmentVisibility]);
+
+  const isInView = useMemo(() => {
+    if (!obj) {
+      return true;
+    }
+    return isInFrustum(obj, camera);
+  }, [obj, camera]);
 
   useEffect(() => {
-    if (obj) {
-      console.log(`[Segment] Loaded ${name}`);
-      const color = getSegmentColor(name);
-      
-      obj.traverse((child) => {
-        if (child.isMesh) {
-          child.name = name;
-          child.visible = true;
-          
-          const segmentIndex = SEGMENTS.indexOf(name);
-          let baseOrder = segmentIndex > -1 ? segmentIndex + 10 : 10;
-          
-          const isBone = name.includes('clavicle') || name.includes('scapula') || name.includes('sternum') || name.includes('humerus') || name.includes('spinal-cord');
-          if (isBone) baseOrder += 100;
-          
-          if (name === 'segment_1') baseOrder = 200;
-          
-          child.renderOrder = baseOrder;
-
-          if (child.material) {
-            const mats = Array.isArray(child.material) ? child.material : [child.material];
-            mats.forEach(m => {
-              // Convertir en MeshStandardMaterial pour un meilleur rendu des couleurs
-              const newMaterial = new THREE.MeshStandardMaterial({
-                color: color,
-                roughness: 0.6,
-                metalness: 0.1,
-                side: THREE.DoubleSide,
-              });
-              
-              if (name === 'segment_1') {
-                // Enveloppe/peau - transparente mais visible
-                newMaterial.transparent = true;
-                newMaterial.opacity = 0.15; // Légèrement plus visible
-                newMaterial.depthWrite = false;
-                newMaterial.side = THREE.FrontSide;
-                newMaterial.roughness = 0.8;
-              } else if (isBone) {
-                // Os - blanc brillant
-                newMaterial.color.set('#ffffff');
-                newMaterial.roughness = 0.3;
-                newMaterial.metalness = 0.2;
-                newMaterial.emissive.set('#ffffff');
-                newMaterial.emissiveIntensity = 0.1;
-              } else {
-                // Organes - couleurs vives et saturées
-                newMaterial.transparent = false;
-                newMaterial.opacity = 1.0;
-                newMaterial.depthWrite = true;
-                newMaterial.depthTest = true;
-                newMaterial.roughness = 0.5;
-                newMaterial.metalness = 0.05;
-                
-                // Ajouter une légère émission pour rendre les couleurs plus vives
-                const emissiveColor = new THREE.Color(color);
-                emissiveColor.multiplyScalar(0.2);
-                newMaterial.emissive.copy(emissiveColor);
-                newMaterial.emissiveIntensity = 0.3;
-                
-                m.polygonOffset = true;
-                m.polygonOffsetFactor = isBone ? -2 : 1;
-                m.polygonOffsetUnits = isBone ? -2 : 1;
-              }
-              
-              // Remplacer le matériau
-              child.material = newMaterial;
-            });
-            console.log(`[Segment] Updated materials for ${name} (color: ${color}, order: ${baseOrder})`);
-          } else {
-            // Créer un matériau si aucun n'existe
-            const color = getSegmentColor(name);
-            const newMaterial = new THREE.MeshStandardMaterial({
-              color: color,
-              roughness: 0.6,
-              metalness: 0.1,
-              side: THREE.DoubleSide,
-            });
-            child.material = newMaterial;
-            console.log(`[Segment] Created new material for ${name} (color: ${color})`);
-          }
-        }
-      });
-      
-      if (onLoad) onLoad(name);
+    if (!obj) {
+      return;
     }
-  }, [name, obj, onLoad]);
+
+    const color = getSegmentColor(name);
+
+    obj.traverse((child) => {
+      if (child.isMesh) {
+        configureMesh(child, name, color);
+        child.visible = isUserVisible && isInView;
+      }
+    });
+
+    onLoad?.(name);
+  }, [name, obj, onLoad, isUserVisible, isInView]);
+
+  useEffect(() => {
+    if (!obj) {
+      return;
+    }
+
+    obj.traverse((child) => {
+      if (child.isMesh) {
+        child.visible = isUserVisible && isInView;
+      }
+    });
+  }, [obj, isUserVisible, isInView]);
+
+  if (!isUserVisible) {
+    return null;
+  }
 
   return <primitive object={obj} />;
 }
