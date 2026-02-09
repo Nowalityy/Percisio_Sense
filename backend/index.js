@@ -5,8 +5,14 @@ import OpenAI from 'openai';
 
 dotenv.config();
 
+const DEFAULT_PORT = 4000;
+const MAX_MESSAGE_LENGTH = 100_000;
+const MOCK_DELAY_MS = 600;
+const OPENAI_MODEL_DEFAULT = 'gpt-4o';
+const LOG_MESSAGE_PREFIX_LENGTH = 50;
+
 const app = express();
-const PORT = process.env.PORT || 4000;
+const PORT = process.env.PORT || DEFAULT_PORT;
 
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : null;
 
@@ -153,9 +159,13 @@ function cleanText(text) {
   return text.toLowerCase().trim().replace(/[.,!?;:]/g, ' ');
 }
 
-function findDirectMatch(cleanText) {
+function findDirectMatch(normalizedText) {
   return SEGMENTS.find((segment) => {
-    return cleanText === segment || cleanText.includes(segment) || cleanText.includes(segment.replace(/-/g, ' '));
+    return (
+      normalizedText === segment ||
+      normalizedText.includes(segment) ||
+      normalizedText.includes(segment.replace(/-/g, ' '))
+    );
   });
 }
 
@@ -182,19 +192,19 @@ function extractOrgan(text) {
     return null;
   }
 
-  const clean = cleanText(text);
+  const normalized = cleanText(text);
 
-  const directMatch = findDirectMatch(clean);
+  const directMatch = findDirectMatch(normalized);
   if (directMatch) {
     return directMatch;
   }
 
-  const synonymMatch = findSynonymMatch(clean);
+  const synonymMatch = findSynonymMatch(normalized);
   if (synonymMatch) {
     return synonymMatch;
   }
 
-  return findCategoryMatch(clean);
+  return findCategoryMatch(normalized);
 }
 
 function isLocalhostOrigin(origin) {
@@ -249,7 +259,7 @@ function parseJsonResponse(content) {
 
 async function handleOpenAIRequest(message, detectedOrgan) {
   const completion = await openai.chat.completions.create({
-    model: process.env.OPENAI_MODEL || 'gpt-4o',
+    model: process.env.OPENAI_MODEL || OPENAI_MODEL_DEFAULT,
     messages: [
       { role: 'system', content: buildSystemPrompt() },
       { role: 'user', content: message },
@@ -275,7 +285,7 @@ async function handleOpenAIRequest(message, detectedOrgan) {
 }
 
 async function handleMockRequest(message, detectedOrgan) {
-  await new Promise((resolve) => setTimeout(resolve, 600));
+  await new Promise((resolve) => setTimeout(resolve, MOCK_DELAY_MS));
 
   const mockReply = detectedOrgan
     ? `(Mock) Vous avez mentionné l'organe: ${detectedOrgan}. Voici des informations sur cet organe.`
@@ -304,26 +314,49 @@ if (!openai) {
 }
 
 app.post('/chat', async (req, res) => {
-  const { message } = req.body || {};
-
-  console.log(`📨 Received request: ${message?.substring(0, 50)}...`);
+  const { message } = req.body ?? {};
 
   if (typeof message !== 'string') {
-    console.error('❌ Invalid message type:', typeof message);
     return res.status(400).json({ error: 'Message required' });
   }
 
-  const detectedOrgan = extractOrgan(message);
-  console.log(`🔍 Detected organ: ${detectedOrgan || 'none'}`);
+  const trimmed = message.trim();
+  if (trimmed.length === 0) {
+    return res.status(400).json({ error: 'Message must not be empty' });
+  }
+  if (trimmed.length > MAX_MESSAGE_LENGTH) {
+    return res.status(400).json({
+      error: `Message must not exceed ${MAX_MESSAGE_LENGTH} characters`,
+    });
+  }
+
+  const prefix =
+    trimmed.length <= LOG_MESSAGE_PREFIX_LENGTH
+      ? trimmed
+      : trimmed.substring(0, LOG_MESSAGE_PREFIX_LENGTH) + '…';
+  console.log(`📨 Request length=${trimmed.length} prefix="${prefix}"`);
+
+  const detectedOrgan = extractOrgan(trimmed);
+  console.log(`🔍 Detected organ: ${detectedOrgan ?? 'none'}`);
 
   try {
-    const result = openai
-      ? await handleOpenAIRequest(message, detectedOrgan)
-      : await handleMockRequest(message, detectedOrgan);
-
+    let result;
+    if (openai) {
+      try {
+        result = await handleOpenAIRequest(trimmed, detectedOrgan);
+      } catch (apiErr) {
+        console.warn(
+          'OpenAI API error (e.g. quota), falling back to mock:',
+          apiErr.message ?? apiErr.code
+        );
+        result = await handleMockRequest(trimmed, detectedOrgan);
+      }
+    } else {
+      result = await handleMockRequest(trimmed, detectedOrgan);
+    }
     return res.json(result);
   } catch (err) {
-    console.error('OpenAI Error:', err);
+    console.error('Chat error:', err.message ?? err);
     return res.status(500).json({ error: 'AI Error' });
   }
 });

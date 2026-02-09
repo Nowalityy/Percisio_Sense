@@ -7,8 +7,6 @@ import { SceneLights } from './SceneLights';
 import { ScannerModel } from './ScannerModel';
 import { FocusCamera } from './FocusCamera';
 import { SegmentFilterPanel } from './SegmentFilterPanel';
-import { SegmentInfoPanel } from './SegmentInfoPanel';
-import { SegmentClickHandler } from './SegmentClickHandler';
 import { createHistoryState, canNavigateBack, canNavigateForward } from '../../utils/historyManager';
 
 /**
@@ -25,8 +23,8 @@ function CanvasLoader({ current, total }) {
             style={{ width: `${progress}%` }}
           />
         </div>
-        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-500 bg-white/80 backdrop-blur-sm px-3 py-1 rounded-full shadow-sm border border-slate-100">
-          Chargement {current} / {total}
+        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-600 glass-btn px-3 py-1 rounded-full">
+          Loading {current} / {total}
         </div>
       </div>
     </Html>
@@ -44,8 +42,8 @@ class ModelErrorBoundary extends Component {
       return (
         <Html center>
           <div className="px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-900 max-w-md shadow-sm">
-            <p className="font-semibold">Erreur 3D</p>
-            <p className="text-xs text-red-700">Impossible de charger certains segments.</p>
+            <p className="font-semibold">3D Error</p>
+            <p className="text-xs text-red-700">Unable to load some segments.</p>
           </div>
         </Html>
       );
@@ -57,7 +55,7 @@ class ModelErrorBoundary extends Component {
 function InitialCameraAdjustment() {
   const { camera, scene } = useThree();
   useEffect(() => {
-    // Calculer le centre réel du modèle
+    // Calculate the real center of the model
     const calculateAndSetCamera = () => {
       const box = new THREE.Box3();
       let hasObjects = false;
@@ -72,16 +70,15 @@ function InitialCameraAdjustment() {
       if (hasObjects) {
         const center = box.getCenter(new THREE.Vector3());
         const size = box.getSize(new THREE.Vector3());
-        // Le centre du torse est environ au 1/3 supérieur du modèle
+        // The torso center is approximately at the upper third of the model
         const torsoCenterY = center.y + size.y * 0.15;
         
         const defaultZ = window.innerWidth < 768 ? 16 : 12;
         camera.position.set(center.x, torsoCenterY + 2, center.z + defaultZ);
         camera.lookAt(center.x, torsoCenterY, center.z);
         camera.updateProjectionMatrix();
-        console.log(`[InitialCamera] Set to center: (${center.x.toFixed(2)}, ${torsoCenterY.toFixed(2)}, ${center.z.toFixed(2)})`);
       } else {
-        // Fallback si le modèle n'est pas encore chargé
+        // Fallback if model is not yet loaded
         const defaultZ = window.innerWidth < 768 ? 16 : 12;
         camera.position.set(0, 0.8 + 2, defaultZ);
         camera.lookAt(0, 0.8, 0);
@@ -106,7 +103,6 @@ export default function Viewer3D() {
   const [rotation, setRotation] = useState({ x: 0, y: 0, z: 0 });
   const [isAutoSpinning, setIsAutoSpinning] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState({ current: 0, total: 38 });
-  const [selectedSegment, setSelectedSegment] = useState(null);
   
   const currentFocus = useSceneStore((s) => s.currentFocus);
   const segmentVisibility = useSceneStore((s) => s.segmentVisibility);
@@ -114,11 +110,14 @@ export default function Viewer3D() {
   const historyIndex = useSceneStore((s) => s.historyIndex);
   const addToHistory = useSceneStore((s) => s.addToHistory);
   const navigateHistory = useSceneStore((s) => s.navigateHistory);
+  const historyPushRequest = useSceneStore((s) => s.historyPushRequest);
 
-  // useCallback to keep ScannerModel memo stable
-  const handleProgress = useRef((curr, tot) => {
+  const isRestoringRef = useRef(false);
+  const prevStateRef = useRef({ focus: currentFocus, visibility: segmentVisibility });
+
+  const handleProgress = useCallback((curr, tot) => {
     setLoadingProgress({ current: curr, total: tot });
-  }).current;
+  }, []);
 
   const handleRotate = (dir) => {
     const step = Math.PI / 8;
@@ -149,25 +148,29 @@ export default function Viewer3D() {
     clearFocus();
   };
 
-  const handleHistoryNavigation = useCallback(
-    (direction) => {
-      navigateHistory(direction);
-      const state = navigationHistory[historyIndex + (direction === 'back' ? -1 : 1)];
-      if (state) {
-        if (state.focus) {
-          useSceneStore.getState().setFocus(state.focus);
-        } else {
-          useSceneStore.getState().clearFocus();
-        }
-        if (state.segmentVisibility) {
-          state.segmentVisibility.forEach((visible, name) => {
-            useSceneStore.getState().setSegmentVisibility(name, visible);
-          });
-        }
-      }
-    },
-    [navigateHistory, navigationHistory, historyIndex]
-  );
+  const handleHistoryNavigation = useCallback((direction) => {
+    const store = useSceneStore.getState();
+    const idx = store.historyIndex;
+    const history = store.navigationHistory;
+    const targetIndex = direction === 'back' ? idx - 1 : idx + 1;
+    const state = history[targetIndex];
+    if (state == null) return;
+    isRestoringRef.current = true;
+    store.navigateHistory(direction);
+    if (state.focus != null) {
+      store.setFocus(state.focus);
+    } else {
+      store.clearFocus();
+    }
+    if (state.segmentVisibility && typeof state.segmentVisibility.forEach === 'function') {
+      state.segmentVisibility.forEach((visible, name) => {
+        useSceneStore.getState().setSegmentVisibility(name, visible);
+      });
+    }
+    if (state.cameraState != null) {
+      useSceneStore.getState().setPendingCameraRestore(state.cameraState);
+    }
+  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -189,30 +192,62 @@ export default function Viewer3D() {
   }, [historyIndex, navigationHistory.length, handleHistoryNavigation]);
 
   const saveToHistory = useCallback(() => {
-    const cameraState = null;
+    const cameraState = useSceneStore.getState().getCameraState?.() ?? null;
     const historyState = createHistoryState(currentFocus, segmentVisibility, cameraState);
     addToHistory(historyState);
   }, [currentFocus, segmentVisibility, addToHistory]);
 
+  // Initial save when no history yet (deferred so FocusCamera has set getCameraState)
   useEffect(() => {
-    if (historyIndex < 0) {
-      saveToHistory();
+    if (historyIndex >= 0) return;
+    const id = requestAnimationFrame(() => {
+      if (useSceneStore.getState().historyIndex >= 0) return;
+      const cameraState = useSceneStore.getState().getCameraState?.() ?? null;
+      const state = useSceneStore.getState();
+      const historyState = createHistoryState(
+        state.currentFocus,
+        state.segmentVisibility,
+        cameraState
+      );
+      useSceneStore.getState().addToHistory(historyState);
+    });
+    return () => cancelAnimationFrame(id);
+  }, [historyIndex]);
+
+  // Save a new history entry when user changes focus or segment visibility (not when restoring)
+  useEffect(() => {
+    if (historyIndex < 0) return;
+    if (isRestoringRef.current) {
+      isRestoringRef.current = false;
+      prevStateRef.current = { focus: currentFocus, visibility: segmentVisibility };
+      return;
     }
-  }, [saveToHistory, historyIndex]);
+    const prev = prevStateRef.current;
+    const focusChanged = prev.focus !== currentFocus;
+    const visibilityChanged = prev.visibility !== segmentVisibility;
+    if (!focusChanged && !visibilityChanged) return;
+    prevStateRef.current = { focus: currentFocus, visibility: segmentVisibility };
+    saveToHistory();
+  }, [currentFocus, segmentVisibility, historyIndex, saveToHistory]);
+
+  // Save when user finishes moving the camera (orbit/pan/zoom)
+  useEffect(() => {
+    if (historyIndex < 0 || !historyPushRequest) return;
+    saveToHistory();
+  }, [historyPushRequest, historyIndex, saveToHistory]);
 
   return (
-    <div className="w-full h-full bg-[#f8fafc] overflow-hidden relative group">
+    <div className="w-full h-full bg-slate-100 overflow-hidden relative group">
       <SegmentFilterPanel />
-      {selectedSegment && (
-        <SegmentInfoPanel segmentName={selectedSegment} onClose={() => setSelectedSegment(null)} />
-      )}
       {/* History Navigation */}
       <div className="absolute top-4 left-4 z-30 flex items-center gap-2">
         <button
+          type="button"
           onClick={() => handleHistoryNavigation('back')}
           disabled={!canNavigateBack(historyIndex)}
-          className="px-3 py-2 bg-white rounded-lg shadow-md border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 text-sm font-medium text-gray-700"
-          title="Précédent (Ctrl+Z)"
+          className="glass-btn px-3 py-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm font-medium text-slate-700"
+          title="Previous (Ctrl+Z)"
+          aria-label="Previous view"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -230,10 +265,12 @@ export default function Viewer3D() {
           </svg>
         </button>
         <button
+          type="button"
           onClick={() => handleHistoryNavigation('forward')}
           disabled={!canNavigateForward(historyIndex, navigationHistory.length)}
-          className="px-3 py-2 bg-white rounded-lg shadow-md border border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2 text-sm font-medium text-gray-700"
-          title="Suivant (Ctrl+Shift+Z)"
+          className="glass-btn px-3 py-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm font-medium text-slate-700"
+          title="Next (Ctrl+Shift+Z)"
+          aria-label="Next view"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -254,8 +291,10 @@ export default function Viewer3D() {
       {/* Reset Focus Overlay */}
       {currentFocus && (
         <button
+          type="button"
           onClick={handleCancelFocus}
-          className="absolute top-6 right-6 z-30 px-3 py-1.5 rounded-full bg-red-500/90 hover:bg-red-600 text-white text-[10px] font-bold uppercase tracking-wider backdrop-blur-md transition-all shadow-lg shadow-red-500/20 active:scale-95"
+          className="absolute top-6 right-6 z-30 glass-btn px-3 py-1.5 rounded-full bg-red-500/90 hover:!bg-red-600 text-white text-[10px] font-bold uppercase tracking-wider border-red-400/50 active:scale-95"
+          aria-label="Reset focus"
         >
           ✕ Reset Focus
         </button>
@@ -293,13 +332,12 @@ export default function Viewer3D() {
           </ModelErrorBoundary>
         </group>
         
-        <SegmentClickHandler onSegmentClick={setSelectedSegment} />
         <FocusCamera />
       </Canvas>
       
       {/* Floating Control Bar */}
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20">
-        <div className="flex items-center gap-1 p-1.5 bg-white/60 backdrop-blur-2xl rounded-2xl border border-white/40 shadow-xl overflow-hidden">
+        <div className="flex items-center gap-1 p-1.5 glass-btn rounded-2xl overflow-hidden">
           <CompactButton onClick={() => handleRotate('reset')} title="Reset" icon={<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>} />
           <div className="w-px h-4 bg-slate-400/20 mx-0.5" />
           <CompactButton onClick={handleFlip} title="Flip" icon={<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m17 2 4 4-4 4"/><path d="M3 18v-2c0-4.4 3.6-8 8-8h10"/><path d="m7 22-4-4 4-4"/><path d="M21 6v2c0 4.4-3.6 8-8 8H3"/></svg>} />
@@ -317,9 +355,11 @@ export default function Viewer3D() {
           </div>
           <div className="w-px h-4 bg-slate-400/20 mx-0.5" />
           <button
+            type="button"
             onClick={toggleAutoSpin}
             className={`p-2.5 rounded-xl transition-all active:scale-90 ${isAutoSpinning ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/40 animate-pulse' : 'hover:bg-slate-100 text-slate-500'}`}
-            title="Auto-Rotation"
+            title="Auto-rotation"
+            aria-label={isAutoSpinning ? 'Stop auto-rotation' : 'Start auto-rotation'}
           >
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
           </button>
@@ -328,10 +368,10 @@ export default function Viewer3D() {
 
       {/* Control Hint Overlay */}
       <div className="absolute bottom-4 left-4 pointer-events-none transition-opacity duration-300 opacity-0 group-hover:opacity-100 hidden md:block">
-        <div className="bg-white/80 backdrop-blur-md px-3 py-2 rounded-lg border border-slate-200 shadow-sm text-[10px] text-slate-500 uppercase tracking-wider font-semibold space-y-1">
-          <p>🖱️ Rotation : Clic Gauche</p>
-          <p>🖐️ Déplacement : Clic Droit</p>
-          <p>🔍 Zoom : Molette</p>
+        <div className="glass-btn px-3 py-2 rounded-xl text-[10px] text-slate-600 uppercase tracking-wider font-semibold space-y-1">
+          <p>🖱️ Rotation: Left Click</p>
+          <p>🖐️ Pan: Right Click</p>
+          <p>🔍 Zoom: Scroll Wheel</p>
         </div>
       </div>
     </div>
@@ -341,9 +381,11 @@ export default function Viewer3D() {
 function CompactButton({ onClick, icon, title }) {
   return (
     <button
+      type="button"
       onClick={onClick}
-      className="p-2.5 rounded-xl hover:bg-slate-200 text-slate-600 transition-all active:scale-95 flex items-center justify-center translate-y-0"
+      className="glass-btn p-2.5 rounded-xl text-slate-600 active:scale-95 flex items-center justify-center"
       title={title}
+      aria-label={title}
     >
       {icon}
     </button>

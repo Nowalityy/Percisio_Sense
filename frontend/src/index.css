@@ -1,12 +1,12 @@
 @import 'tailwindcss';
 
 @theme {
-  --color-background: #ffffff;
+  --color-background: #f1f5f9;
   --color-panel: #f8f9fa;
   --color-accent: #2563eb;
-  --color-text: #1f2937;
-  --color-text-secondary: #6b7280;
-  --color-border: #e5e7eb;
+  --color-text: #1e293b;
+  --color-text-secondary: #64748b;
+  --color-border: #e2e8f0;
 }
 
 html,
@@ -20,4 +20,18 @@ body {
   font-family: 'Noto Sans', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* iPhone-style glass: for buttons, inputs, pills only (not big panels) */
+.glass-btn {
+  @apply bg-white/75 backdrop-blur-xl border border-white/50 shadow-sm;
+}
+.glass-btn:hover {
+  @apply bg-white/90;
+}
+.glass-input {
+  @apply bg-white/70 backdrop-blur-md border border-white/40 shadow-inner;
+}
+.glass-input:focus {
+  @apply border-accent/50 bg-white/90 outline-none ring-2 ring-accent/20;
 }

@@ -1,14 +1,13 @@
 import { useSceneStore } from '../../store';
-import { focusOnOrgan } from '../Viewer3D.jsx';
-import { SEGMENTS } from '../Viewer3D/medicalColors';
+import { focusOnOrgan } from '../../utils/viewerUtils.js';
 
 const QUICK_ACTIONS = [
-  { label: 'Cœur', focus: 'heart', icon: '❤️' },
-  { label: 'Foie', focus: 'liver', icon: '🫀' },
-  { label: 'Poumons', focus: 'lung', icon: '🫁' },
-  { label: 'Estomac', focus: 'stomach', icon: '🍽️' },
-  { label: 'Squelette', focus: 'clavicle', icon: '🦴' },
-  { label: 'Vaisseaux', focus: 'artery', icon: '🩸' },
+  { label: 'Heart', focus: 'heart', icon: '❤️' },
+  { label: 'Liver', focus: 'liver', icon: '🫀' },
+  { label: 'Lungs', focus: 'lung', icon: '🫁' },
+  { label: 'Stomach', focus: 'stomach', icon: '🍽️' },
+  { label: 'Skeleton', focus: 'clavicle', icon: '🦴' },
+  { label: 'Vessels', focus: 'artery', icon: '🩸' },
 ];
 
 export function QuickActions() {
@@ -20,14 +19,14 @@ export function QuickActions() {
   };
 
   return (
-    <div className="px-3 py-2 border-b border-gray-200 bg-gray-50">
-      <div className="text-xs text-gray-500 mb-2 font-medium">Actions rapides:</div>
+    <div className="px-3 py-2 border-b border-border bg-slate-50">
+      <div className="text-xs text-text-secondary mb-2 font-medium">Quick actions:</div>
       <div className="flex flex-wrap gap-2">
         {QUICK_ACTIONS.map((action) => (
           <button
             key={action.focus}
             onClick={() => handleQuickAction(action.focus)}
-            className="px-2.5 py-1.5 text-xs bg-white border border-gray-200 rounded-lg hover:bg-accent hover:text-white hover:border-accent transition-colors flex items-center gap-1.5"
+            className="glass-btn px-2.5 py-1.5 text-xs rounded-xl hover:!bg-accent hover:!text-white hover:!border-accent/30 transition-colors flex items-center gap-1.5"
           >
             <span>{action.icon}</span>
             <span>{action.label}</span>

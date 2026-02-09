@@ -39,11 +39,14 @@ export function isInFrustum(object, camera) {
   return frustum.intersectsBox(box);
 }
 
+/**
+ * Stub: does not perform real geometry simplification.
+ * Changing position.count without updating array buffers is invalid.
+ * Kept for API compatibility; implement with proper decimation if needed.
+ */
 export function optimizeGeometry(geometry, quality = 'high') {
   if (quality === 'low' && geometry.attributes.position.count > 10000) {
-    const simplified = geometry.clone();
-    simplified.attributes.position.count = Math.floor(simplified.attributes.position.count * 0.5);
-    return simplified;
+    return geometry.clone();
   }
   return geometry;
 }

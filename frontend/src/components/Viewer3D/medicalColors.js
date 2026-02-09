@@ -2,49 +2,49 @@
  * Realistic medical color palette - Enhanced with vibrant colors
  */
 export const MEDICAL_COLORS = {
-  // Organes principaux
-  'heart': '#dc2626', // Rouge vif pour le cœur
-  'liver': '#a16207', // Marron/brun pour le foie
-  'lung': '#ec4899', // Rose pour les poumons
-  'stomach': '#f97316', // Orange pour l'estomac
-  'pancreas': '#eab308', // Jaune vif pour le pancréas
-  'spleen': '#991b1b', // Rouge foncé pour la rate
-  'thyroid': '#f472b6', // Rose pour la thyroïde
-  'kidney': '#059669', // Vert pour les reins
-  'adrenal': '#fbbf24', // Jaune pour les glandes surrénales
+  // Main organs
+  'heart': '#dc2626', // Bright red for heart
+  'liver': '#a16207', // Brown for liver
+  'lung': '#ec4899', // Pink for lungs
+  'stomach': '#f97316', // Orange for stomach
+  'pancreas': '#eab308', // Bright yellow for pancreas
+  'spleen': '#991b1b', // Dark red for spleen
+  'thyroid': '#f472b6', // Pink for thyroid
+  'kidney': '#059669', // Green for kidneys
+  'adrenal': '#fbbf24', // Yellow for adrenal glands
   
-  // Système circulatoire
-  'aorta': '#dc2626', // Rouge pour l'aorte
-  'artery': '#ef4444', // Rouge clair pour les artères
-  'vein': '#3b82f6', // Bleu pour les veines
-  'inferior-vena-cava': '#2563eb', // Bleu foncé pour la veine cave inférieure
-  'superior-vena-cava': '#3b82f6', // Bleu clair pour la veine cave supérieure
-  'brachiocephalic-trunk': '#f59e0b', // Orange pour le tronc brachiocéphalique
-  'subclavian-artery': '#ef4444', // Rouge pour les artères sous-clavières
-  'common-carotid-artery': '#dc2626', // Rouge pour les artères carotides
-  'brachiocephalic-vein': '#60a5fa', // Bleu clair pour les veines brachiocéphaliques
-  'pulmonary': '#38bdf8', // Bleu ciel pour le système pulmonaire
-  'pulmonary-venous-system': '#38bdf8', // Bleu ciel pour le système veineux pulmonaire
-  'portal-vein-and-splenic-vein': '#2563eb', // Bleu pour les veines porte et splénique
-  'atrial-appendage': '#dc2626', // Rouge pour l'appendice auriculaire
+  // Circulatory system
+  'aorta': '#dc2626', // Red for aorta
+  'artery': '#ef4444', // Light red for arteries
+  'vein': '#3b82f6', // Blue for veins
+  'inferior-vena-cava': '#2563eb', // Dark blue for inferior vena cava
+  'superior-vena-cava': '#3b82f6', // Light blue for superior vena cava
+  'brachiocephalic-trunk': '#f59e0b', // Orange for brachiocephalic trunk
+  'subclavian-artery': '#ef4444', // Red for subclavian arteries
+  'common-carotid-artery': '#dc2626', // Red for carotid arteries
+  'brachiocephalic-vein': '#60a5fa', // Light blue for brachiocephalic veins
+  'pulmonary': '#38bdf8', // Sky blue for pulmonary system
+  'pulmonary-venous-system': '#38bdf8', // Sky blue for pulmonary venous system
+  'portal-vein-and-splenic-vein': '#2563eb', // Blue for portal and splenic veins
+  'atrial-appendage': '#dc2626', // Red for atrial appendage
   
-  // Système respiratoire
-  'trachea': '#cbd5e1', // Gris clair pour la trachée
-  'esophagus': '#fda4af', // Rose pâle pour l'œsophage
+  // Respiratory system
+  'trachea': '#cbd5e1', // Light gray for trachea
+  'esophagus': '#fda4af', // Pale pink for esophagus
   
-  // Système squelettique
-  'clavicle': '#ffffff', // Blanc pour les clavicules
-  'scapula': '#f8fafc', // Blanc cassé pour les omoplates
-  'humerus': '#f1f5f9', // Blanc cassé pour les humérus
-  'sternum': '#ffffff', // Blanc pour le sternum
-  'spinal-cord': '#e2e8f0', // Gris clair pour la moelle épinière
+  // Skeletal system
+  'clavicle': '#ffffff', // White for clavicles
+  'scapula': '#f8fafc', // Off-white for scapulae
+  'humerus': '#f1f5f9', // Off-white for humerus
+  'sternum': '#ffffff', // White for sternum
+  'spinal-cord': '#e2e8f0', // Light gray for spinal cord
   
   // Muscles
-  'muscle': '#991b1b', // Rouge brun pour les muscles
-  'deep-back-muscle': '#7f1d1d', // Rouge foncé pour les muscles profonds du dos
+  'muscle': '#991b1b', // Red-brown for muscles
+  'deep-back-muscle': '#7f1d1d', // Dark red for deep back muscles
   
-  // Enveloppe/Peau
-  'segment_1': '#f9dfc5', // Beige/peau pour l'enveloppe
+  // Envelope/Skin
+  'segment_1': '#f9dfc5', // Beige/skin for envelope
 };
 
 export const getSegmentColor = (name) => {
@@ -75,12 +75,12 @@ export const getSegmentColor = (name) => {
     'right-adrenal-gland': MEDICAL_COLORS['adrenal'],
   };
   
-  // Vérifier d'abord les correspondances spécifiques
+  // Check specific matches first
   if (specificMatches[lowerName]) {
     return specificMatches[lowerName];
   }
   
-  // Ensuite chercher par correspondance partielle (ordre de priorité)
+  // Then search by partial match (priority order)
   const priorityOrder = [
     'heart', 'liver', 'lung', 'stomach', 'pancreas', 'spleen', 'thyroid',
     'aorta', 'artery', 'vein', 'vena-cava', 'brachiocephalic', 'subclavian',
@@ -97,7 +97,7 @@ export const getSegmentColor = (name) => {
     }
   }
   
-  // Recherche générale dans toutes les couleurs
+  // General search in all colors
   for (const [key, color] of Object.entries(MEDICAL_COLORS)) {
     if (lowerName.includes(key)) return color;
   }

@@ -44,7 +44,6 @@ const MATERIAL_CONFIG = {
     roughness: 0.5,
     metalness: 0.05,
     emissiveIntensity: 0.3,
-    emissiveMultiplier: 0.2,
   },
 };
 
@@ -79,21 +78,23 @@ function createMaterial(segmentName, color) {
       ...MATERIAL_CONFIG.DEFAULT,
       ...MATERIAL_CONFIG.BONE,
     });
-    // Forcer la couleur blanche pour les os
+    // Force white color for bones
     boneMaterial.color.set('#ffffff');
     boneMaterial.emissive.set('#ffffff');
     return boneMaterial;
   }
 
   const emissiveColor = new THREE.Color(color);
-  emissiveColor.multiplyScalar(MATERIAL_CONFIG.ORGAN.emissiveMultiplier);
+  emissiveColor.multiplyScalar(0.2); // Emissive multiplier
 
-  return new THREE.MeshStandardMaterial({
+  const material = new THREE.MeshStandardMaterial({
     ...MATERIAL_CONFIG.DEFAULT,
     ...MATERIAL_CONFIG.ORGAN,
     color,
     emissive: emissiveColor,
   });
+
+  return material;
 }
 
 function applyMaterialToMesh(mesh, segmentName, color) {

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { subscribeWithSelector } from 'zustand/middleware';
+import { MAX_HISTORY_SIZE } from './utils/historyManager';
 
 /**
  * Global store for the 3D scene and Chat.
@@ -15,6 +16,19 @@ export const useSceneStore = create(
     navigationHistory: [],
     historyIndex: -1,
     conversationHistory: [],
+
+    // Camera state: getter is set by FocusCamera so history can capture current view
+    getCameraState: null,
+    setGetCameraState: (fn) => set({ getCameraState: fn }),
+
+    // When navigating history, set this to the entry's cameraState; FocusCamera applies then clears
+    pendingCameraRestore: null,
+    setPendingCameraRestore: (state) => set({ pendingCameraRestore: state }),
+
+    // Incremented when camera interaction ends so Viewer3D can push current view to history
+    historyPushRequest: 0,
+    requestHistoryPush: () =>
+      set((s) => ({ historyPushRequest: (s.historyPushRequest || 0) + 1 })),
 
     setFocus: (organKey) =>
       set({
@@ -60,7 +74,7 @@ export const useSceneStore = create(
           newHistory.splice(current.historyIndex + 1);
         }
         newHistory.push(state);
-        if (newHistory.length > 50) {
+        if (newHistory.length > MAX_HISTORY_SIZE) {
           newHistory.shift();
         }
         return {

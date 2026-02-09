@@ -1,16 +1,88 @@
-# React + Vite
+# Percisio Sense
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Medical 3D visualization and AI assistant application for analyzing anatomical structures.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **3D Medical Model Viewer**: Interactive 3D visualization of anatomical segments
+- **AI Chatbot**: Medical assistant powered by OpenAI GPT-4
+- **Segment Filtering**: Show/hide specific anatomical structures
+- **Navigation History**: Undo/redo camera movements and filters
+- **Segment Information**: Detailed statistics on anatomical structures
+- **Quick Actions**: Fast access to common organs
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **Frontend**: React, Three.js, React Three Fiber, Zustand
+- **Backend**: Node.js, Express, OpenAI API
+- **Styling**: Tailwind CSS
 
-## Expanding the ESLint configuration
+## Getting Started
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+### Prerequisites
+
+- Node.js 18+
+- npm or yarn
+
+### Installation
+
+```bash
+# Install frontend dependencies
+cd frontend
+npm install
+
+# Install backend dependencies
+cd ../backend
+npm install
+```
+
+### Environment Variables
+
+Create a `.env` file in the `backend` directory:
+
+```env
+OPENAI_API_KEY=your_api_key_here
+PORT=4000
+```
+
+### Running the Application
+
+```bash
+# Start backend (from backend directory)
+npm run dev
+
+# Start frontend (from frontend directory)
+npm run dev
+```
+
+The application will be available at `http://localhost:5173` (or the port shown by Vite).
+
+## Project Structure
+
+```
+frontend/
+├── src/
+│   ├── components/
+│   │   ├── Viewer3D/      # 3D viewer components
+│   │   └── Chatbot/       # Chat interface components
+│   ├── utils/              # Utility functions
+│   └── store.js            # Zustand state management
+└── public/
+    └── models/
+        └── segments/       # OBJ/MTL segment files
+
+backend/
+└── index.js                # Express server and OpenAI integration
+```
+
+## Build
+
+```bash
+# Build frontend for production
+cd frontend
+npm run build
+```
+
+## License
+
+ISC
