@@ -22,5 +22,5 @@ export function applyCameraState(camera, controls, state) {
   if (state.zoom != null) camera.zoom = state.zoom;
   if (state.fov != null) camera.fov = state.fov;
   camera.updateProjectionMatrix();
-  controls.update();
+  if (typeof controls.update === 'function') controls.update();
 }

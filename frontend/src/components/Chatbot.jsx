@@ -77,6 +77,55 @@ function MessageBubble({ from, text }) {
   );
 }
 
+function CardItem({ card, isRisk = false }) {
+  const title = card?.title ?? '';
+  const content = card?.content ?? card?.text ?? '';
+  const [open, setOpen] = useState(false);
+  const lines = content ? content.trim().split(/\r?\n/) : [];
+  const bulletLines = lines.filter((l) => l.startsWith('- '));
+  const isBulletList = bulletLines.length > 0 && bulletLines.length >= lines.length * 0.5;
+
+  return (
+    <li
+      className={`border-b border-border/50 pb-3 last:border-0 last:pb-0 ${isRisk ? 'pl-3 border-l-4 border-l-amber-500 bg-amber-50/40 rounded-r-md -mx-0.5' : ''}`}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="text-left w-full font-medium text-text flex items-center justify-between gap-2 py-0.5"
+        title={content || undefined}
+      >
+        <span className="truncate flex items-center gap-1.5">
+          {isRisk && (
+            <span className="shrink-0 text-amber-600" aria-hidden="true" title="Risk flags">
+              ⚠
+            </span>
+          )}
+          {title}
+        </span>
+        <span className="text-text-secondary shrink-0">{open ? '−' : '+'}</span>
+      </button>
+      {open && content && (
+        <div className="mt-2 text-xs text-text-secondary space-y-1">
+          {isBulletList ? (
+            <ul className="list-disc list-inside space-y-0.5 pl-0.5">
+              {bulletLines.map((line, i) => (
+                <li key={i} className="leading-relaxed">
+                  {line.slice(2).trim() || line}
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <pre className="whitespace-pre-wrap break-words font-sans leading-relaxed">
+              {content}
+            </pre>
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
 function LoadingIndicator() {
   return (
     <div className="flex justify-start" aria-live="polite" aria-busy="true">
@@ -88,6 +137,7 @@ function LoadingIndicator() {
             style={{ animationDelay: `${delay}s` }}
           />
         ))}
+        <span className="text-text-secondary text-xs">Analyzing…</span>
       </div>
     </div>
   );
@@ -103,11 +153,16 @@ function createMessage(from, text) {
   };
 }
 
-async function sendChatRequest(message) {
+async function sendChatRequest(message, reportText = null) {
+  const body = { message };
+  const raw = reportText != null && typeof reportText === 'string' ? reportText.trim() : '';
+  if (raw.length > 0) {
+    body.reportText = raw;
+  }
   const response = await fetch(BACKEND_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message }),
+    body: JSON.stringify(body),
   });
 
   if (!response.ok) {
@@ -130,6 +185,8 @@ export default function Chatbot() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [lastError, setLastError] = useState(null);
+  const [lastCards, setLastCards] = useState([]);
+  const [lastMeta, setLastMeta] = useState(null);
 
   const setFocus = useSceneStore((s) => s.setFocus);
   const setLastReply = useSceneStore((s) => s.setLastReply);
@@ -144,6 +201,19 @@ export default function Chatbot() {
       }
     },
     [setFocus]
+  );
+
+  const runUiActions = useCallback(
+    (uiActions) => {
+      if (!Array.isArray(uiActions)) return;
+      for (const action of uiActions) {
+        if (action?.type === 'FOCUS_ORGAN' && action.organ) {
+          handleFocus(action.organ);
+        }
+        // TOGGLE_LAYER can be wired later if needed
+      }
+    },
+    [handleFocus]
   );
 
   const addMessage = useCallback(
@@ -166,23 +236,30 @@ export default function Chatbot() {
       const prompt = AUTO_SUMMARY_PROMPT_PREFIX + analyzedReport;
 
       try {
-        const data = await sendChatRequest(prompt);
-        const { reply, focus } = data;
-
-        addMessage('assistant', reply ?? FALLBACK_REPLY_SUMMARY);
-        setLastReply(reply ?? '');
-        handleFocus(focus);
+        const reportPayload =
+          typeof analyzedReport === 'string' && analyzedReport.trim().length > 0
+            ? analyzedReport.trim()
+            : null;
+        const data = await sendChatRequest(prompt, reportPayload);
+        const answer = data?.answer ?? data?.reply ?? FALLBACK_REPLY_SUMMARY;
+        addMessage('assistant', answer);
+        setLastReply(answer);
+        setLastCards(Array.isArray(data?.cards) ? data.cards : []);
+        setLastMeta(data?._meta ?? null);
+        runUiActions(data?.uiActions);
       } catch (err) {
         console.error(err);
         setLastError('report');
         addMessage('assistant', ERROR_REPORT_ANALYSIS);
+        setLastCards([]);
+        setLastMeta(null);
       } finally {
         setIsLoading(false);
       }
     };
 
     autoSummarize();
-  }, [analyzedReport, addMessage, setLastReply, handleFocus]);
+  }, [analyzedReport, addMessage, setLastReply, runUiActions]);
 
   const sendMessage = async (e) => {
     e?.preventDefault();
@@ -196,22 +273,35 @@ export default function Chatbot() {
     setInput('');
     setIsLoading(true);
 
-    useSceneStore.getState().clearFocus();
+    // Do not clear focus on send — keeps camera stable; user can use "Reset view" in 3D to recenter
 
     const messageToSend = buildMessageWithContext(trimmed, analyzedReport);
 
     setLastError(null);
     try {
-      const data = await sendChatRequest(messageToSend);
-      const { reply, focus } = data;
-
-      addMessage('assistant', reply ?? FALLBACK_REPLY_EMPTY);
-      setLastReply(reply ?? '');
-      handleFocus(focus);
+      const reportPayload =
+        typeof analyzedReport === 'string' && analyzedReport.trim().length > 0
+          ? analyzedReport.trim()
+          : null;
+      const data = await sendChatRequest(messageToSend, reportPayload);
+      const answer = data?.answer ?? data?.reply ?? FALLBACK_REPLY_EMPTY;
+      const hasFocusOnlyAction =
+        Array.isArray(data?.uiActions) &&
+        data.uiActions.some((a) => a?.type === 'FOCUS_ORGAN' && a.organ);
+      const isEmptyReply = typeof answer === 'string' && !answer.trim();
+      if (!(hasFocusOnlyAction && isEmptyReply)) {
+        addMessage('assistant', answer);
+      }
+      setLastReply(answer);
+      setLastCards(Array.isArray(data?.cards) ? data.cards : []);
+      setLastMeta(data?._meta ?? null);
+      runUiActions(data?.uiActions);
     } catch (err) {
       console.error(err);
       setLastError('connection');
       addMessage('assistant', ERROR_CONNECTION);
+      setLastCards([]);
+      setLastMeta(null);
     } finally {
       setIsLoading(false);
     }
@@ -235,21 +325,77 @@ export default function Chatbot() {
       </div>
       <div className="px-3 py-2 border-b border-border flex items-center justify-between gap-2 bg-slate-50 shrink-0">
         <QuickActions />
-        {lastError === 'connection' && (
-          <button type="button" onClick={() => setLastError(null)} className="text-xs text-accent hover:underline shrink-0">
-            Dismiss
-          </button>
-        )}
-        {lastError === 'report' && analyzedReport && (
-          <button type="button" onClick={retryReportAnalysis} className="text-xs text-accent hover:underline shrink-0">
-            Retry analysis
-          </button>
-        )}
       </div>
       <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent" role="log" aria-live="polite">
+        {lastError === 'report' && analyzedReport && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 flex items-center justify-between gap-2 flex-wrap">
+            <p className="text-sm text-amber-800">
+              Report analysis failed. You can retry or keep asking questions with the report in context.
+            </p>
+            <button
+              type="button"
+              onClick={retryReportAnalysis}
+              className="text-xs font-medium px-3 py-1.5 rounded-lg bg-amber-200 text-amber-900 hover:bg-amber-300 transition-colors shrink-0"
+            >
+              Retry analysis
+            </button>
+          </div>
+        )}
+        {lastError === 'connection' && (
+          <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 flex items-center justify-between gap-2 flex-wrap">
+            <p className="text-sm text-red-800">
+              Could not reach the assistant. Check that the backend is running and try again.
+            </p>
+            <button
+              type="button"
+              onClick={() => setLastError(null)}
+              className="text-xs font-medium px-3 py-1.5 rounded-lg bg-red-200 text-red-900 hover:bg-red-300 transition-colors shrink-0"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
         {messages.map((m) => (
           <MessageBubble key={m.id} from={m.from} text={m.text} />
         ))}
+        {lastCards.length > 0 && (
+          <div className="rounded-xl border border-border bg-slate-50 p-3 space-y-3">
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
+                Findings by organ
+                {(() => {
+                  const findingsCount = lastCards.filter((c) => c.id !== 'card-risks').length;
+                  if (findingsCount > 0) return ` (${findingsCount})`;
+                  return '';
+                })()}
+              </span>
+              {lastMeta?.cardsFrom === 'fallback' && (
+                <span
+                  className="text-[10px] px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 font-medium"
+                  title="Cards were generated using local fallback (MCP unavailable)."
+                >
+                  Local summary
+                </span>
+              )}
+            </div>
+            <ul className="text-sm text-text space-y-1">
+              {lastCards.map((c) => (
+                <CardItem
+                  key={c.id ?? c.title ?? c.content}
+                  card={c}
+                  isRisk={c.id === 'card-risks'}
+                />
+              ))}
+            </ul>
+          </div>
+        )}
+        {!analyzedReport && lastCards.length === 0 && !isLoading && (
+          <div className="rounded-xl border border-dashed border-border bg-slate-50/60 px-4 py-3">
+            <p className="text-sm text-text-secondary">
+              Upload a report to display findings by organ.
+            </p>
+          </div>
+        )}
         {isLoading && <LoadingIndicator />}
       </div>
 

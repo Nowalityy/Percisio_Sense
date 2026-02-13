@@ -98,9 +98,11 @@ function App() {
                 </button>
               </div>
             </div>
-            <Suspense fallback={<ChatbotFallback />}>
-              <Chatbot />
-            </Suspense>
+            <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
+              <Suspense fallback={<ChatbotFallback />}>
+                <Chatbot />
+              </Suspense>
+            </div>
           </div>
         </section>
       </main>

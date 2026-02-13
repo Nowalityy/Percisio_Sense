@@ -25,6 +25,10 @@ export const useSceneStore = create(
     pendingCameraRestore: null,
     setPendingCameraRestore: (state) => set({ pendingCameraRestore: state }),
 
+    // Default camera state (position + target) for "Reset view"; set by FocusCamera when bounds are ready
+    getDefaultCameraState: null,
+    setGetDefaultCameraState: (fn) => set({ getDefaultCameraState: fn }),
+
     // Incremented when camera interaction ends so Viewer3D can push current view to history
     historyPushRequest: 0,
     requestHistoryPush: () =>

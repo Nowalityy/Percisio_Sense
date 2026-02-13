@@ -7,7 +7,6 @@ import { Segment } from './Segment';
 const ROTATION_LERP_FACTOR = 0.1;
 const AUTO_SPIN_SPEED = 0.5;
 const SCALE_FACTOR = 2;
-const CENTERING_DELAYS = [1000, 3000];
 const PROGRESS_UPDATE_THROTTLE = 3;
 
 function applyRotation(groupRef, rotation, isAutoSpinning, delta) {
@@ -80,16 +79,6 @@ export const ScannerModel = memo(function ScannerModel({
     applyRotation(groupRef, rotation, isAutoSpinning, delta);
   });
 
-  useEffect(() => {
-    const timers = CENTERING_DELAYS.map((delay) =>
-      setTimeout(() => centerModel(segmentsRef, groupRef), delay)
-    );
-
-    return () => {
-      timers.forEach((timer) => clearTimeout(timer));
-    };
-  }, []);
-
   const onSegmentLoaded = useCallback(
     (name) => {
       if (loadedSegmentsRef.current.has(name)) {
@@ -111,8 +100,8 @@ export const ScannerModel = memo(function ScannerModel({
         }
       }
 
-      const shouldCenter = currentCount % 10 === 0 || currentCount === totalItems;
-      if (shouldCenter) {
+      // Center and scale the model only once when all segments are loaded (avoids zoom/dezoom on load)
+      if (currentCount === totalItems) {
         centerModel(segmentsRef, groupRef);
       }
     },

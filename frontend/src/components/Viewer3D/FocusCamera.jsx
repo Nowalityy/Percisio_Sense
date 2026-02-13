@@ -22,12 +22,13 @@ function easeInOutCubic(t) {
 }
 
 const TORSO_CENTER_OFFSET = 0.15;
-const MODEL_CENTER_CALCULATION_DELAYS = [2000, 5000];
-const TARGET_SNAP_DISTANCE = 0.01;
-const CENTER_LERP_SPEED = 0.05;
+/** Single delay so bounds are computed once after model is likely loaded and centered. */
+const MODEL_BOUNDS_DELAY_MS = 1600;
 
+/** Focus key → keywords to match in segment names (so "heart" zooms on heart + atrial appendage, etc.). */
 const CATEGORY_MATCHES = {
   lung: ['lung'],
+  heart: ['heart', 'atrial-appendage'],
   clavicle: ['clavicle'],
   scapula: ['scapula'],
   humerus: ['humerus'],
@@ -37,6 +38,9 @@ const CATEGORY_MATCHES = {
   pulmonary: ['pulmonary'],
   spinal: ['spinal-cord'],
   adrenal: ['adrenal'],
+  stomach: ['stomach'],
+  liver: ['liver'],
+  trunk: ['trunk', 'brachiocephalic'],
 };
 
 function computeModelBounds(scene) {
@@ -168,11 +172,11 @@ export function FocusCamera() {
   const focusTransitionStartRef = useRef(0);
   const focusTransitionStartPosRef = useRef(null);
   const focusTransitionStartTargetRef = useRef(null);
-  const restoreAnimationRef = useRef({ startTime: 0, from: null, to: null });
 
-  const pendingCameraRestore = useSceneStore((s) => s.pendingCameraRestore);
   const setGetCameraState = useSceneStore((s) => s.setGetCameraState);
-  const setPendingCameraRestore = useSceneStore((s) => s.setPendingCameraRestore);
+
+  const initialPlacementDoneRef = useRef(false);
+  const delayedBoundsReadyRef = useRef(false);
 
   useEffect(() => {
     const updateBounds = () => {
@@ -184,10 +188,10 @@ export function FocusCamera() {
         minDistance: Math.max(CAMERA_CONFIG.MIN_DISTANCE, maxDim * 0.15),
         maxDistance: Math.max(CAMERA_CONFIG.MAX_DISTANCE, maxDim * 3),
       });
+      delayedBoundsReadyRef.current = true;
     };
-    const timers = MODEL_CENTER_CALCULATION_DELAYS.map((delay) => setTimeout(updateBounds, delay));
-    updateBounds();
-    return () => timers.forEach((t) => clearTimeout(t));
+    const timer = setTimeout(updateBounds, MODEL_BOUNDS_DELAY_MS);
+    return () => clearTimeout(timer);
   }, [scene]);
 
   useEffect(() => {
@@ -212,8 +216,16 @@ export function FocusCamera() {
     const foundObjects = findMatchingObjects(scene, currentFocus);
 
     if (foundObjects.length === 0) {
-      setIsTransitioning(false);
-      setTargetFocus(null);
+      // Aucun mesh trouvé (segment pas encore chargé ou nom inconnu) → zoom sur le centre du modèle
+      const size = modelBoundsRef.current?.size ?? new THREE.Vector3(2, 2, 2);
+      const center = modelBoundsRef.current?.center ?? modelCenter;
+      const cameraPos = calculateCameraPositionFramed(center.clone(), size, camera);
+      setTargetFocus({ center: center.clone(), cameraPos });
+      setIsTransitioning(true);
+      wasFocusingRef.current = true;
+      focusTransitionStartRef.current = performance.now();
+      focusTransitionStartPosRef.current = camera.position.clone();
+      focusTransitionStartTargetRef.current = controlsRef.current?.target?.clone() ?? modelCenter.clone();
       return;
     }
 
@@ -223,17 +235,11 @@ export function FocusCamera() {
 
     if (size.x === 0 && size.y === 0 && size.z === 0) {
       const fallbackPosition = modelCenter.clone().add(new THREE.Vector3(0, 0, 5));
-      setTargetFocus({ center: modelCenter, cameraPos: fallbackPosition });
-      setIsTransitioning(true);
-      wasFocusingRef.current = true;
-      focusTransitionStartRef.current = performance.now();
-      focusTransitionStartPosRef.current = camera.position.clone();
-      focusTransitionStartTargetRef.current = controlsRef.current?.target?.clone() ?? modelCenter.clone();
-      return;
+      setTargetFocus({ center: modelCenter.clone(), cameraPos: fallbackPosition });
+    } else {
+      const cameraPos = calculateCameraPositionFramed(center, size, camera);
+      setTargetFocus({ center, cameraPos });
     }
-
-    const cameraPos = calculateCameraPositionFramed(center, size, camera);
-    setTargetFocus({ center, cameraPos });
     setIsTransitioning(true);
     wasFocusingRef.current = true;
     focusTransitionStartRef.current = performance.now();
@@ -245,56 +251,27 @@ export function FocusCamera() {
     const controls = controlsRef.current;
     if (!controls) return;
 
-    if (pendingCameraRestore && !restoreAnimationRef.current.to) {
-      const from = serializeCameraStateFromScene(camera, controls.target);
-      if (from) {
-        restoreAnimationRef.current = {
-          startTime: performance.now(),
-          from,
-          to: pendingCameraRestore,
-        };
-        setPendingCameraRestore(null);
-      }
-    }
-
-    const restore = restoreAnimationRef.current;
-    if (restore && restore.from && restore.to) {
-      const elapsed = performance.now() - restore.startTime;
-      const t = Math.min(elapsed / CAMERA_CONFIG.HISTORY_RESTORE_DURATION_MS, 1);
-      const eased = easeInOutCubic(t);
-      const fromP = restore.from.position;
-      const toP = restore.to.position;
-      const fromT = restore.from.target;
-      const toT = restore.to.target;
-      camera.position.set(
-        THREE.MathUtils.lerp(fromP.x, toP.x, eased),
-        THREE.MathUtils.lerp(fromP.y, toP.y, eased),
-        THREE.MathUtils.lerp(fromP.z, toP.z, eased)
-      );
-      controls.target.set(
-        THREE.MathUtils.lerp(fromT.x, toT.x, eased),
-        THREE.MathUtils.lerp(fromT.y, toT.y, eased),
-        THREE.MathUtils.lerp(fromT.z, toT.z, eased)
-      );
-      // R3F/Three.js camera is mutated in useFrame by design for restore animation
-      /* eslint-disable react-hooks/immutability */
-      if (restore.to.zoom != null) camera.zoom = THREE.MathUtils.lerp(restore.from.zoom, restore.to.zoom, eased);
-      if (restore.to.fov != null) camera.fov = THREE.MathUtils.lerp(restore.from.fov, restore.to.fov, eased);
-      /* eslint-enable react-hooks/immutability */
-      camera.updateProjectionMatrix();
-      controls.update();
-      if (t >= 1) restoreAnimationRef.current = { startTime: 0, from: null, to: null };
-      return;
-    }
-
-    if (!currentFocus && !isInteracting) {
-      if (controls.target.distanceTo(modelCenter) > TARGET_SNAP_DISTANCE) {
-        controls.target.lerp(modelCenter, CENTER_LERP_SPEED);
-        controls.update();
+    // 1) One-time initial placement when bounds are ready
+    if (delayedBoundsReadyRef.current && !initialPlacementDoneRef.current) {
+      const bounds = modelBoundsRef.current;
+      const center = bounds?.center;
+      const size = bounds?.size;
+      if (center && size && size.x + size.y + size.z > 0) {
+        try {
+          const pos = calculateCameraPositionFramed(center.clone(), size, camera);
+          camera.position.set(pos.x, pos.y, pos.z);
+          controls.target.copy(center);
+          camera.updateProjectionMatrix();
+          controls.update();
+          initialPlacementDoneRef.current = true;
+        } catch (_) {
+          initialPlacementDoneRef.current = true;
+        }
       }
       return;
     }
 
+    // 2) Focus transition
     if (isTransitioning && targetFocus && !isInteracting && currentFocus) {
       const startPos = focusTransitionStartPosRef.current;
       const startTarget = focusTransitionStartTargetRef.current;
@@ -315,15 +292,12 @@ export function FocusCamera() {
       return;
     }
 
+    // 3) Idle
     if (!currentFocus && wasFocusingRef.current) {
       wasFocusingRef.current = false;
       setIsTransitioning(false);
       setTargetFocus(null);
-      controls.target.lerp(modelCenter, 0.1);
-      controls.update();
-      return;
     }
-
     controls.update();
   });
 

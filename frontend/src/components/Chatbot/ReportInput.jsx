@@ -84,15 +84,15 @@ export function ReportInput() {
           </svg>
         </button>
       </div>
-      <div className="flex-1 overflow-hidden flex flex-col p-4 gap-3">
-        <label className="text-xs font-medium text-text-secondary">
+      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col p-4 gap-3">
+        <label className="text-xs font-medium text-text-secondary shrink-0">
           Paste report text below or upload a .txt file
         </label>
         <textarea
           value={paste}
           onChange={(e) => { setPaste(e.target.value); setError(null); }}
           placeholder="Paste medical report text here..."
-          className="glass-input flex-1 min-h-[120px] w-full px-3 py-2 text-sm rounded-xl text-text placeholder:text-text-secondary resize-none"
+          className="glass-input min-h-[120px] max-h-[40vh] w-full px-3 py-2 text-sm rounded-xl text-text placeholder:text-text-secondary resize-y overflow-y-auto"
           aria-describedby={error ? 'report-error' : undefined}
         />
         <input

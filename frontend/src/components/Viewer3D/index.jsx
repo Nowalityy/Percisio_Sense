@@ -1,6 +1,6 @@
 import { useState, Suspense, useEffect, Component, useRef, useCallback } from 'react';
 import * as THREE from 'three';
-import { Canvas, useThree } from '@react-three/fiber';
+import { Canvas } from '@react-three/fiber';
 import { Html, PerformanceMonitor, AdaptiveDpr, AdaptiveEvents } from '@react-three/drei';
 import { useSceneStore } from '../../store';
 import { SceneLights } from './SceneLights';
@@ -52,53 +52,6 @@ class ModelErrorBoundary extends Component {
   }
 }
 
-function InitialCameraAdjustment() {
-  const { camera, scene } = useThree();
-  useEffect(() => {
-    // Calculate the real center of the model
-    const calculateAndSetCamera = () => {
-      const box = new THREE.Box3();
-      let hasObjects = false;
-      
-      scene.traverse((child) => {
-        if (child.isMesh && child.visible) {
-          box.expandByObject(child);
-          hasObjects = true;
-        }
-      });
-      
-      if (hasObjects) {
-        const center = box.getCenter(new THREE.Vector3());
-        const size = box.getSize(new THREE.Vector3());
-        // The torso center is approximately at the upper third of the model
-        const torsoCenterY = center.y + size.y * 0.15;
-        
-        const defaultZ = window.innerWidth < 768 ? 16 : 12;
-        camera.position.set(center.x, torsoCenterY + 2, center.z + defaultZ);
-        camera.lookAt(center.x, torsoCenterY, center.z);
-        camera.updateProjectionMatrix();
-      } else {
-        // Fallback if model is not yet loaded
-        const defaultZ = window.innerWidth < 768 ? 16 : 12;
-        camera.position.set(0, 0.8 + 2, defaultZ);
-        camera.lookAt(0, 0.8, 0);
-        camera.updateProjectionMatrix();
-      }
-    };
-    
-    // Essayer plusieurs fois pour s'assurer que le modèle est chargé
-    calculateAndSetCamera();
-    const timer = setTimeout(calculateAndSetCamera, 2000);
-    const timer2 = setTimeout(calculateAndSetCamera, 5000);
-    
-    return () => {
-      clearTimeout(timer);
-      clearTimeout(timer2);
-    };
-  }, [camera, scene]);
-  return null;
-}
-
 export default function Viewer3D() {
   const [rotation, setRotation] = useState({ x: 0, y: 0, z: 0 });
   const [isAutoSpinning, setIsAutoSpinning] = useState(false);
@@ -143,9 +96,15 @@ export default function Viewer3D() {
 
   const toggleAutoSpin = () => setIsAutoSpinning(!isAutoSpinning);
 
-  const handleCancelFocus = () => {
-    const { clearFocus } = useSceneStore.getState();
-    clearFocus();
+  /** Clear organ focus only — camera stays, no animation. */
+  const handleCancelFocus = useCallback(() => {
+    useSceneStore.getState().clearFocus();
+  }, []);
+
+  /** Reset: clear focus + reset model rotation. Pas d'animation caméra. */
+  const handleReset = () => {
+    useSceneStore.getState().clearFocus();
+    setRotation({ x: 0, y: 0, z: 0 });
   };
 
   const handleHistoryNavigation = useCallback((direction) => {
@@ -288,15 +247,16 @@ export default function Viewer3D() {
           </svg>
         </button>
       </div>
-      {/* Reset Focus Overlay */}
+      {/* Reset view / clear organ focus — left side so it's clearly separate from the Filters button */}
       {currentFocus && (
         <button
           type="button"
           onClick={handleCancelFocus}
-          className="absolute top-6 right-6 z-30 glass-btn px-3 py-1.5 rounded-full bg-red-500/90 hover:!bg-red-600 text-white text-[10px] font-bold uppercase tracking-wider border-red-400/50 active:scale-95"
-          aria-label="Reset focus"
+          className="absolute top-14 left-4 z-30 px-3 py-1.5 rounded-full bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold uppercase tracking-wider border border-red-400 active:scale-95 shadow-md"
+          aria-label="Reset camera view and clear organ focus"
+          title="Reset view"
         >
-          ✕ Reset Focus
+          ✕ Reset view
         </button>
       )}
 
@@ -320,7 +280,6 @@ export default function Viewer3D() {
         <SceneLights />
         
         <group position={[0, 0, 0]}>
-          <InitialCameraAdjustment />
           <ModelErrorBoundary>
             <Suspense fallback={<CanvasLoader current={loadingProgress.current} total={loadingProgress.total} />}>
               <ScannerModel 
@@ -338,7 +297,7 @@ export default function Viewer3D() {
       {/* Floating Control Bar */}
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20">
         <div className="flex items-center gap-1 p-1.5 glass-btn rounded-2xl overflow-hidden">
-          <CompactButton onClick={() => handleRotate('reset')} title="Reset" icon={<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>} />
+          <CompactButton onClick={handleReset} title="Reset" icon={<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>} />
           <div className="w-px h-4 bg-slate-400/20 mx-0.5" />
           <CompactButton onClick={handleFlip} title="Flip" icon={<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m17 2 4 4-4 4"/><path d="M3 18v-2c0-4.4 3.6-8 8-8h10"/><path d="m7 22-4-4 4-4"/><path d="M21 6v2c0 4.4-3.6 8-8 8H3"/></svg>} />
           <div className="w-px h-4 bg-slate-400/20 mx-0.5" />
