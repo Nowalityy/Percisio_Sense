@@ -259,25 +259,25 @@ function isFocusOnlyRequest(trimmed, detectedOrgan) {
   return hasFocusIntent && !hasQuestionIntent;
 }
 
-/** Organ detection: canonical name -> regex (word boundary). */
+/** Organ detection: canonical name -> regex (EN + FR, word boundary). */
 const REPORT_ORGAN_PATTERNS = [
-  ['lungs', /\b(lung|lungs|pulmonary|pleura|pleural)\b/gi],
-  ['heart', /\b(heart|cardiac|atrium|ventricle|pericardium)\b/gi],
-  ['liver', /\b(liver|hepatic)\b/gi],
-  ['bones', /\b(bone|skeleton|spine|vertebra|clavicle|scapula|humerus|sternum|rib)\b/gi],
-  ['vessels', /\b(aorta|artery|vein|vessel|vascular|IVC|SVC)\b/gi],
-  ['pleura', /\b(pleura|pleural)\b/gi],
-  ['mediastinum', /\b(mediastinum|mediastinal)\b/gi],
-  ['diaphragm', /\b(diaphragm)\b/gi],
-  ['kidney', /\b(kidney|renal)\b/gi],
-  ['spleen', /\b(spleen|splenic)\b/gi],
-  ['pancreas', /\b(pancreas|pancreatic)\b/gi],
-  ['stomach', /\b(stomach|gastric)\b/gi],
-  ['thyroid', /\b(thyroid)\b/gi],
-  ['brain', /\b(brain|cerebral)\b/gi],
-  ['spinal cord', /\b(spinal\s*cord|spine)\b/gi],
-  ['esophagus', /\b(esophagus|oesophagus)\b/gi],
-  ['trachea', /\b(trachea|tracheal)\b/gi],
+  ['lungs', /\b(lung|lungs|pulmonary|pleura|pleural|poumon|poumons|pulmonaire|plèvre|pleural)\b/gi],
+  ['heart', /\b(heart|cardiac|atrium|ventricle|pericardium|cœur|coeur|cardiaque|atrium|ventricule|péricarde)\b/gi],
+  ['liver', /\b(liver|hepatic|foie|hépatique|hepatique)\b/gi],
+  ['bones', /\b(bone|skeleton|spine|vertebra|clavicle|scapula|humerus|sternum|rib|os|squelette|colonne|vertèbre|clavicule|omoplate|humérus|humerus|sternum|côte|cotes)\b/gi],
+  ['vessels', /\b(aorta|artery|vein|vessel|vascular|IVC|SVC|aorte|artère|artères|veine|veines|vasculaire)\b/gi],
+  ['pleura', /\b(pleura|pleural|plèvre|pleural)\b/gi],
+  ['mediastinum', /\b(mediastinum|mediastinal|médiastin|mediastinal)\b/gi],
+  ['diaphragm', /\b(diaphragm|diaphragme)\b/gi],
+  ['kidney', /\b(kidney|renal|rein|reins|rénal|renal)\b/gi],
+  ['spleen', /\b(spleen|splenic|rate|splénique|splenique)\b/gi],
+  ['pancreas', /\b(pancreas|pancreatic|pancréas|pancreas|pancréatique|pancreatique)\b/gi],
+  ['stomach', /\b(stomach|gastric|estomac|gastrique)\b/gi],
+  ['thyroid', /\b(thyroid|thyroïde|thyroide)\b/gi],
+  ['brain', /\b(brain|cerebral|cerveau|cérébral|cerebral)\b/gi],
+  ['spinal cord', /\b(spinal\s*cord|spine|moelle\s*épinière|moelle\s*epiniere|colonne|rachis)\b/gi],
+  ['esophagus', /\b(esophagus|oesophagus|œsophage|oesophage|esophage)\b/gi],
+  ['trachea', /\b(trachea|tracheal|trachée|trachee|tracheal)\b/gi],
 ];
 const ANOMALY_KEYWORDS = /\b(nodule|mass|lesion|effusion|atelectasis|consolidation|enlarged|dilation|dilatation|fracture|embolism|pneumothorax|thickening|opacity|infiltrate|edema|stenosis|abnormal|pathology|enlargement)\b/gi;
 
