@@ -63,6 +63,8 @@ const ORGAN_SYNONYMS = {
   foie: 'liver',
   poumon: 'lung',
   poumons: 'lung',
+  'poumon gauche': 'left lung',
+  'poumon droit': 'right lung',
   coeur: 'heart',
   cœur: 'heart',
   oesophage: 'esophagus',
@@ -126,6 +128,13 @@ const ORGAN_TO_SEGMENT_MAP = {
   'spinal-cord': 'spinal-cord',
   sternum: 'sternum',
   adrenal: 'adrenal',
+  'left lung': 'left lung',
+  'right lung': 'right lung',
+  lungs: 'lung',
+  kidney: 'kidney',
+  kidneys: 'kidney',
+  skeleton: 'clavicle',
+  bones: 'clavicle',
 };
 
 function buildSystemPrompt() {

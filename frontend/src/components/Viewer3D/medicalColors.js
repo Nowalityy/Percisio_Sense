@@ -50,7 +50,6 @@ export const MEDICAL_COLORS = {
 export const getSegmentColor = (name) => {
   const lowerName = name.toLowerCase();
   
-  // Correspondances spécifiques pour les segments avec noms complets (priorité haute)
   const specificMatches = {
     'inferior-lobe-of-left-lung': MEDICAL_COLORS['lung'],
     'inferior-lobe-of-right-lung': MEDICAL_COLORS['lung'],
@@ -75,12 +74,14 @@ export const getSegmentColor = (name) => {
     'right-adrenal-gland': MEDICAL_COLORS['adrenal'],
   };
   
-  // Check specific matches first
   if (specificMatches[lowerName]) {
     return specificMatches[lowerName];
   }
-  
-  // Then search by partial match (priority order)
+
+  if ((lowerName.includes('right') || lowerName.includes('left')) && lowerName.includes('lung')) {
+    return MEDICAL_COLORS['lung'];
+  }
+
   const priorityOrder = [
     'heart', 'liver', 'lung', 'stomach', 'pancreas', 'spleen', 'thyroid',
     'aorta', 'artery', 'vein', 'vena-cava', 'brachiocephalic', 'subclavian',

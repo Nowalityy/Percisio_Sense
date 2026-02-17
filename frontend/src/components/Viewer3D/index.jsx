@@ -52,8 +52,11 @@ class ModelErrorBoundary extends Component {
   }
 }
 
+const TILT_STEP = Math.PI / 8;
+const DEFAULT_ROTATION = { x: -Math.PI / 2, y: 0, z: 0 };
+
 export default function Viewer3D() {
-  const [rotation, setRotation] = useState({ x: 0, y: 0, z: 0 });
+  const [rotation, setRotation] = useState(DEFAULT_ROTATION);
   const [isAutoSpinning, setIsAutoSpinning] = useState(false);
   const [loadingProgress, setLoadingProgress] = useState({ current: 0, total: 38 });
   
@@ -83,7 +86,7 @@ export default function Viewer3D() {
         case 'right': return { ...prev, y: prev.y + step };
         case 'tilt-left': return { ...prev, z: prev.z - step };
         case 'tilt-right': return { ...prev, z: prev.z + step };
-        case 'reset': return { x: 0, y: 0, z: 0 };
+        case 'reset': return { ...DEFAULT_ROTATION };
         default: return prev;
       }
     });
@@ -101,10 +104,13 @@ export default function Viewer3D() {
     useSceneStore.getState().clearFocus();
   }, []);
 
-  /** Reset: clear focus + reset model rotation. Pas d'animation caméra. */
   const handleReset = () => {
     useSceneStore.getState().clearFocus();
-    setRotation({ x: 0, y: 0, z: 0 });
+    setRotation({ ...DEFAULT_ROTATION });
+    const defaultState = useSceneStore.getState().getDefaultCameraState?.();
+    if (defaultState) {
+      useSceneStore.getState().setPendingCameraRestore(defaultState);
+    }
   };
 
   const handleHistoryNavigation = useCallback((direction) => {
@@ -251,7 +257,7 @@ export default function Viewer3D() {
       {currentFocus && (
         <button
           type="button"
-          onClick={handleCancelFocus}
+          onClick={handleReset}
           className="absolute top-14 left-4 z-30 px-3 py-1.5 rounded-full bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold uppercase tracking-wider border border-red-400 active:scale-95 shadow-md"
           aria-label="Reset camera view and clear organ focus"
           title="Reset view"
@@ -263,7 +269,7 @@ export default function Viewer3D() {
       <Canvas 
         shadows={false}
         dpr={[1, 2]}
-        camera={{ position: [0, 2.8, 12], fov: 50, near: 0.01, far: 2000 }}
+        camera={{ position: [0, 0.1, 4], fov: 50, near: 0.01, far: 2000 }}
         gl={{ 
           antialias: true, 
           alpha: false,
