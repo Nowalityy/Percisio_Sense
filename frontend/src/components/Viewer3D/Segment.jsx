@@ -6,9 +6,17 @@ import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader';
 import { getSegmentColor, SEGMENTS } from './medicalColors';
 import { useSceneStore } from '../../store';
 import { isInFrustum } from '../../utils/performanceUtils';
+import { isSegmentInFocus, getSegmentNamesForFocus } from './focusUtils';
+
+// -----------------------------------------------------------------------------
+// Constants
+// -----------------------------------------------------------------------------
 
 const BONE_KEYWORDS = ['clavicle', 'scapula', 'sternum', 'humerus', 'spinal-cord'];
 const SKIN_SEGMENT_NAME = 'segment_1';
+const DIMMED_COLOR = '#94a3b8';
+const DIMMED_OPACITY = 0.2;
+const SKIN_OPACITY = 0.15;
 
 const RENDER_ORDER = {
   BASE: 10,
@@ -24,7 +32,7 @@ const MATERIAL_CONFIG = {
   },
   SKIN: {
     transparent: true,
-    opacity: 0.15,
+    opacity: SKIN_OPACITY,
     depthWrite: false,
     side: THREE.FrontSide,
     roughness: 0.8,
@@ -47,21 +55,27 @@ const MATERIAL_CONFIG = {
   },
 };
 
+// -----------------------------------------------------------------------------
+// Helpers
+// -----------------------------------------------------------------------------
+
 function isBone(segmentName) {
   return BONE_KEYWORDS.some((keyword) => segmentName.includes(keyword));
 }
 
-function calculateRenderOrder(segmentName, segmentIndex) {
-  if (segmentName === SKIN_SEGMENT_NAME) {
-    return RENDER_ORDER.SKIN;
-  }
-
+function getRenderOrder(segmentName, segmentIndex) {
+  if (segmentName === SKIN_SEGMENT_NAME) return RENDER_ORDER.SKIN;
   let order = segmentIndex >= 0 ? segmentIndex + RENDER_ORDER.BASE : RENDER_ORDER.BASE;
-  if (isBone(segmentName)) {
-    order += RENDER_ORDER.BONE_OFFSET;
-  }
-
+  if (isBone(segmentName)) order += RENDER_ORDER.BONE_OFFSET;
   return order;
+}
+
+function getDefaultOpacity(segmentName) {
+  return segmentName === SKIN_SEGMENT_NAME ? SKIN_OPACITY : 1;
+}
+
+function getDefaultTransparent(segmentName) {
+  return segmentName === SKIN_SEGMENT_NAME;
 }
 
 function createMaterial(segmentName, color) {
@@ -72,52 +86,50 @@ function createMaterial(segmentName, color) {
       color,
     });
   }
-
   if (isBone(segmentName)) {
-    const boneMaterial = new THREE.MeshStandardMaterial({
+    const mat = new THREE.MeshStandardMaterial({
       ...MATERIAL_CONFIG.DEFAULT,
       ...MATERIAL_CONFIG.BONE,
     });
-    // Force white color for bones
-    boneMaterial.color.set('#ffffff');
-    boneMaterial.emissive.set('#ffffff');
-    return boneMaterial;
+    mat.color.set('#ffffff');
+    mat.emissive.set('#ffffff');
+    return mat;
   }
-
-  const emissiveColor = new THREE.Color(color);
-  emissiveColor.multiplyScalar(0.2); // Emissive multiplier
-
-  const material = new THREE.MeshStandardMaterial({
+  const emissiveColor = new THREE.Color(color).multiplyScalar(0.2);
+  return new THREE.MeshStandardMaterial({
     ...MATERIAL_CONFIG.DEFAULT,
     ...MATERIAL_CONFIG.ORGAN,
     color,
     emissive: emissiveColor,
-  });
-
-  return material;
-}
-
-function applyMaterialToMesh(mesh, segmentName, color) {
-  if (!mesh.material) {
-    mesh.material = createMaterial(segmentName, color);
-    return;
-  }
-
-  const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-  materials.forEach(() => {
-    mesh.material = createMaterial(segmentName, color);
   });
 }
 
 function configureMesh(mesh, segmentName, color) {
   mesh.name = segmentName;
   mesh.visible = true;
-
-  const segmentIndex = SEGMENTS.indexOf(segmentName);
-  mesh.renderOrder = calculateRenderOrder(segmentName, segmentIndex);
-
-  applyMaterialToMesh(mesh, segmentName, color);
+  mesh.renderOrder = getRenderOrder(segmentName, SEGMENTS.indexOf(segmentName));
+  mesh.material = createMaterial(segmentName, color);
 }
+
+function applyFocusStateToMesh(mesh, segmentName, isDimmed) {
+  if (!mesh.material) return;
+  const mat = mesh.material;
+  if (isDimmed) {
+    mat.color.set(DIMMED_COLOR);
+    mat.opacity = DIMMED_OPACITY;
+    mat.transparent = true;
+    mat.depthWrite = false;
+  } else {
+    mat.color.set(getSegmentColor(segmentName));
+    mat.opacity = getDefaultOpacity(segmentName);
+    mat.transparent = getDefaultTransparent(segmentName);
+    mat.depthWrite = segmentName !== SKIN_SEGMENT_NAME;
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Component
+// -----------------------------------------------------------------------------
 
 export function Segment({ name, onLoad }) {
   const materials = useLoader(MTLLoader, `/models/segments/${name}.mtl`);
@@ -127,50 +139,54 @@ export function Segment({ name, onLoad }) {
   });
   const { camera } = useThree();
   const segmentVisibility = useSceneStore((s) => s.segmentVisibility);
+  const currentFocus = useSceneStore((s) => s.currentFocus);
 
-  const isUserVisible = useMemo(() => {
-    return segmentVisibility.get(name) !== false;
-  }, [name, segmentVisibility]);
+  const isUserVisible = useMemo(
+    () => segmentVisibility.get(name) !== false,
+    [name, segmentVisibility]
+  );
 
   const isInView = useMemo(() => {
-    if (!obj) {
-      return true;
-    }
+    if (!obj) return true;
     return isInFrustum(obj, camera);
   }, [obj, camera]);
 
+  const isFocused = useMemo(
+    () => (currentFocus ? isSegmentInFocus(name, currentFocus) : false),
+    [name, currentFocus]
+  );
+  const hasValidFocus = useMemo(
+    () => (currentFocus ? getSegmentNamesForFocus(currentFocus).length > 0 : false),
+    [currentFocus]
+  );
+  const isDimmed = Boolean(hasValidFocus && !isFocused);
+
   useEffect(() => {
-    if (!obj) {
-      return;
-    }
-
+    if (!obj) return;
     const color = getSegmentColor(name);
-
     obj.traverse((child) => {
       if (child.isMesh) {
         configureMesh(child, name, color);
         child.visible = isUserVisible && isInView;
       }
     });
-
     onLoad?.(name);
   }, [name, obj, onLoad, isUserVisible, isInView]);
 
   useEffect(() => {
-    if (!obj) {
-      return;
-    }
-
+    if (!obj) return;
     obj.traverse((child) => {
-      if (child.isMesh) {
-        child.visible = isUserVisible && isInView;
-      }
+      if (child.isMesh) child.visible = isUserVisible && isInView;
     });
   }, [obj, isUserVisible, isInView]);
 
-  if (!isUserVisible) {
-    return null;
-  }
+  useEffect(() => {
+    if (!obj) return;
+    obj.traverse((child) => {
+      if (child.isMesh) applyFocusStateToMesh(child, name, isDimmed);
+    });
+  }, [obj, name, isDimmed]);
 
+  if (!isUserVisible) return null;
   return <primitive object={obj} />;
 }

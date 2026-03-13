@@ -41,7 +41,7 @@ function SegmentItem({ segmentName, isVisible, onToggle }) {
 
   return (
     <div
-      className={`flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors cursor-pointer ${
+      className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition-all duration-200 hover:bg-slate-100 focus-within:bg-slate-50 ${
         !isVisible ? 'opacity-50' : ''
       }`}
       onClick={() => onToggle(segmentName)}
@@ -146,16 +146,18 @@ export function SegmentFilterPanel() {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="glass-btn absolute top-4 right-4 z-30 px-3 py-2 rounded-xl flex items-center gap-2 text-sm font-medium text-slate-700"
+        className="absolute top-4 right-4 z-30 px-2 py-1.5 rounded-md flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 border border-slate-200/80 bg-white/90 backdrop-blur-sm transition-colors"
+        title="Filter segments"
+        aria-label="Filter segments"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
-          width="16"
-          height="16"
+          width="14"
+          height="14"
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
-          strokeWidth="2"
+          strokeWidth="1.5"
           strokeLinecap="round"
           strokeLinejoin="round"
         >

@@ -1,9 +1,13 @@
 /**
  * Camera state serialization and application for history/restore.
- * Kept in utils so FocusCamera.jsx only exports the component (Fast Refresh).
  */
 
-/** Return JSON-serializable camera state { position, target, zoom, fov }. */
+/**
+ * Returns a JSON-serializable camera state.
+ * @param {THREE.PerspectiveCamera} camera
+ * @param {THREE.Vector3} target - controls.target
+ * @returns {{ position: {x,y,z}, target: {x,y,z}, zoom: number, fov: number } | null}
+ */
 export function serializeCameraStateFromScene(camera, target) {
   if (!camera || !target) return null;
   return {
@@ -14,9 +18,14 @@ export function serializeCameraStateFromScene(camera, target) {
   };
 }
 
-/** Apply a saved camera state to camera and controls (instant, no animation). */
+/**
+ * Applies a saved camera state (instant, no animation).
+ * @param {THREE.PerspectiveCamera} camera
+ * @param {{ target: THREE.Vector3, update: function }} controls
+ * @param {{ position?: {x,y,z}, target?: {x,y,z}, zoom?: number, fov?: number } | null} state
+ */
 export function applyCameraState(camera, controls, state) {
-  if (!state || !state.position || !state.target || !camera || !controls) return;
+  if (!state?.position || !state?.target || !camera || !controls) return;
   camera.position.set(state.position.x, state.position.y, state.position.z);
   controls.target.set(state.target.x, state.target.y, state.target.z);
   if (state.zoom != null) camera.zoom = state.zoom;

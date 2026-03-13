@@ -1,12 +1,12 @@
 @import 'tailwindcss';
 
 @theme {
-  --color-background: #f1f5f9;
-  --color-panel: #f8f9fa;
-  --color-accent: #2563eb;
-  --color-text: #1e293b;
-  --color-text-secondary: #64748b;
-  --color-border: #e2e8f0;
+  --color-background: #ffffff;
+  --color-panel: #ffffff;
+  --color-accent: #1d4ed8;
+  --color-text: #0f172a;
+  --color-text-secondary: #475569;
+  --color-border: #e5e7eb;
 }
 
 html,
@@ -16,22 +16,56 @@ body,
 }
 
 body {
-  @apply m-0 bg-background text-text font-sans;
-  font-family: 'Noto Sans', system-ui, -apple-system, sans-serif;
+  @apply m-0 text-text font-sans;
+  background: linear-gradient(to bottom, #ffffff 0%, #f8fafc 100%);
+  font-family: 'Inter', 'SF Pro Text', 'Noto Sans', system-ui, -apple-system, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  font-weight: 400;
 }
 
-/* iPhone-style glass: for buttons, inputs, pills only (not big panels) */
+/* Typography: titres plus forts, body lisible */
+h1, .font-title {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+h2, .font-heading {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.text-muted, .text-text-secondary {
+  font-weight: 400;
+}
+
+/* iPhone-style glass: for buttons, inputs, pills only */
 .glass-btn {
-  @apply bg-white/75 backdrop-blur-xl border border-white/50 shadow-sm;
+  @apply bg-white/75 backdrop-blur-xl border border-white/50 shadow-sm transition-all duration-200;
 }
 .glass-btn:hover {
-  @apply bg-white/90;
+  @apply bg-white/90 shadow-md border-slate-200/60;
+}
+.glass-btn:focus-visible {
+  @apply outline-none ring-2 ring-accent/25 ring-offset-2;
 }
 .glass-input {
-  @apply bg-white/70 backdrop-blur-md border border-white/40 shadow-inner;
+  @apply bg-white/70 backdrop-blur-md border border-white/40 shadow-inner transition-all duration-200;
 }
 .glass-input:focus {
   @apply border-accent/50 bg-white/90 outline-none ring-2 ring-accent/20;
+}
+.glass-input:hover:not(:focus) {
+  @apply border-slate-300/50 bg-white/80;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.cta-analyze {
+  box-shadow: 0 3px 10px rgba(29, 78, 216, 0.12);
+}
+.cta-analyze:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(29, 78, 216, 0.12);
 }

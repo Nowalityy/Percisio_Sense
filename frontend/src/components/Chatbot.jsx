@@ -1,12 +1,15 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSceneStore } from '../store.js';
 import { focusOnOrgan } from '../utils/viewerUtils.js';
+import { cardTitleToFocusKey, getSegmentNamesForFocus } from '../components/Viewer3D/focusUtils.js';
 import { QuickActions } from './Chatbot/QuickActions';
 import { ConversationHistory } from './Chatbot/ConversationHistory';
 import { ReportInput } from './Chatbot/ReportInput';
 
 const DEFAULT_BACKEND_URL = 'http://localhost:4000/chat';
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || DEFAULT_BACKEND_URL;
+
+
 
 const AUTO_SUMMARY_PROMPT_PREFIX =
   '[SYSTEM]: A new medical document has been uploaded. Analyze it in depth. Provide a complete summary, list anomalies by organ, and conclude with a probable diagnosis or recommendations.\n\n[DOCUMENT]:\n';
@@ -20,7 +23,7 @@ const ERROR_REPORT_ANALYSIS =
 const ERROR_CONNECTION =
   "Could not reach the assistant. Check that the backend is running (e.g. http://localhost:4000) and try again.";
 const GREETING =
-  "Hello, I'm your AI assistant.\nAsk me a question about the scan or upload a report for me to analyze.";
+  "Clinical AI is ready.\nUpload a report or request a targeted analysis.";
 
 /** Minimal markdown: **bold**, `code`, newlines. Renders as React nodes. */
 function SimpleMarkdown({ text }) {
@@ -56,15 +59,26 @@ function SimpleMarkdown({ text }) {
   );
 }
 
-function MessageBubble({ from, text }) {
+function MessageBubble({ from, text, isGreeting }) {
   const isUser = from === 'user';
+  if (isGreeting) {
+    return (
+      <div className="flex justify-start animate-[fadeIn_0.2s_ease-out]" role="listitem">
+        <div className="text-sm text-slate-600 leading-relaxed space-y-1">
+          {text.split(/\n/).filter(Boolean).map((line, i) => (
+            <p key={i}>{line}</p>
+          ))}
+        </div>
+      </div>
+    );
+  }
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'}`} role="listitem">
+    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} animate-[fadeIn_0.2s_ease-out]`} role="listitem">
       <div
-        className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed ${
+        className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed transition-shadow duration-200 ${
           isUser
-            ? 'bg-accent text-white border border-accent/60 shadow-md'
-            : 'bg-slate-100 border border-border text-text shadow-sm'
+            ? 'bg-accent text-white border border-accent/60 shadow-md hover:shadow-lg'
+            : 'bg-slate-100 border border-border text-text shadow-sm hover:shadow-md'
         }`}
       >
         {isUser ? (
@@ -128,16 +142,16 @@ function CardItem({ card, isRisk = false }) {
 
 function LoadingIndicator() {
   return (
-    <div className="flex justify-start" aria-live="polite" aria-busy="true">
-      <div className="bg-slate-100 border border-border rounded-2xl px-3 py-2 text-sm flex items-center gap-2 shadow-sm">
+    <div className="flex justify-start animate-[fadeIn_0.25s_ease-out]" aria-live="polite" aria-busy="true">
+      <div className="border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm flex items-center gap-2 bg-white">
         {[0, 0.15, 0.3].map((delay, idx) => (
           <span
             key={idx}
-            className="w-1.5 h-1.5 bg-text-secondary rounded-full animate-bounce"
+            className="w-1.5 h-1.5 bg-accent rounded-full animate-bounce"
             style={{ animationDelay: `${delay}s` }}
           />
         ))}
-        <span className="text-text-secondary text-xs">Analyzing…</span>
+        <span className="text-text-secondary text-xs font-medium">Analyzing…</span>
       </div>
     </div>
   );
@@ -159,6 +173,7 @@ async function sendChatRequest(message, reportText = null) {
   if (raw.length > 0) {
     body.reportText = raw;
   }
+
   const response = await fetch(BACKEND_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -172,6 +187,8 @@ async function sendChatRequest(message, reportText = null) {
   return response.json();
 }
 
+
+
 function buildMessageWithContext(userMessage, analyzedReport) {
   if (!analyzedReport) {
     return userMessage;
@@ -181,17 +198,32 @@ function buildMessageWithContext(userMessage, analyzedReport) {
 }
 
 export default function Chatbot() {
-  const [messages, setMessages] = useState([createMessage('assistant', GREETING)]);
+  const [messages, setMessages] = useState(() => {
+    const hist = useSceneStore.getState().conversationHistory;
+    return hist.length > 0 ? hist : [createMessage('assistant', GREETING)];
+  });
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [lastError, setLastError] = useState(null);
-  const [lastCards, setLastCards] = useState([]);
-  const [lastMeta, setLastMeta] = useState(null);
+
 
   const setFocus = useSceneStore((s) => s.setFocus);
+  const clearFocus = useSceneStore((s) => s.clearFocus);
+  const setCitedOrgans = useSceneStore((s) => s.setCitedOrgans);
+  const setCitedOrganIndex = useSceneStore((s) => s.setCitedOrganIndex);
   const setLastReply = useSceneStore((s) => s.setLastReply);
   const analyzedReport = useSceneStore((s) => s.analyzedReport);
   const addToConversationHistory = useSceneStore((s) => s.addToConversationHistory);
+  const setAnalyzing = useSceneStore((s) => s.setAnalyzing);
+  const resetStore = useSceneStore((s) => s.resetStore);
+  const lastCards = useSceneStore((s) => s.lastCards);
+  const setLastCards = useSceneStore((s) => s.setLastCards);
+  const lastMeta = useSceneStore((s) => s.lastMeta);
+  const setLastMeta = useSceneStore((s) => s.setLastMeta);
+
+
+
+
 
   const handleFocus = useCallback(
     (focus) => {
@@ -203,17 +235,44 @@ export default function Chatbot() {
     [setFocus]
   );
 
-  const runUiActions = useCallback(
-    (uiActions) => {
-      if (!Array.isArray(uiActions)) return;
-      for (const action of uiActions) {
-        if (action?.type === 'FOCUS_ORGAN' && action.organ) {
-          handleFocus(action.organ);
+  /** Build list of focus keys from report cards and sync store + camera. Only use keys that match at least one segment. */
+  const applyCardsAndFocus = useCallback(
+    (cards, uiActions) => {
+      const organCards = (cards || []).filter((c) => c?.id !== 'card-risks');
+      const rawKeys = [
+        ...new Set(
+          organCards
+            .map((c) => cardTitleToFocusKey(c?.title))
+            .filter(Boolean)
+        ),
+      ];
+      const keys = rawKeys.filter((key) => getSegmentNamesForFocus(key).length > 0);
+      setCitedOrgans(keys);
+      if (keys.length > 0) {
+        setFocus(keys[0]);
+        focusOnOrgan(keys[0]);
+      } else {
+        clearFocus();
+      }
+      if (Array.isArray(uiActions)) {
+        for (const action of uiActions) {
+          if (action?.type === 'FOCUS_ORGAN' && action.organ && getSegmentNamesForFocus(action.organ).length > 0) {
+            handleFocus(action.organ);
+          }
         }
-        // TOGGLE_LAYER can be wired later if needed
+      }
+      if (keys.length > 0) {
+        const focusActions = (uiActions || []).filter(
+          (a) => a?.type === 'FOCUS_ORGAN' && a.organ && getSegmentNamesForFocus(a.organ).length > 0
+        );
+        const lastFocus = focusActions.length
+          ? focusActions[focusActions.length - 1].organ
+          : keys[0];
+        const idx = keys.indexOf(lastFocus);
+        if (idx >= 0) setCitedOrganIndex(idx);
       }
     },
-    [handleFocus]
+    [setCitedOrgans, setFocus, setCitedOrganIndex, handleFocus, clearFocus]
   );
 
   const addMessage = useCallback(
@@ -232,6 +291,7 @@ export default function Chatbot() {
 
     const autoSummarize = async () => {
       setIsLoading(true);
+      setAnalyzing(true);
       setLastError(null);
       const prompt = AUTO_SUMMARY_PROMPT_PREFIX + analyzedReport;
 
@@ -241,12 +301,14 @@ export default function Chatbot() {
             ? analyzedReport.trim()
             : null;
         const data = await sendChatRequest(prompt, reportPayload);
+
+
         const answer = data?.answer ?? data?.reply ?? FALLBACK_REPLY_SUMMARY;
         addMessage('assistant', answer);
         setLastReply(answer);
         setLastCards(Array.isArray(data?.cards) ? data.cards : []);
         setLastMeta(data?._meta ?? null);
-        runUiActions(data?.uiActions);
+        applyCardsAndFocus(data?.cards ?? [], data?.uiActions ?? []);
       } catch (err) {
         console.error(err);
         setLastError('report');
@@ -255,11 +317,13 @@ export default function Chatbot() {
         setLastMeta(null);
       } finally {
         setIsLoading(false);
+        setAnalyzing(false);
       }
     };
 
     autoSummarize();
-  }, [analyzedReport, addMessage, setLastReply, runUiActions]);
+  }, [analyzedReport, addMessage, setLastReply, applyCardsAndFocus, setAnalyzing]);
+
 
   const sendMessage = async (e) => {
     e?.preventDefault();
@@ -272,6 +336,7 @@ export default function Chatbot() {
     addMessage('user', input);
     setInput('');
     setIsLoading(true);
+    setAnalyzing(true);
 
     // Do not clear focus on send — keeps camera stable; user can use "Reset view" in 3D to recenter
 
@@ -284,6 +349,8 @@ export default function Chatbot() {
           ? analyzedReport.trim()
           : null;
       const data = await sendChatRequest(messageToSend, reportPayload);
+
+
       const answer = data?.answer ?? data?.reply ?? FALLBACK_REPLY_EMPTY;
       const hasFocusOnlyAction =
         Array.isArray(data?.uiActions) &&
@@ -295,7 +362,7 @@ export default function Chatbot() {
       setLastReply(answer);
       setLastCards(Array.isArray(data?.cards) ? data.cards : []);
       setLastMeta(data?._meta ?? null);
-      runUiActions(data?.uiActions);
+      applyCardsAndFocus(data?.cards ?? [], data?.uiActions ?? []);
     } catch (err) {
       console.error(err);
       setLastError('connection');
@@ -304,8 +371,16 @@ export default function Chatbot() {
       setLastMeta(null);
     } finally {
       setIsLoading(false);
+      setAnalyzing(false);
     }
   };
+
+  const handleNewSession = useCallback(() => {
+    resetStore();
+    setMessages([createMessage('assistant', GREETING)]);
+  }, [resetStore]);
+
+
 
   const retryReportAnalysis = useCallback(() => {
     const report = useSceneStore.getState().analyzedReport;
@@ -313,22 +388,36 @@ export default function Chatbot() {
     setLastError(null);
   }, []);
 
+
+
   return (
     <div className="flex flex-col h-full bg-white relative">
-      <div className="border-b border-border shrink-0 flex flex-col gap-2 px-3 pt-2 pb-2">
-        <div>
+      {/* Bloc titre + Add report / AI ready — padding réduit sur mobile pour moins de densité */}
+      <div className="border-b border-[#E5E7EB] shrink-0 flex flex-col gap-1.5 md:gap-2 px-4 md:px-5 pt-2.5 md:pt-3 pb-2.5 md:pb-3">
+        <h2 className="text-sm font-bold text-text tracking-tight">Clinical AI Analysis</h2>
+        <p className="text-xs text-slate-500 hidden sm:block">Extract insights from patient scans in seconds</p>
+        <div className="flex flex-wrap items-center gap-2 md:gap-3 pt-0.5 md:pt-1">
           <ReportInput />
         </div>
-        <div className="flex justify-end">
+        <div className="flex justify-between items-center mt-auto">
+          <button
+            type="button"
+            onClick={handleNewSession}
+            className="text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-accent transition-colors flex items-center gap-1.5"
+            title="Clear persistent conversation and start fresh"
+          >
+            <span className="text-sm">↺</span> New Session
+          </button>
           <ConversationHistory />
         </div>
       </div>
-      <div className="px-3 py-2 border-b border-border flex items-center justify-between gap-2 bg-slate-50 shrink-0">
+
+      <div className="px-4 md:px-5 py-2 md:py-2.5 border-b border-[#E5E7EB] shrink-0 bg-white">
         <QuickActions />
       </div>
-      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent" role="log" aria-live="polite">
+      <div className="flex-1 overflow-y-auto px-4 md:px-5 py-3 md:py-4 space-y-3 md:space-y-4 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent" role="log" aria-live="polite">
         {lastError === 'report' && analyzedReport && (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5 flex items-center justify-between gap-2 flex-wrap">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 flex items-center justify-between gap-2 flex-wrap">
             <p className="text-sm text-amber-800">
               Report analysis failed. You can retry or keep asking questions with the report in context.
             </p>
@@ -342,7 +431,7 @@ export default function Chatbot() {
           </div>
         )}
         {lastError === 'connection' && (
-          <div className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 flex items-center justify-between gap-2 flex-wrap">
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 flex items-center justify-between gap-2 flex-wrap">
             <p className="text-sm text-red-800">
               Could not reach the assistant. Check that the backend is running and try again.
             </p>
@@ -356,10 +445,10 @@ export default function Chatbot() {
           </div>
         )}
         {messages.map((m) => (
-          <MessageBubble key={m.id} from={m.from} text={m.text} />
+          <MessageBubble key={m.id} from={m.from} text={m.text} isGreeting={m.id === messages[0]?.id && m.from === 'assistant'} />
         ))}
         {lastCards.length > 0 && (
-          <div className="rounded-xl border border-border bg-slate-50 p-3 space-y-3">
+          <div className="rounded-lg border border-[#E5E7EB] p-4 space-y-3">
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
                 Findings by organ
@@ -390,8 +479,8 @@ export default function Chatbot() {
           </div>
         )}
         {!analyzedReport && lastCards.length === 0 && !isLoading && (
-          <div className="rounded-xl border border-dashed border-border bg-slate-50/60 px-4 py-3">
-            <p className="text-sm text-text-secondary">
+          <div className="rounded-lg border border-dashed border-[#E5E7EB] px-4 py-3">
+            <p className="text-sm text-slate-500">
               Upload a report to display findings by organ.
             </p>
           </div>
@@ -399,14 +488,17 @@ export default function Chatbot() {
         {isLoading && <LoadingIndicator />}
       </div>
 
-      <form onSubmit={sendMessage} className="border-t border-border px-3 py-2 flex items-center gap-2 bg-slate-50">
+      <form
+        onSubmit={sendMessage}
+        className="border-t border-[#E5E7EB] px-4 md:px-5 py-2.5 md:py-3 flex flex-nowrap items-center gap-2 md:gap-3 bg-white shrink-0 pb-[env(safe-area-inset-bottom,0)]"
+      >
         <label htmlFor="chat-input" className="sr-only">
           Ask a question
         </label>
         <input
           id="chat-input"
-          className="flex-1 glass-input rounded-full px-3 py-2 text-base md:text-sm text-text placeholder:text-text-secondary"
-          placeholder="Ask a question..."
+          className="flex-1 min-w-0 glass-input rounded-md px-3 md:px-4 py-2 md:py-2.5 text-base md:text-sm text-text placeholder:text-text-secondary transition-all duration-200 focus:ring-2 focus:ring-accent/20"
+          placeholder="Ask about abnormalities, measurements, or risk indicators…"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           disabled={isLoading}
@@ -415,10 +507,10 @@ export default function Chatbot() {
         <button
           type="submit"
           disabled={isLoading || !input.trim()}
-          className="px-3 md:px-4 py-2 rounded-full text-sm font-medium bg-accent text-white disabled:opacity-50 disabled:cursor-not-allowed transition-opacity hover:opacity-90 shrink-0 shadow-sm"
-          aria-label="Send message"
+          className="cta-analyze px-4 md:px-5 py-2 md:py-2.5 rounded-md text-sm font-semibold bg-accent/95 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none transition-all duration-200 shrink-0 min-w-[6.5rem]"
+          aria-label="Analyze scan"
         >
-          {isLoading ? '...' : 'Send'}
+          {isLoading ? '...' : 'Analyze Scan'}
         </button>
       </form>
       {lastError && (
@@ -429,3 +521,5 @@ export default function Chatbot() {
     </div>
   );
 }
+
+

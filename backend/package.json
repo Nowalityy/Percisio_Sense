@@ -15,10 +15,16 @@
   "type": "module",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
+    "bcryptjs": "^3.0.3",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
+    "express-fileupload": "^1.5.2",
+    "express-rate-limit": "^8.3.1",
+    "helmet": "^8.1.0",
+    "jsonwebtoken": "^9.0.3",
     "openai": "^6.16.0",
+    "pdf-parse": "^2.4.5",
     "zod": "^3.25.0"
   }
 }

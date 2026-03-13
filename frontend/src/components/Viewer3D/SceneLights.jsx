@@ -1,32 +1,25 @@
-import { Environment } from '@react-three/drei';
-
 /**
- * Lighting setup for the 3D scene
+ * Lighting setup for the 3D scene.
+ * Ambient légèrement réduit + key light renforcée pour plus de relief sur le modèle.
  */
 export function SceneLights() {
   return (
     <>
-      <ambientLight intensity={0.4} />
-      
-      {/* Key Light */}
-      <directionalLight 
-        position={[10, 10, 10]} 
-        intensity={1.5} 
+      <ambientLight intensity={0.32} />
+      <directionalLight
+        position={[10, 10, 10]}
+        intensity={1.7}
         color="#ffffff"
         castShadow={false}
       />
-      
-      {/* Fill Light */}
-      <directionalLight 
-        position={[-10, 5, 10]} 
-        intensity={0.8} 
+      <directionalLight
+        position={[-10, 5, 10]}
+        intensity={0.9}
         color="#ffffff"
       />
-      
-      {/* Back Light */}
-      <directionalLight 
-        position={[0, 5, -10]} 
-        intensity={0.6} 
+      <directionalLight
+        position={[0, 5, -10]}
+        intensity={0.7}
         color="#ffffff"
       />
     </>

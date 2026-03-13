@@ -1,5 +1,6 @@
 /**
  * Camera control: OrbitControls + Z-only zoom to organ + default state for Reset.
+ *
  * - Zoom: set store currentFocus → this component runs focusOnOrganZ and animates camera Z + target.
  * - Reset: Viewer3D calls setPendingCameraRestore(getDefaultCameraState()); this applies it in useFrame.
  */
@@ -10,9 +11,7 @@ import { OrbitControls } from '@react-three/drei';
 import { useSceneStore } from '../../store';
 import { serializeCameraStateFromScene, applyCameraState } from '../../utils/cameraStateUtils';
 import { CAMERA, clampZoomDistance } from './cameraConstants';
-import { SEGMENTS } from './medicalColors';
-
-const __DEV__ = import.meta.env?.DEV ?? process.env.NODE_ENV !== 'production';
+import { getSegmentNamesForFocus, findOrganMeshes } from './focusUtils';
 
 // -----------------------------------------------------------------------------
 // Helpers
@@ -20,72 +19,6 @@ const __DEV__ = import.meta.env?.DEV ?? process.env.NODE_ENV !== 'production';
 
 function easeInOutCubic(t) {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-}
-
-// -----------------------------------------------------------------------------
-// Organ lookup (focus key → segment names and scene meshes)
-// -----------------------------------------------------------------------------
-
-const CATEGORY_MATCHES = {
-  heart: ['heart', 'atrial-appendage'],
-  liver: ['liver'],
-  lung: ['lung'],
-  lungs: ['lung'],
-  'left lung': ['of-left-lung', 'left-lung'],
-  'right lung': ['of-right-lung', 'right-lung'],
-  stomach: ['stomach'],
-  pancreas: ['pancreas'],
-  spleen: ['spleen'],
-  thyroid: ['thyroid'],
-  aorta: ['aorta'],
-  esophagus: ['esophagus'],
-  trachea: ['trachea'],
-  adrenal: ['adrenal-gland', 'adrenal'],
-  kidney: ['kidney'],
-  kidneys: ['kidney'],
-  clavicle: ['clavicle'],
-  scapula: ['scapula'],
-  humerus: ['humerus'],
-  sternum: ['sternum'],
-  skeleton: ['clavicle', 'scapula', 'humerus', 'sternum', 'spinal-cord'],
-  artery: ['artery', 'subclavian', 'carotid', 'aorta', 'brachiocephalic-trunk'],
-  vein: ['vein', 'vena-cava', 'brachiocephalic-vein', 'portal-vein'],
-  vessel: ['artery', 'vein', 'aorta', 'vena-cava', 'subclavian', 'carotid', 'brachiocephalic', 'portal-vein'],
-  pulmonary: ['pulmonary'],
-  muscle: ['muscle'],
-  spinal: ['spinal-cord'],
-  spine: ['spinal-cord'],
-  'spinal-cord': ['spinal-cord'],
-  trunk: ['brachiocephalic'],
-  brachiocephalic: ['brachiocephalic'],
-};
-
-function getSegmentNamesForFocus(focusKey) {
-  if (!focusKey || typeof focusKey !== 'string') return [];
-  const key = focusKey.toLowerCase().trim();
-  return SEGMENTS.filter((seg) => {
-    const n = seg.toLowerCase();
-    if (n === key) return true;
-    if (CATEGORY_MATCHES[key]?.some((kw) => n.includes(kw))) return true;
-    if (n.includes(key) || key.includes(n)) return true;
-    return false;
-  });
-}
-
-function findOrganMeshes(scene, focusName) {
-  if (!scene || !focusName || typeof focusName !== 'string') return [];
-  const out = [];
-  const low = focusName.toLowerCase();
-  scene.traverse((child) => {
-    if (!child.isMesh || !child.name) return;
-    const n = child.name.toLowerCase();
-    if (n === low || CATEGORY_MATCHES[low]?.some((kw) => n.includes(kw))) {
-      out.push(child);
-      return;
-    }
-    if (n.includes(low) || low.includes(n)) out.push(child);
-  });
-  return out;
 }
 
 function getOrganBoundingBox(meshes) {
@@ -101,8 +34,7 @@ function getOrganBoundingBox(meshes) {
 }
 
 // -----------------------------------------------------------------------------
-// Zoom: camera moves on Z only (view axis), target = organ center.
-// Public API: call with organ center/size and current camera; returns { cameraZ, target }.
+// Public API: compute target camera Z and look-at for organ focus (Z-only zoom).
 // -----------------------------------------------------------------------------
 
 export function focusOnOrganZ(organCenter, organSize, zoomLevel, lockX, lockY, currentCameraZ) {
@@ -120,7 +52,7 @@ export function focusOnOrganZ(organCenter, organSize, zoomLevel, lockX, lockY, c
 }
 
 // -----------------------------------------------------------------------------
-// Component: OrbitControls + default state + restore + zoom animation
+// Component
 // -----------------------------------------------------------------------------
 
 export function FocusCamera() {
@@ -134,7 +66,6 @@ export function FocusCamera() {
   const [zoomAnimation, setZoomAnimation] = useState(null);
   const [isInteracting, setIsInteracting] = useState(false);
 
-  // Expose current camera state for history/serialization
   useEffect(() => {
     const getState = () =>
       controlsRef.current && camera
@@ -144,7 +75,6 @@ export function FocusCamera() {
     return () => setGetCameraState(null);
   }, [camera, setGetCameraState]);
 
-  // On focus change: ensure segments visible, then start Z-only zoom animation
   useEffect(() => {
     if (!currentFocus) {
       setZoomAnimation(null);
@@ -155,8 +85,8 @@ export function FocusCamera() {
 
     const meshes = findOrganMeshes(scene, currentFocus);
     if (meshes.length === 0) {
-      getSegmentNamesForFocus(currentFocus).forEach((name) =>
-        useSceneStore.getState().setSegmentVisibility(name, true)
+      getSegmentNamesForFocus(currentFocus).forEach((segmentName) =>
+        useSceneStore.getState().setSegmentVisibility(segmentName, true)
       );
       return;
     }
@@ -191,14 +121,12 @@ export function FocusCamera() {
     const controls = controlsRef.current;
     if (!controls) return;
 
-    // Save default view once (used by Reset)
     if (!defaultStateSavedRef.current) {
       const state = serializeCameraStateFromScene(camera, controls.target);
       setGetDefaultCameraState(() => (state ? { ...state } : null));
       defaultStateSavedRef.current = true;
     }
 
-    // Restore saved view (Reset button / history)
     const pending = useSceneStore.getState().pendingCameraRestore;
     if (pending) {
       applyCameraState(camera, controls, pending);
@@ -208,7 +136,6 @@ export function FocusCamera() {
       return;
     }
 
-    // Zoom animation: only Z and target change; X and Y stay locked
     if (zoomAnimation && !isInteracting && currentFocus) {
       const elapsed = performance.now() - zoomAnimation.startedAt;
       const t = Math.min(elapsed / CAMERA.ZOOM_DURATION_MS, 1);
@@ -218,12 +145,6 @@ export function FocusCamera() {
       camera.position.y = zoomAnimation.lockY;
       camera.position.z = zoomAnimation.startZ + (zoomAnimation.endZ - zoomAnimation.startZ) * eased;
       controls.target.lerpVectors(zoomAnimation.startTarget, zoomAnimation.endTarget, eased);
-
-      if (__DEV__) {
-        if (camera.position.y !== zoomAnimation.lockY || camera.position.x !== zoomAnimation.lockX) {
-          console.warn('[FocusCamera] X or Y changed during zoom (expected locked)');
-        }
-      }
 
       if (t >= 1) setZoomAnimation(null);
       controls.update();

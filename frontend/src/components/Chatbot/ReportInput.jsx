@@ -5,53 +5,78 @@ const MAX_FILE_SIZE_MB = 2;
 /** Align with backend MAX_MESSAGE_LENGTH to avoid sending oversized content. */
 const MAX_PASTE_LENGTH = 100_000;
 
+const DEFAULT_BACKEND_URL = 'http://localhost:4000/chat';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || DEFAULT_BACKEND_URL;
+const PDF_EXTRACT_URL = BACKEND_URL.replace('/chat', '/extract-pdf');
+
 export function ReportInput() {
   const [isOpen, setIsOpen] = useState(false);
   const [paste, setPaste] = useState('');
-  const [error, setError] = useState(null);
+  const [reportError, setReportError] = useState(null);
+  const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
   const setAnalyzedReport = useSceneStore((s) => s.setAnalyzedReport);
 
   const handleSubmit = () => {
     const text = paste.trim();
     if (!text) {
-      setError('Please paste or upload report text.');
+      setReportError('Please paste or upload report text.');
       return;
     }
     if (text.length > MAX_PASTE_LENGTH) {
-      setError(`Report text must not exceed ${MAX_PASTE_LENGTH.toLocaleString()} characters.`);
+      setReportError(`Report text must not exceed ${MAX_PASTE_LENGTH.toLocaleString()} characters.`);
       return;
     }
-    setError(null);
+    setReportError(null);
     setAnalyzedReport(text);
     setPaste('');
     setIsOpen(false);
   };
 
-  const handleFileChange = (e) => {
+  const handleFileChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setError(null);
+    setReportError(null);
+
     if (file.size > MAX_FILE_SIZE_MB * 1024 * 1024) {
-      setError(`File must be under ${MAX_FILE_SIZE_MB} MB.`);
+      setReportError(`File must be under ${MAX_FILE_SIZE_MB} MB.`);
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setPaste(String(reader.result ?? ''));
-    };
-    reader.onerror = () => setError('Could not read file.');
-    if (file.type === 'text/plain') {
+
+    if (file.type === 'application/pdf') {
+      setIsUploading(true);
+      const formData = new FormData();
+      formData.append('report', file);
+
+      try {
+        const res = await fetch(PDF_EXTRACT_URL, {
+          method: 'POST',
+          body: formData,
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to extract PDF');
+        setPaste(data.text || '');
+      } catch (err) {
+        setReportError(err.message);
+      } finally {
+        setIsUploading(false);
+      }
+    } else if (file.type === 'text/plain') {
+      const reader = new FileReader();
+      reader.onload = () => {
+        setPaste(String(reader.result ?? ''));
+      };
+      reader.onerror = () => setReportError('Could not read file.');
       reader.readAsText(file);
     } else {
-      setError('Only .txt files are supported for upload. You can paste PDF content manually.');
+      setReportError('Only .txt and .pdf files are supported.');
     }
     e.target.value = '';
   };
 
   const handleClose = () => {
     setIsOpen(false);
-    setError(null);
+    setReportError(null);
     setPaste('');
   };
 
@@ -60,7 +85,7 @@ export function ReportInput() {
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        className="glass-btn px-2.5 py-1.5 text-xs font-medium rounded-xl text-text hover:!bg-accent hover:!text-white hover:!border-accent/30 transition-colors"
+        className="glass-btn px-2.5 py-1.5 text-xs font-medium rounded-md text-text hover:!bg-accent hover:!text-white hover:!border-accent/30 transition-colors"
         aria-label="Add or paste report for analysis"
       >
         Add report
@@ -86,33 +111,35 @@ export function ReportInput() {
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto flex flex-col p-4 gap-3">
         <label className="text-xs font-medium text-text-secondary shrink-0">
-          Paste report text below or upload a .txt file
+          Paste report text below or upload a .txt or .pdf file
         </label>
         <textarea
           value={paste}
-          onChange={(e) => { setPaste(e.target.value); setError(null); }}
-          placeholder="Paste medical report text here..."
-          className="glass-input min-h-[120px] max-h-[40vh] w-full px-3 py-2 text-sm rounded-xl text-text placeholder:text-text-secondary resize-y overflow-y-auto"
-          aria-describedby={error ? 'report-error' : undefined}
+          onChange={(e) => { setPaste(e.target.value); setReportError(null); }}
+          placeholder={isUploading ? "Extracting text from PDF..." : "Paste medical report text here..."}
+          disabled={isUploading}
+          className="glass-input min-h-[120px] max-h-[40vh] w-full px-3 py-2 text-sm rounded-xl text-text placeholder:text-text-secondary resize-y overflow-y-auto disabled:opacity-50"
+          aria-describedby={reportError ? 'report-error' : undefined}
         />
         <input
           ref={fileInputRef}
           type="file"
-          accept=".txt,text/plain"
+          accept=".txt,text/plain,application/pdf"
           onChange={handleFileChange}
           className="hidden"
-          aria-label="Upload text file"
+          aria-label="Upload file"
         />
         <button
           type="button"
+          disabled={isUploading}
           onClick={() => fileInputRef.current?.click()}
-          className="text-xs text-accent hover:underline"
+          className="text-xs text-accent hover:underline disabled:opacity-50 disabled:no-underline"
         >
-          Upload .txt file
+          {isUploading ? "Processing PDF..." : "Upload .txt or .pdf file"}
         </button>
-        {error && (
+        {reportError && (
           <p id="report-error" className="text-xs text-red-600" role="alert">
-            {error}
+            {reportError}
           </p>
         )}
         <div className="flex gap-2 shrink-0">
@@ -127,9 +154,9 @@ export function ReportInput() {
             type="button"
             onClick={handleSubmit}
             className="px-3 py-2 text-sm font-medium rounded-lg bg-accent text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={!paste.trim()}
+            disabled={!paste.trim() || isUploading}
           >
-            Analyze report
+            {isUploading ? "Processing..." : "Analyze report"}
           </button>
         </div>
       </div>
