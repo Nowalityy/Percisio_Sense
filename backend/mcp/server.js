@@ -17,59 +17,147 @@ function assertInputLength(value, label) {
   }
 }
 
-const REPORT_ORGAN_PATTERNS = [
-  ['pleura', /\b(pleura|pleural)\b/gi],
-  ['lungs', /\b(lung|lungs|pulmonary)\b/gi],
-  ['heart', /\b(heart|cardiac|atrium|ventricle|pericardium)\b/gi],
-  ['liver', /\b(liver|hepatic)\b/gi],
-  ['bones', /\b(bone|skeleton|spine|vertebra|clavicle|scapula|humerus|sternum|rib)\b/gi],
-  ['vessels', /\b(aorta|artery|vein|vessel|vascular|IVC|SVC)\b/gi],
-  ['mediastinum', /\b(mediastinum|mediastinal)\b/gi],
-  ['diaphragm', /\b(diaphragm)\b/gi],
-  ['kidney', /\b(kidney|renal)\b/gi],
-  ['spleen', /\b(spleen|splenic)\b/gi],
-  ['pancreas', /\b(pancreas|pancreatic)\b/gi],
-  ['stomach', /\b(stomach|gastric)\b/gi],
-  ['thyroid', /\b(thyroid)\b/gi],
-  ['brain', /\b(brain|cerebral)\b/gi],
-  ['spinal cord', /\b(spinal\s*cord|spine)\b/gi],
-  ['esophagus', /\b(esophagus|oesophagus)\b/gi],
-  ['trachea', /\b(trachea|tracheal)\b/gi],
-];
-const ANOMALY_KEYWORDS = /\b(nodule|mass|lesion|effusion|atelectasis|consolidation|enlarged|dilation|dilatation|fracture|embolism|pneumothorax|thickening|opacity|infiltrate|edema|stenosis|abnormal|pathology|enlargement)\b/gi;
+const NEGATION_MARKERS = /\b(pas de|absence de|aucun|aucune|sans|absence|non|negatif|négatif|no|without|absence of|negative for|negative|not seen|not visualized)\b/gi;
+const RECOMMENDATION_MARKERS = /\b(recommandé|recommande|suivi|surveillance|contrôle|recommend|follow-up|suggest|surveillance|suggéré|preconise|préconisé)\b/gi;
+
+/**
+ * Detects medical entities using a longest-match strategy.
+ * Prioritizes multi-word expressions over single keywords.
+ */
+function detectMedicalEntity(sentence) {
+    ANOMALY_KEYWORDS_REGEX.lastIndex = 0;
+    const matches = [];
+    let match;
+    while ((match = ANOMALY_KEYWORDS_REGEX.exec(sentence)) !== null) {
+        matches.push(match[0]);
+    }
+    if (matches.length === 0) return null;
+    // Longest match first to satisfy "nodule pulmonaire" > "nodule"
+    return matches.sort((a, b) => b.length - a.length)[0];
+}
+
+/**
+ * Detects if a term is negated in a sentence (4-word window).
+ */
+function detectNegation(term, sentence) {
+  const lowerSentence = sentence.toLowerCase();
+  const lowerTerm = term.toLowerCase();
+  const termIndex = lowerSentence.indexOf(lowerTerm);
+  if (termIndex === -1) return false;
+
+  const words = lowerSentence.slice(0, termIndex).trim().split(/\s+/);
+  const lastFour = words.slice(-4).join(' ');
+  NEGATION_MARKERS.lastIndex = 0;
+  return NEGATION_MARKERS.test(lastFour);
+}
+
+/**
+ * Classifies a sentence intent: finding, recommendation, negated, other.
+ */
+function classifySentence(sentence) {
+  const lower = sentence.toLowerCase();
+  
+  // 1. RECOMMENDATION Check
+  RECOMMENDATION_MARKERS.lastIndex = 0;
+  if (RECOMMENDATION_MARKERS.test(lower)) return 'recommendation';
+
+  // 2. NEGATION Check for entities
+  const entity = detectMedicalEntity(sentence);
+  if (entity && detectNegation(entity, sentence)) return 'negated';
+
+  if (entity) return 'finding';
+  return 'other';
+}
+
+/**
+ * Deduplicates findings by grouping by medical entity and keeping the longest description.
+ */
+function deduplicateFindings(findings) {
+  if (!Array.isArray(findings)) return [];
+  const map = new Map();
+
+  for (const sentence of findings) {
+    const entity = detectMedicalEntity(sentence);
+    if (!entity) continue;
+    const core = entity.toLowerCase();
+    
+    if (!map.has(core) || sentence.length > map.get(core).length) {
+      map.set(core, sentence);
+    }
+  }
+  return Array.from(map.values());
+}
+
+const ORGAN_DICTIONARIES = {
+  lungs: /\b(poumon|poumons|lung|lungs|lobe|bronche|pneumothorax|opacité|opacite|verre dépoli|verre depoli|nodule|pulmonaire|pleura|pleural|plèvre|pleural)\b/gi,
+  heart: /\b(heart|cardiac|cœur|coeur|cardiaque|atrium|ventricle|ventricule|pericardium|péricarde)\b/gi,
+  liver: /\b(liver|hepatic|foie|hépatique|hepatique)\b/gi,
+  bones: /\b(bone|skeleton|spine|vertebra|clavicle|scapula|humerus|sternum|rib|os|squelette|colonne|vertèbre|vertebre|clavicule|omoplate|humérus|humerus|sternum|côte|cote|fracture|osseuse|osseux)\b/gi,
+  vessels: /\b(aorta|artery|vein|vessel|vascular|aorte|artère|artere|veine|vasculaire|embolie|embolism)\b/gi,
+  mediastinum: /\b(mediastinum|mediastinal|médiastin|mediastinal|adénopathie|adenopathie|ganglion)\b/gi,
+  kidney: /\b(kidney|renal|rein|reins|rénal|renal)\b/gi,
+  spleen: /\b(spleen|splenic|rate|splénique|splenique)\b/gi,
+};
+
+const REPORT_ORGAN_PATTERNS = Object.entries(ORGAN_DICTIONARIES);
+// Prioritize multi-word medical expressions
+const ANOMALY_KEYWORDS_REGEX = /\b(nodule pulmonaire|kyste hépatique|adénopathie médiastinale|fracture osseuse|embolie pulmonaire|épanchement pleural|nodule solide|abcès hépatique|lésion suspecte|masse tumorale|verre dépoli|nodule pulmonaire|opacité nodulaire|nodule|adénopathie|fracture|hémorragie|opacité|atelectasie|abcès|abcés|kyste|pneumothorax|embolie)\b/gi;
 
 function extractFindingsImpl(reportText) {
-  if (!reportText || typeof reportText !== 'string') return { byOrgan: {} };
+  if (!reportText || typeof reportText !== 'string') return { byOrgan: {}, riskFlags: [], ignoredNegated: [], recommendations: [] };
   const byOrgan = Object.create(null);
-  const lines = reportText.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  for (const line of lines) {
-    ANOMALY_KEYWORDS.lastIndex = 0;
-    if (!ANOMALY_KEYWORDS.test(line)) continue;
-    let matched = false;
+  const ignoredNegated = new Set();
+  const recommendations = [];
+
+  // Step 1: Segmentation
+  const sentences = reportText.split(/[.!?;\n]/).map((s) => s.trim()).filter(Boolean);
+
+  for (const sentence of sentences) {
+    // Step 2: Intent Classification
+    const type = classifySentence(sentence);
+
+    if (type === 'recommendation') {
+      recommendations.push(sentence);
+      continue;
+    }
+
+    if (type === 'negated') {
+      // Step 4: Negation Filtering
+      const entity = detectMedicalEntity(sentence);
+      if (entity) ignoredNegated.add(entity.toLowerCase());
+      continue;
+    }
+
+    if (type !== 'finding') continue;
+
+    // Step 5: Organ Classification
+    let matchedOrgan = 'other';
     for (const [organName, re] of REPORT_ORGAN_PATTERNS) {
       re.lastIndex = 0;
-      if (re.test(line)) {
-        if (!byOrgan[organName]) byOrgan[organName] = [];
-        const trimmed = line.slice(0, 300);
-        if (!byOrgan[organName].includes(trimmed)) byOrgan[organName].push(trimmed);
-        matched = true;
+      if (re.test(sentence)) {
+        matchedOrgan = organName;
         break;
       }
     }
-    if (!matched) {
-      if (!byOrgan.other) byOrgan.other = [];
-      const trimmed = line.slice(0, 300);
-      if (!byOrgan.other.includes(trimmed)) byOrgan.other.push(trimmed);
-    }
+
+    if (!byOrgan[matchedOrgan]) byOrgan[matchedOrgan] = [];
+    byOrgan[matchedOrgan].push(sentence);
   }
-  const keys = Object.keys(byOrgan);
-  if (keys.length > 8) {
-    const sorted = keys.sort((a, b) => byOrgan[b].length - byOrgan[a].length).slice(0, 8);
-    const out = Object.create(null);
-    for (const k of sorted) out[k] = byOrgan[k];
-    return { byOrgan: out };
+
+  // Step 6: Deduplication
+  for (const organ in byOrgan) {
+    byOrgan[organ] = deduplicateFindings(byOrgan[organ]);
   }
-  return { byOrgan };
+
+  // Step 7: Risk Scoring
+  const risks = riskFlagsImpl(JSON.stringify(byOrgan));
+
+  return { 
+      byOrgan, 
+      riskFlags: risks.flags,
+      ignoredNegated: Array.from(ignoredNegated), 
+      recommendations 
+  };
 }
 
 function highlightEvidenceImpl(reportText, needle) {
@@ -105,24 +193,51 @@ function highlightEvidenceImpl(reportText, needle) {
   return { quote: '', start: -1, end: -1 };
 }
 
-const HIGH_RISK_KEYWORDS = /\b(pneumothorax|embolism|dissection|hemorrhage|fracture|rupture|infarction)\b/gi;
+const RISKS = {
+    critical: /\b(pneumothorax|embolie pulmonaire|hémorragie|fracture)\b/gi,
+    clinical: /\b(nodule pulmonaire|adénopathie|masse|lésion suspecte|nodule solide)\b/gi,
+    low: /\b(kyste|kyste bénin|kyste benin|abcès|abcés)\b/gi
+};
 
-function riskFlagsImpl(byOrgan) {
+function riskFlagsImpl(textInput) {
   const flags = [];
-  const text = typeof byOrgan === 'object' && byOrgan !== null
-    ? JSON.stringify(byOrgan)
-    : String(byOrgan ?? '');
-  HIGH_RISK_KEYWORDS.lastIndex = 0;
-  let m;
+  const text = typeof textInput === 'string' ? textInput : JSON.stringify(textInput);
   const seen = new Set();
-  while ((m = HIGH_RISK_KEYWORDS.exec(text)) !== null) {
-    const word = m[0].toLowerCase();
-    if (!seen.has(word)) {
-      seen.add(word);
-      flags.push({ level: 'high', text: `Keyword: ${word}` });
+
+  const processRisks = (regex, level, label) => {
+    regex.lastIndex = 0;
+    let m;
+    while ((m = regex.exec(text)) !== null) {
+      const word = m[0].toLowerCase();
+      if (!seen.has(word)) {
+          seen.add(word);
+          flags.push({ level, text: `${label}: ${word}` });
+      }
     }
-  }
+  };
+
+  processRisks(RISKS.critical, 'high', 'Critical risk');
+  processRisks(RISKS.clinical, 'medium', 'Clinical finding');
+  processRisks(RISKS.low, 'low', 'Minor finding');
+
   return { flags };
+}
+
+const HIGH_RISK_KEYWORDS = /\b(pneumothorax|embolie|hémorragie|fracture)\b/gi;
+const CLINICAL_RISK_KEYWORDS =
+  /\b(nodule|adénopathie|masse|lésion|lesion|opacité|opacite|verre dépoli|atelectasie|épanchement|epanchement)\b/gi;
+
+function getClinicalPriorityImpl(byOrgan) {
+  const findings = JSON.stringify(byOrgan).toLowerCase();
+  HIGH_RISK_KEYWORDS.lastIndex = 0;
+  if (HIGH_RISK_KEYWORDS.test(findings)) {
+    return { priority: 'P0', status: 'Emergency', description: 'Life-threatening findings detected.' };
+  }
+  CLINICAL_RISK_KEYWORDS.lastIndex = 0;
+  if (CLINICAL_RISK_KEYWORDS.test(findings)) {
+    return { priority: 'P1', status: 'Urgent', description: 'Significant clinical findings require prompt review.' };
+  }
+  return { priority: 'P2', status: 'Routine', description: 'Routine clinical findings.' };
 }
 
 const server = new McpServer({
@@ -154,11 +269,21 @@ server.registerTool(
 
 server.registerTool(
   'risk_flags',
-  { description: 'Return risk flags from byOrgan/findings. Input: byOrgan or findings object.', inputSchema: z.object({ byOrgan: z.record(z.string(), z.array(z.string())).optional(), findings: z.record(z.any()).optional() }) },
+  { description: 'Return risk flags from byOrgan or reportText. Input: reportText (preferred) or byOrgan findings.', inputSchema: z.object({ reportText: z.string().optional(), byOrgan: z.record(z.string(), z.array(z.string())).optional(), findings: z.record(z.any()).optional() }) },
   async (args) => {
     log('risk_flags called');
-    const byOrgan = args?.byOrgan ?? args?.findings ?? {};
-    const result = riskFlagsImpl(byOrgan);
+    const input = args?.reportText ?? args?.byOrgan ?? args?.findings ?? {};
+    const result = riskFlagsImpl(input);
+    return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+  }
+);
+
+server.registerTool(
+  'get_clinical_priority',
+  { description: 'Get clinical priority (P0-P2) from findings.', inputSchema: z.object({ byOrgan: z.record(z.string(), z.array(z.string())) }) },
+  async ({ byOrgan }) => {
+    log('get_clinical_priority called');
+    const result = getClinicalPriorityImpl(byOrgan);
     return { content: [{ type: 'text', text: JSON.stringify(result) }] };
   }
 );

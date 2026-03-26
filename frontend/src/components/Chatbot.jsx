@@ -12,9 +12,9 @@ const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || DEFAULT_BACKEND_URL;
 
 
 const AUTO_SUMMARY_PROMPT_PREFIX =
-  '[SYSTEM]: A new medical document has been uploaded. Analyze it in depth. Provide a complete summary, list anomalies by organ, and conclude with a probable diagnosis or recommendations.\n\n[DOCUMENT]:\n';
+  '[SYSTEM]: A new medical document has been uploaded. Provide a professional clinical summary. Focus on significant findings and provide a clinical impression. Use headers: Findings, Impression, Recommendations.\n\n[DOCUMENT CONTENT]:\n';
 const CONTEXT_PROMPT_TEMPLATE =
-  '[CONTEXT - ANALYZED DOCUMENT]:\n{report}\n\n[USER QUESTION]:\n{question}';
+  '[CONTEXT - ANALYZED DOCUMENT]:\n{report}\n\n---\n\n[USER INQUIRY]:\n{question}';
 
 const FALLBACK_REPLY_SUMMARY = "I received the document, but I cannot summarize it.";
 const FALLBACK_REPLY_EMPTY = '(no response)';
