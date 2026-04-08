@@ -1,13 +1,10 @@
 import { useState, useRef } from 'react';
 import { useSceneStore } from '../../store';
+import { EXTRACT_PDF_URL } from '../../config/api.js';
 
 const MAX_FILE_SIZE_MB = 2;
 /** Align with backend MAX_MESSAGE_LENGTH to avoid sending oversized content. */
 const MAX_PASTE_LENGTH = 100_000;
-
-const DEFAULT_BACKEND_URL = 'http://localhost:4000/chat';
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || DEFAULT_BACKEND_URL;
-const PDF_EXTRACT_URL = BACKEND_URL.replace('/chat', '/extract-pdf');
 
 /**
  * @param {{ embedded?: boolean }} props

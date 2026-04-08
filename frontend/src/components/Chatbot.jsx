@@ -5,9 +5,7 @@ import { cardTitleToFocusKey, getSegmentNamesForFocus } from '../components/View
 import { QuickActions } from './Chatbot/QuickActions';
 import { ConversationHistory } from './Chatbot/ConversationHistory';
 import { ReportInput } from './Chatbot/ReportInput';
-
-const DEFAULT_BACKEND_URL = 'http://localhost:4000/chat';
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || DEFAULT_BACKEND_URL;
+import { CHAT_URL } from '../config/api.js';
 
 
 
@@ -183,7 +181,7 @@ async function sendChatRequest(message, reportText = null) {
     body.reportText = raw;
   }
 
-  const response = await fetch(BACKEND_URL, {
+  const response = await fetch(CHAT_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
