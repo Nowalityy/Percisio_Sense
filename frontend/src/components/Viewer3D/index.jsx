@@ -150,7 +150,7 @@ export default function Viewer3D() {
 
   const handleReset = useCallback(() => {
     const store = useSceneStore.getState();
-    store.clearFocus();
+    store.clearCameraFocus();
     setRotation({ ...DEFAULT_ROTATION });
     const defaultCameraState = store.getDefaultCameraState?.();
     if (defaultCameraState) {
@@ -171,7 +171,7 @@ export default function Viewer3D() {
     if (state.focus != null) {
       store.setFocus(state.focus);
     } else {
-      store.clearFocus();
+      store.clearCameraFocus();
     }
 
     if (state.segmentVisibility && typeof state.segmentVisibility.forEach === 'function') {
@@ -300,7 +300,7 @@ export default function Viewer3D() {
         </button>
       </div>
 
-      {currentFocus && (
+      {(currentFocus || citedOrgans.length > 1) && (
         <div className="absolute top-14 left-4 z-30 flex items-center gap-1.5">
           {citedOrgans.length > 1 && (
             <div className="flex items-center gap-1 glass-btn rounded-full px-2 py-1.5 text-[10px] font-medium text-slate-700">
@@ -331,15 +331,17 @@ export default function Viewer3D() {
               </button>
             </div>
           )}
-          <button
-            type="button"
-            onClick={handleReset}
-            className="px-3 py-1.5 rounded-full bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold uppercase tracking-wider border border-red-400 active:scale-95 shadow-md"
-            aria-label="Reset camera view and clear organ focus"
-            title="Reset view"
-          >
-            ✕ Reset view
-          </button>
+          {currentFocus && (
+            <button
+              type="button"
+              onClick={handleReset}
+              className="px-3 py-1.5 rounded-full bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold uppercase tracking-wider border border-red-400 active:scale-95 shadow-md"
+              aria-label="Reset camera view and clear organ focus"
+              title="Reset view"
+            >
+              ✕ Reset view
+            </button>
+          )}
         </div>
       )}
 

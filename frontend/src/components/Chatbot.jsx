@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import { useSceneStore } from '../store.js';
 import { focusOnOrgan } from '../utils/viewerUtils.js';
 import { cardTitleToFocusKey, getSegmentNamesForFocus } from '../components/Viewer3D/focusUtils.js';
@@ -40,7 +40,14 @@ function SimpleMarkdown({ text }) {
       if (m[0].startsWith('**')) {
         parts.push(<strong key={`${keyPrefix}-${key++}`}>{m[0].slice(2, -2)}</strong>);
       } else {
-        parts.push(<code key={`${keyPrefix}-${key++}`} className="text-xs glass-input px-1.5 py-0.5 rounded-lg">{m[0].slice(1, -1)}</code>);
+        parts.push(
+          <code
+            key={`${keyPrefix}-${key++}`}
+            className="text-[13px] bg-black/[0.06] px-1.5 py-0.5 rounded-md font-mono text-[#1c1c1e]"
+          >
+            {m[0].slice(1, -1)}
+          </code>
+        );
       }
       lastIndex = m.index + m[0].length;
     }
@@ -63,26 +70,31 @@ function MessageBubble({ from, text, isGreeting }) {
   const isUser = from === 'user';
   if (isGreeting) {
     return (
-      <div className="flex justify-start animate-[fadeIn_0.2s_ease-out]" role="listitem">
-        <div className="text-sm text-slate-600 leading-relaxed space-y-1">
+      <div className="flex justify-center px-2 animate-[fadeIn_0.2s_ease-out]" role="listitem">
+        <p className="max-w-[min(100%,20rem)] text-center text-[13px] leading-relaxed text-[#8e8e93] font-medium">
           {text.split(/\n/).filter(Boolean).map((line, i) => (
-            <p key={i}>{line}</p>
+            <span key={i}>
+              {i > 0 && <br />}
+              {line}
+            </span>
           ))}
-        </div>
+        </p>
       </div>
     );
   }
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} animate-[fadeIn_0.2s_ease-out]`} role="listitem">
+    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} px-1 animate-[fadeIn_0.2s_ease-out]`} role="listitem">
       <div
-        className={`max-w-[80%] rounded-2xl px-3 py-2 text-sm leading-relaxed transition-shadow duration-200 ${
-          isUser
-            ? 'bg-accent text-white border border-accent/60 shadow-md hover:shadow-lg'
-            : 'bg-slate-100 border border-border text-text shadow-sm hover:shadow-md'
+        className={`max-w-[78%] rounded-[19px] px-3.5 py-2 text-[15px] leading-[1.35] tracking-[-0.01em] ${
+          isUser ? 'bg-[#007aff] text-white' : 'bg-[#e9e9eb] text-[#1c1c1e]'
         }`}
       >
         {isUser ? (
-          text.split('\n').map((line, idx) => <p key={idx}>{line}</p>)
+          text.split('\n').map((line, idx) => (
+            <p key={idx} className={idx > 0 ? 'mt-1.5' : ''}>
+              {line}
+            </p>
+          ))
         ) : (
           <SimpleMarkdown text={text} />
         )}
@@ -100,27 +112,25 @@ function CardItem({ card, isRisk = false }) {
   const isBulletList = bulletLines.length > 0 && bulletLines.length >= lines.length * 0.5;
 
   return (
-    <li
-      className={`border-b border-border/50 pb-3 last:border-0 last:pb-0 ${isRisk ? 'pl-3 border-l-4 border-l-amber-500 bg-amber-50/40 rounded-r-md -mx-0.5' : ''}`}
-    >
+    <li className={isRisk ? 'bg-[#fff9f0]' : ''}>
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="text-left w-full font-medium text-text flex items-center justify-between gap-2 py-0.5"
+        className="text-left w-full flex items-center justify-between gap-3 py-3 px-4 min-h-[44px] text-[15px] font-normal text-[#1c1c1e] focus:outline-none focus-visible:bg-black/[0.03] active:bg-black/[0.04]"
         title={content || undefined}
       >
-        <span className="truncate flex items-center gap-1.5">
+        <span className="truncate flex items-center gap-2 min-w-0">
           {isRisk && (
-            <span className="shrink-0 text-amber-600" aria-hidden="true" title="Risk flags">
-              ⚠
-            </span>
+            <span className="shrink-0 size-2 rounded-full bg-[#ff9500]" aria-hidden title="Risk flags" />
           )}
           {title}
         </span>
-        <span className="text-text-secondary shrink-0">{open ? '−' : '+'}</span>
+        <span className="text-[#c7c7cc] text-lg font-extralight leading-none shrink-0 w-6 text-center" aria-hidden>
+          {open ? '−' : '›'}
+        </span>
       </button>
       {open && content && (
-        <div className="mt-2 text-xs text-text-secondary space-y-1">
+        <div className="px-4 pb-3 pt-0 text-[13px] text-[#636366] leading-relaxed border-t border-black/[0.06]">
           {isBulletList ? (
             <ul className="list-disc list-inside space-y-0.5 pl-0.5">
               {bulletLines.map((line, i) => (
@@ -142,16 +152,15 @@ function CardItem({ card, isRisk = false }) {
 
 function LoadingIndicator() {
   return (
-    <div className="flex justify-start animate-[fadeIn_0.25s_ease-out]" aria-live="polite" aria-busy="true">
-      <div className="border border-[#E5E7EB] rounded-lg px-3 py-2 text-sm flex items-center gap-2 bg-white">
+    <div className="flex justify-start px-1 animate-[fadeIn_0.25s_ease-out]" aria-live="polite" aria-busy="true">
+      <div className="inline-flex items-center gap-1.5 rounded-[19px] bg-[#e9e9eb] px-4 py-3">
         {[0, 0.15, 0.3].map((delay, idx) => (
           <span
             key={idx}
-            className="w-1.5 h-1.5 bg-accent rounded-full animate-bounce"
+            className="h-1.5 w-1.5 rounded-full bg-[#aeaeb2] animate-bounce"
             style={{ animationDelay: `${delay}s` }}
           />
         ))}
-        <span className="text-text-secondary text-xs font-medium">Analyzing…</span>
       </div>
     </div>
   );
@@ -197,6 +206,18 @@ function buildMessageWithContext(userMessage, analyzedReport) {
   return CONTEXT_PROMPT_TEMPLATE.replace('{report}', analyzedReport).replace('{question}', userMessage);
 }
 
+const PANEL_CHAT = 'chat';
+const PANEL_REPORT = 'report';
+const PANEL_TOOLS = 'tools';
+
+function mainPanelTabClass(active) {
+  return `flex-1 min-w-0 py-0.5 px-1 sm:px-1.5 rounded-md text-[11px] sm:text-[12px] font-medium transition-[background,box-shadow,color] duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-[#007aff]/35 focus-visible:ring-offset-0 ${
+    active
+      ? 'bg-white text-[#1c1c1e] shadow-[0_1px_2px_rgba(0,0,0,0.06)]'
+      : 'text-[#8e8e93] hover:text-[#636366]'
+  }`;
+}
+
 export default function Chatbot() {
   const [messages, setMessages] = useState(() => {
     const hist = useSceneStore.getState().conversationHistory;
@@ -205,7 +226,10 @@ export default function Chatbot() {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [lastError, setLastError] = useState(null);
-
+  const [panelTab, setPanelTab] = useState(PANEL_CHAT);
+  const [reportAnalyzeTick, setReportAnalyzeTick] = useState(0);
+  const chatScrollRef = useRef(null);
+  const lastReportKeyRef = useRef(null);
 
   const setFocus = useSceneStore((s) => s.setFocus);
   const clearFocus = useSceneStore((s) => s.clearFocus);
@@ -220,6 +244,10 @@ export default function Chatbot() {
   const setLastCards = useSceneStore((s) => s.setLastCards);
   const lastMeta = useSceneStore((s) => s.lastMeta);
   const setLastMeta = useSceneStore((s) => s.setLastMeta);
+  const citedOrgans = useSceneStore((s) => s.citedOrgans);
+  const citedOrganIndex = useSceneStore((s) => s.citedOrganIndex);
+  const goToNextCitedOrgan = useSceneStore((s) => s.goToNextCitedOrgan);
+  const goToPrevCitedOrgan = useSceneStore((s) => s.goToPrevCitedOrgan);
 
 
 
@@ -322,7 +350,7 @@ export default function Chatbot() {
     };
 
     autoSummarize();
-  }, [analyzedReport, addMessage, setLastReply, applyCardsAndFocus, setAnalyzing]);
+  }, [analyzedReport, reportAnalyzeTick, addMessage, setLastReply, applyCardsAndFocus, setAnalyzing]);
 
 
   const sendMessage = async (e) => {
@@ -378,141 +406,324 @@ export default function Chatbot() {
   const handleNewSession = useCallback(() => {
     resetStore();
     setMessages([createMessage('assistant', GREETING)]);
+    setPanelTab(PANEL_CHAT);
   }, [resetStore]);
+
+  const handleNewSessionClick = useCallback(() => {
+    if (
+      typeof window !== 'undefined' &&
+      !window.confirm('Start a new conversation? Messages and the loaded report will be cleared.')
+    ) {
+      return;
+    }
+    handleNewSession();
+  }, [handleNewSession]);
+
+  /** New report text in store → reset thread so previous reports do not stay visible. */
+  useLayoutEffect(() => {
+    const key =
+      typeof analyzedReport === 'string' && analyzedReport.trim()
+        ? analyzedReport.trim()
+        : '';
+    if (lastReportKeyRef.current === null) {
+      lastReportKeyRef.current = key;
+      return;
+    }
+    if (lastReportKeyRef.current === key) return;
+    lastReportKeyRef.current = key;
+    if (key.length > 0) {
+      setMessages([createMessage('assistant', GREETING)]);
+    }
+  }, [analyzedReport]);
+
+  useLayoutEffect(() => {
+    if (panelTab !== PANEL_CHAT) return;
+    const el = chatScrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [messages, lastCards, isLoading, lastError, panelTab]);
 
 
 
   const retryReportAnalysis = useCallback(() => {
     const report = useSceneStore.getState().analyzedReport;
-    if (report) useSceneStore.getState().setAnalyzedReport(report);
+    if (!report?.trim()) return;
     setLastError(null);
+    setReportAnalyzeTick((t) => t + 1);
   }, []);
 
 
 
+  const reportBadge =
+    Boolean(analyzedReport) || lastCards.length > 0 || lastError === 'report';
+
   return (
-    <div className="flex flex-col h-full bg-white relative">
-      {/* Bloc titre + Add report / AI ready — padding réduit sur mobile pour moins de densité */}
-      <div className="border-b border-[#E5E7EB] shrink-0 flex flex-col gap-1.5 md:gap-2 px-4 md:px-5 pt-2.5 md:pt-3 pb-2.5 md:pb-3">
-        <h2 className="text-sm font-bold text-text tracking-tight">Clinical AI Analysis</h2>
-        <p className="text-xs text-slate-500 hidden sm:block">Extract insights from patient scans in seconds</p>
-        <div className="flex flex-wrap items-center gap-2 md:gap-3 pt-0.5 md:pt-1">
-          <ReportInput />
-        </div>
-        <div className="flex justify-between items-center mt-auto">
+    <div className="assistant-panel flex flex-col h-full min-h-0 relative bg-[#f2f2f7]">
+      <header
+        className="shrink-0 bg-white border-b border-black/[0.08] px-2 py-1.5 flex items-center gap-1.5 min-h-0"
+        role="presentation"
+      >
+        <h2 className="text-[13px] font-semibold text-[#1c1c1e] tracking-tight shrink-0 pl-0.5">Assistant</h2>
+        <div
+          className="flex-1 min-w-0 flex p-[2px] rounded-lg bg-[#00000012] gap-0"
+          role="tablist"
+          aria-label="Assistant panels"
+        >
           <button
             type="button"
-            onClick={handleNewSession}
-            className="text-[10px] font-bold uppercase tracking-widest text-slate-400 hover:text-accent transition-colors flex items-center gap-1.5"
-            title="Clear persistent conversation and start fresh"
+            role="tab"
+            aria-selected={panelTab === PANEL_CHAT}
+            onClick={() => setPanelTab(PANEL_CHAT)}
+            className={mainPanelTabClass(panelTab === PANEL_CHAT)}
           >
-            <span className="text-sm">↺</span> New Session
+            Chat
           </button>
-          <ConversationHistory />
+          <button
+            type="button"
+            role="tab"
+            aria-selected={panelTab === PANEL_REPORT}
+            onClick={() => setPanelTab(PANEL_REPORT)}
+            className={`${mainPanelTabClass(panelTab === PANEL_REPORT)} inline-flex items-center justify-center gap-1`}
+          >
+            <span>Report</span>
+            {reportBadge && (
+              <span
+                className="inline-flex h-1 w-1 rounded-full bg-[#007aff]"
+                title="Report or findings available"
+                aria-hidden
+              />
+            )}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={panelTab === PANEL_TOOLS}
+            onClick={() => setPanelTab(PANEL_TOOLS)}
+            className={mainPanelTabClass(panelTab === PANEL_TOOLS)}
+          >
+            Tools
+          </button>
         </div>
-      </div>
-
-      <div className="px-4 md:px-5 py-2 md:py-2.5 border-b border-[#E5E7EB] shrink-0 bg-white">
-        <QuickActions />
-      </div>
-      <div className="flex-1 overflow-y-auto px-4 md:px-5 py-3 md:py-4 space-y-3 md:space-y-4 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent" role="log" aria-live="polite">
-        {lastError === 'report' && analyzedReport && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 flex items-center justify-between gap-2 flex-wrap">
-            <p className="text-sm text-amber-800">
-              Report analysis failed. You can retry or keep asking questions with the report in context.
-            </p>
-            <button
-              type="button"
-              onClick={retryReportAnalysis}
-              className="text-xs font-medium px-3 py-1.5 rounded-lg bg-amber-200 text-amber-900 hover:bg-amber-300 transition-colors shrink-0"
-            >
-              Retry analysis
-            </button>
-          </div>
-        )}
-        {lastError === 'connection' && (
-          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 flex items-center justify-between gap-2 flex-wrap">
-            <p className="text-sm text-red-800">
-              Could not reach the assistant. Check that the backend is running and try again.
-            </p>
-            <button
-              type="button"
-              onClick={() => setLastError(null)}
-              className="text-xs font-medium px-3 py-1.5 rounded-lg bg-red-200 text-red-900 hover:bg-red-300 transition-colors shrink-0"
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
-        {messages.map((m) => (
-          <MessageBubble key={m.id} from={m.from} text={m.text} isGreeting={m.id === messages[0]?.id && m.from === 'assistant'} />
-        ))}
-        {lastCards.length > 0 && (
-          <div className="rounded-lg border border-[#E5E7EB] p-4 space-y-3">
-            <div className="flex items-center justify-between gap-2 flex-wrap">
-              <span className="text-xs font-semibold text-text-secondary uppercase tracking-wider">
-                Findings by organ
-                {(() => {
-                  const findingsCount = lastCards.filter((c) => c.id !== 'card-risks').length;
-                  if (findingsCount > 0) return ` (${findingsCount})`;
-                  return '';
-                })()}
-              </span>
-              {lastMeta?.cardsFrom === 'fallback' && (
-                <span
-                  className="text-[10px] px-2 py-0.5 rounded-full bg-slate-200 text-slate-600 font-medium"
-                  title="Cards were generated using local fallback (MCP unavailable)."
-                >
-                  Local summary
-                </span>
-              )}
-            </div>
-            <ul className="text-sm text-text space-y-1">
-              {lastCards.map((c) => (
-                <CardItem
-                  key={c.id ?? c.title ?? c.content}
-                  card={c}
-                  isRisk={c.id === 'card-risks'}
-                />
-              ))}
-            </ul>
-          </div>
-        )}
-        {!analyzedReport && lastCards.length === 0 && !isLoading && (
-          <div className="rounded-lg border border-dashed border-[#E5E7EB] px-4 py-3">
-            <p className="text-sm text-slate-500">
-              Upload a report to display findings by organ.
-            </p>
-          </div>
-        )}
-        {isLoading && <LoadingIndicator />}
-      </div>
-
-      <form
-        onSubmit={sendMessage}
-        className="border-t border-[#E5E7EB] px-4 md:px-5 py-2.5 md:py-3 flex flex-nowrap items-center gap-2 md:gap-3 bg-white shrink-0 pb-[env(safe-area-inset-bottom,0)]"
-      >
-        <label htmlFor="chat-input" className="sr-only">
-          Ask a question
-        </label>
-        <input
-          id="chat-input"
-          className="flex-1 min-w-0 glass-input rounded-md px-3 md:px-4 py-2 md:py-2.5 text-base md:text-sm text-text placeholder:text-text-secondary transition-all duration-200 focus:ring-2 focus:ring-accent/20"
-          placeholder="Ask about abnormalities, measurements, or risk indicators…"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          disabled={isLoading}
-          aria-describedby={lastError ? 'chat-error' : undefined}
-        />
         <button
-          type="submit"
-          disabled={isLoading || !input.trim()}
-          className="cta-analyze px-4 md:px-5 py-2 md:py-2.5 rounded-md text-sm font-semibold bg-accent/95 text-white disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none disabled:shadow-none transition-all duration-200 shrink-0 min-w-[6.5rem]"
-          aria-label="Analyze scan"
+          type="button"
+          onClick={handleNewSessionClick}
+          className="shrink-0 flex h-7 w-7 items-center justify-center rounded-md text-[#007aff] hover:bg-[#007aff]/8 active:opacity-70"
+          title="New conversation"
+          aria-label="New conversation — clears messages and report"
         >
-          {isLoading ? '...' : 'Analyze Scan'}
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="17"
+            height="17"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            aria-hidden
+          >
+            <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
+            <path d="M21 3v5h-5" />
+          </svg>
         </button>
-      </form>
+      </header>
+
+      {panelTab === PANEL_CHAT && (
+        <div className="flex flex-col flex-1 min-h-0">
+          <div
+            ref={chatScrollRef}
+            className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3 assistant-scrollbar"
+            role="log"
+            aria-live="polite"
+          >
+            {lastError === 'connection' && (
+              <div className="rounded-[10px] bg-white px-4 py-3 flex flex-col gap-3 border border-black/[0.06]">
+                <p className="text-[15px] text-[#1c1c1e] leading-snug">
+                  Could not reach the assistant. Check that the backend is running.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setLastError(null)}
+                  className="self-start text-[17px] font-normal text-[#007aff] active:opacity-60"
+                >
+                  OK
+                </button>
+              </div>
+            )}
+            {lastError === 'report' && analyzedReport && (
+              <div className="rounded-[10px] bg-white px-4 py-3 border border-black/[0.06]">
+                <p className="text-[15px] text-[#1c1c1e] leading-snug mb-2">
+                  Report analysis failed. Retry or keep chatting with the report in context.
+                </p>
+                <button
+                  type="button"
+                  onClick={retryReportAnalysis}
+                  className="text-[17px] font-normal text-[#007aff] active:opacity-60"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+            {messages.map((m) => (
+              <MessageBubble
+                key={m.id}
+                from={m.from}
+                text={m.text}
+                isGreeting={m.id === messages[0]?.id && m.from === 'assistant'}
+              />
+            ))}
+            {lastCards.length > 0 && (
+              <div className="pt-1">
+                <div className="flex items-center justify-between gap-2 mb-2 px-0.5">
+                  <span className="text-[12px] font-semibold text-[#8e8e93]">Findings</span>
+                  {lastMeta?.cardsFrom === 'fallback' && (
+                    <span
+                      className="text-[10px] text-[#8e8e93] font-medium"
+                      title="Cards were generated using local fallback (MCP unavailable)."
+                    >
+                      Local
+                    </span>
+                  )}
+                </div>
+                {citedOrgans.length > 1 && (
+                  <div
+                    className="flex items-center justify-center gap-2 py-1.5 mb-2 rounded-[10px] bg-white border border-black/[0.06]"
+                    role="group"
+                    aria-label="Navigate organs from report"
+                  >
+                    <button
+                      type="button"
+                      onClick={goToPrevCitedOrgan}
+                      className="p-1.5 rounded-full text-[#007aff] active:opacity-50"
+                      title="Previous organ"
+                      aria-label="Previous organ"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="15"
+                        height="15"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden
+                      >
+                        <path d="m15 18-6-6 6-6" />
+                      </svg>
+                    </button>
+                    <span className="text-[12px] font-medium text-[#8e8e93] tabular-nums min-w-[2.75rem] text-center">
+                      {citedOrganIndex + 1} / {citedOrgans.length}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={goToNextCitedOrgan}
+                      className="p-1.5 rounded-full text-[#007aff] active:opacity-50"
+                      title="Next organ"
+                      aria-label="Next organ"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="15"
+                        height="15"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden
+                      >
+                        <path d="m9 18 6-6-6-6" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+                <ul className="rounded-[10px] bg-white overflow-hidden border border-black/[0.06] divide-y divide-black/[0.08]">
+                  {lastCards.map((c) => (
+                    <CardItem
+                      key={c.id ?? c.title ?? c.content}
+                      card={c}
+                      isRisk={c.id === 'card-risks'}
+                    />
+                  ))}
+                </ul>
+              </div>
+            )}
+            {!analyzedReport && lastCards.length === 0 && !isLoading && (
+              <p className="text-[12px] text-[#8e8e93] text-center px-2 py-2">
+                Upload a report from the Report tab to see findings here.
+              </p>
+            )}
+            {isLoading && <LoadingIndicator />}
+            <div className="h-1 shrink-0" aria-hidden />
+          </div>
+
+          <form
+            onSubmit={sendMessage}
+            className="shrink-0 bg-white border-t border-black/[0.08] px-3 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom,0))]"
+          >
+            <div className="flex items-end gap-2">
+              <label htmlFor="chat-input" className="sr-only">
+                Message
+              </label>
+              <input
+                id="chat-input"
+                className="flex-1 min-w-0 rounded-[20px] bg-[#f2f2f7] px-4 py-2.5 text-[15px] text-[#1c1c1e] placeholder:text-[#8e8e93] border-0 focus:outline-none focus:ring-0 disabled:opacity-50"
+                placeholder="Message"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                disabled={isLoading}
+                aria-describedby={lastError ? 'chat-error' : undefined}
+              />
+              <button
+                type="submit"
+                disabled={isLoading || !input.trim()}
+                className="cta-analyze shrink-0 flex h-9 w-9 items-center justify-center rounded-full bg-[#007aff] text-white disabled:opacity-35 disabled:cursor-not-allowed"
+                aria-label="Send"
+              >
+                {isLoading ? (
+                  <span className="text-lg leading-none opacity-80">…</span>
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden className="ml-0.5">
+                    <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
+                  </svg>
+                )}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {panelTab === PANEL_REPORT && (
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden">
+          <div className="flex-1 min-h-0 overflow-y-auto px-3 py-3 assistant-scrollbar">
+            <ReportInput embedded />
+          </div>
+        </div>
+      )}
+
+      {panelTab === PANEL_TOOLS && (
+        <div className="flex flex-col flex-1 min-h-0 overflow-hidden relative">
+          <div className="flex-1 min-h-0 overflow-y-auto assistant-scrollbar px-3 py-3">
+            <QuickActions embedded />
+          </div>
+          <div className="shrink-0 border-t border-black/[0.08] px-4 py-3 flex justify-between items-center gap-2 bg-white">
+            <button
+              type="button"
+              onClick={handleNewSessionClick}
+              className="text-[17px] font-normal text-[#ff3b30] active:opacity-60"
+              title="Clear conversation and start fresh"
+            >
+              Clear chat
+            </button>
+            <ConversationHistory />
+          </div>
+        </div>
+      )}
+
       {lastError && (
         <p id="chat-error" className="sr-only" role="alert">
           An error occurred. Use Retry to try again.

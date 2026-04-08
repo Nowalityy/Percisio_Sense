@@ -21,24 +21,11 @@ export function ConversationHistory() {
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        className="glass-btn px-2 py-1 text-xs text-text-secondary hover:text-text transition-colors rounded-xl"
+        className="text-[17px] font-normal text-[#007aff] active:opacity-60 py-1"
         title="Conversation history"
         aria-label="Open conversation history"
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M3 3v18h18" />
-          <path d="M7 16l4-4 4 4 6-6" />
-        </svg>
+        History
       </button>
     );
   }

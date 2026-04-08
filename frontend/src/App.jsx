@@ -40,7 +40,7 @@ function App() {
       <main className="flex-1 flex flex-col md:flex-row gap-4 md:gap-6 p-3 md:p-5 min-h-0 overflow-hidden">
         {/* Viewer: 70% (flex 7/10) */}
         <section
-          className={`rounded-md overflow-hidden flex flex-col flex-1 min-h-0 bg-white border border-[#E5E7EB] min-w-0 md:flex-[7] ${
+          className={`rounded-md overflow-hidden flex flex-col flex-1 min-h-0 bg-white border border-[#E5E7EB] min-w-0 md:flex-[6] ${
             mobilePanel === 'viewer' ? 'flex' : 'hidden md:flex'
           }`}
           aria-label="3D Viewer"
@@ -79,8 +79,7 @@ function App() {
 
         {/* Assistant: 30% (flex 3/10), min-width pour que les onglets + More restent entiers */}
         <section
-          className={`flex flex-col min-h-0 overflow-hidden flex-1 md:flex-[3] md:min-w-[300px] w-full bg-white md:border-l ${mobilePanel === 'chat' ? 'flex' : 'hidden md:flex'}`}
-          style={{ borderLeftColor: 'rgba(15,23,42,0.08)' }}
+          className={`flex flex-col min-h-0 overflow-hidden flex-1 md:flex-[4] md:min-w-[300px] w-full bg-[#f2f2f7] md:border-l border-black/[0.08] ${mobilePanel === 'chat' ? 'flex' : 'hidden md:flex'}`}
           aria-label="Clinical AI Analysis"
         >
           <div className="flex md:hidden gap-1.5 px-4 md:px-5 py-1.5 md:py-2 border-b border-[#E5E7EB] shrink-0 bg-white">
@@ -103,7 +102,7 @@ function App() {
               Chat
             </button>
           </div>
-          <div className="flex-1 rounded-md overflow-hidden flex flex-col min-h-0 bg-white flex flex-col">
+          <div className="flex-1 overflow-hidden flex flex-col min-h-0 bg-[#f2f2f7]">
             <div className="flex-1 min-h-0 overflow-hidden flex flex-col">
               <Suspense fallback={<ChatbotFallback />}>
                 <Chatbot />

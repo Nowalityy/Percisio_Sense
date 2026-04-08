@@ -56,6 +56,11 @@ export const useSceneStore = create(
             citedOrgans: [],
             citedOrganIndex: 0,
           }),
+        /** Clear zoom/target only; keep citedOrgans from the report for organ cycling. */
+        clearCameraFocus: () =>
+          set({
+            currentFocus: null,
+          }),
         /** Set the list of organ keys from report cards; resets index to 0. */
         setCitedOrgans: (organKeys) =>
           set({
@@ -87,9 +92,33 @@ export const useSceneStore = create(
           set({
             lastReply: reply,
           }),
+        /**
+         * Set report text. When the report content actually changes (new upload),
+         * clear findings, organ focus, and conversation so previous reports do not linger.
+         */
         setAnalyzedReport: (content) =>
-          set({
-            analyzedReport: content,
+          set((state) => {
+            const stored = typeof content === 'string' ? content : null;
+            const nextNorm = stored?.trim() ? stored.trim() : '';
+            const prevStored = state.analyzedReport;
+            const prevNorm =
+              typeof prevStored === 'string' && prevStored.trim() ? prevStored.trim() : '';
+            const replaced = nextNorm.length > 0 && nextNorm !== prevNorm;
+
+            return {
+              analyzedReport: stored,
+              ...(replaced
+                ? {
+                    lastCards: [],
+                    lastMeta: null,
+                    citedOrgans: [],
+                    citedOrganIndex: 0,
+                    currentFocus: null,
+                    lastReply: '',
+                    conversationHistory: [],
+                  }
+                : {}),
+            };
           }),
         setLastCards: (cards) => set({ lastCards: Array.isArray(cards) ? cards : [] }),
         setLastMeta: (meta) => set({ lastMeta: meta }),

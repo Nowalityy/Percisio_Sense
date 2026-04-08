@@ -84,8 +84,10 @@ const CARD_TITLE_TO_FOCUS = {
   skeleton: 'clavicle',
   vessels: 'artery',
   pleura: 'lung',
-  mediastinum: null,
-  diaphragm: null,
+  /** No mediastinum mesh; center chest view. */
+  mediastinum: 'heart',
+  /** No diaphragm mesh; lower thorax proxy. */
+  diaphragm: 'lung',
   'spinal cord': 'spinal-cord',
   foie: 'liver',
   rate: 'spleen',

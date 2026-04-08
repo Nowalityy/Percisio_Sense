@@ -7,47 +7,56 @@ const CATEGORIES = [
     id: 'organs',
     label: 'Organs',
     actions: [
-      { label: 'Heart', focus: 'heart', icon: '❤️' },
-      { label: 'Liver', focus: 'liver', icon: '🫀' },
-      { label: 'Lungs', focus: 'lung', icon: '🫁' },
-      { label: 'Stomach', focus: 'stomach', icon: '🍽️' },
+      { label: 'Heart', focus: 'heart' },
+      { label: 'Liver', focus: 'liver' },
+      { label: 'Lungs', focus: 'lung' },
+      { label: 'Stomach', focus: 'stomach' },
     ],
   },
   {
     id: 'systems',
     label: 'Systems',
     actions: [
-      { label: 'Pancreas', focus: 'pancreas', icon: '🔬' },
-      { label: 'Spleen', focus: 'spleen', icon: '🔬' },
-      { label: 'Thyroid', focus: 'thyroid', icon: '🔬' },
+      { label: 'Pancreas', focus: 'pancreas' },
+      { label: 'Spleen', focus: 'spleen' },
+      { label: 'Thyroid', focus: 'thyroid' },
     ],
   },
   {
     id: 'vascular',
     label: 'Vascular',
     actions: [
-      { label: 'Vessels', focus: 'artery', icon: '🩸' },
-      { label: 'Aorta', focus: 'aorta', icon: '🩸' },
+      { label: 'Vessels', focus: 'artery' },
+      { label: 'Aorta', focus: 'aorta' },
     ],
   },
   {
     id: 'skeletal',
     label: 'Skeletal',
     actions: [
-      { label: 'Skeleton', focus: 'clavicle', icon: '🦴' },
-      { label: 'Spine', focus: 'spinal-cord', icon: '🦴' },
+      { label: 'Skeleton', focus: 'clavicle' },
+      { label: 'Spine', focus: 'spinal-cord' },
     ],
   },
 ];
 
 const MORE_ACTIONS = [
-  { label: 'Kidneys', focus: 'kidney', icon: '🫘' },
-  { label: 'Esophagus', focus: 'esophagus', icon: '〰️' },
-  { label: 'Trachea', focus: 'trachea', icon: '〰️' },
-  { label: 'Adrenal', focus: 'adrenal', icon: '🔬' },
+  { label: 'Kidneys', focus: 'kidney' },
+  { label: 'Esophagus', focus: 'esophagus' },
+  { label: 'Trachea', focus: 'trachea' },
+  { label: 'Adrenal', focus: 'adrenal' },
 ];
 
-export function QuickActions() {
+function segmentClass(active) {
+  return `flex-1 min-w-0 py-1.5 px-2 rounded-[7px] text-[13px] font-medium transition-[background,box-shadow,color] duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-[#007aff]/35 ${
+    active
+      ? 'bg-white text-[#1c1c1e] shadow-[0_1px_3px_rgba(0,0,0,0.08)]'
+      : 'text-[#8e8e93] hover:text-[#636366]'
+  }`;
+}
+
+/** @param {{ embedded?: boolean }} props */
+export function QuickActions({ embedded = false }) {
   const [activeTab, setActiveTab] = useState('organs');
   const [moreOpen, setMoreOpen] = useState(false);
   const setFocus = useSceneStore((s) => s.setFocus);
@@ -61,48 +70,38 @@ export function QuickActions() {
   const activeCategory = CATEGORIES.find((c) => c.id === activeTab) ?? CATEGORIES[0];
 
   return (
-    <div className="px-4 md:px-5 py-2 md:py-2.5 border-b border-[#E5E7EB] shrink-0 bg-white min-w-0">
-      <div className="flex flex-wrap items-center gap-2 border-b border-transparent">
+    <div className={`shrink-0 min-w-0 ${embedded ? '' : 'px-4 py-3 border-b border-black/[0.08] bg-white'}`}>
+      <p className="text-[13px] font-semibold text-[#8e8e93] mb-2 px-0.5">3D focus</p>
+      <div className="flex p-[3px] rounded-[9px] bg-[#00000014] gap-0 mb-3">
         {CATEGORIES.map((cat) => (
           <button
             key={cat.id}
             type="button"
             onClick={() => setActiveTab(cat.id)}
-            className={`shrink-0 px-3 py-2 text-xs font-medium border-b-2 -mb-px transition-[color_150ms_ease,border-color_150ms_ease] ${
-              activeTab === cat.id
-                ? 'border-accent text-[#0F172A]'
-                : 'border-transparent text-[#64748B] hover:text-[#0F172A]'
-            }`}
+            className={segmentClass(activeTab === cat.id)}
           >
             {cat.label}
           </button>
         ))}
-        <div className="relative shrink-0">
+        <div className="relative flex-1 min-w-0">
           <button
             type="button"
             onClick={() => setMoreOpen((o) => !o)}
-            className={`min-w-[4rem] px-3 py-2 text-xs font-medium border-b-2 -mb-px transition-[color_150ms_ease,border-color_150ms_ease] text-left ${
-              moreOpen ? 'border-slate-300 text-[#0F172A]' : 'border-transparent text-[#64748B] hover:text-[#0F172A]'
-            }`}
+            className={`${segmentClass(moreOpen)} w-full`}
           >
             More
           </button>
           {moreOpen && (
             <>
-              <div
-                className="fixed inset-0 z-10"
-                aria-hidden
-                onClick={() => setMoreOpen(false)}
-              />
-              <div className="absolute right-0 top-full mt-1 z-20 py-1.5 px-1.5 rounded-xl bg-white border border-border shadow-lg min-w-[140px]">
+              <div className="fixed inset-0 z-10" aria-hidden onClick={() => setMoreOpen(false)} />
+              <div className="absolute left-0 right-0 top-full mt-1 z-20 py-1 rounded-[10px] bg-white border border-black/[0.08] shadow-[0_4px_24px_rgba(0,0,0,0.12)] overflow-hidden">
                 {MORE_ACTIONS.map((action) => (
                   <button
                     key={action.focus}
                     type="button"
                     onClick={() => handleQuickAction(action.focus)}
-                    className="w-full text-left px-3 py-1.5 text-xs font-medium rounded-lg text-text hover:bg-accent/10 hover:text-accent transition-colors flex items-center gap-2"
+                    className="w-full text-left px-4 py-3 text-[17px] font-normal text-[#1c1c1e] active:bg-black/[0.04] border-b border-black/[0.06] last:border-0"
                   >
-                    <span>{action.icon}</span>
                     {action.label}
                   </button>
                 ))}
@@ -111,16 +110,16 @@ export function QuickActions() {
           )}
         </div>
       </div>
-      <div className="flex flex-wrap gap-1.5 mt-2">
+      <div className="rounded-[10px] bg-white border border-black/[0.06] overflow-hidden divide-y divide-black/[0.08]">
         {activeCategory.actions.map((action) => (
           <button
             key={action.focus}
             type="button"
             onClick={() => handleQuickAction(action.focus)}
-            className="glass-btn px-2.5 py-1.5 text-xs font-medium rounded-lg border border-[#E5E7EB] hover:border-accent/30 hover:bg-accent/5 hover:text-accent transition-all duration-200 flex items-center gap-1.5"
+            className="w-full text-left px-4 py-3.5 min-h-[44px] text-[17px] font-normal text-[#1c1c1e] flex items-center justify-between active:bg-black/[0.03]"
           >
-            <span>{action.icon}</span>
             {action.label}
+            <span className="text-[#c7c7cc] text-xl font-extralight">›</span>
           </button>
         ))}
       </div>

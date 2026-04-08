@@ -9,8 +9,12 @@ const DEFAULT_BACKEND_URL = 'http://localhost:4000/chat';
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || DEFAULT_BACKEND_URL;
 const PDF_EXTRACT_URL = BACKEND_URL.replace('/chat', '/extract-pdf');
 
-export function ReportInput() {
-  const [isOpen, setIsOpen] = useState(false);
+/**
+ * @param {{ embedded?: boolean }} props
+ * When embedded, shows inline form (for tab panel). Otherwise "Add report" opens a modal overlay.
+ */
+export function ReportInput({ embedded = false }) {
+  const [isOpen, setIsOpen] = useState(embedded);
   const [paste, setPaste] = useState('');
   const [reportError, setReportError] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
@@ -30,7 +34,7 @@ export function ReportInput() {
     setReportError(null);
     setAnalyzedReport(text);
     setPaste('');
-    setIsOpen(false);
+    if (!embedded) setIsOpen(false);
   };
 
   const handleFileChange = async (e) => {
@@ -80,6 +84,74 @@ export function ReportInput() {
     setPaste('');
   };
 
+  const formBody = (
+    <div className="flex flex-col gap-3">
+      <label className="text-[13px] text-[#8e8e93] shrink-0 leading-snug">
+        Paste report text or choose a file (.txt, .pdf).
+      </label>
+      <textarea
+        value={paste}
+        onChange={(e) => {
+          setPaste(e.target.value);
+          setReportError(null);
+        }}
+        placeholder={isUploading ? 'Extracting text from PDF...' : 'Paste medical report text here...'}
+        disabled={isUploading}
+        className="min-h-[120px] max-h-[min(36vh,280px)] w-full px-3 py-3 text-[15px] rounded-[10px] border-0 bg-[#f2f2f7] text-[#1c1c1e] placeholder:text-[#8e8e93] resize-y overflow-y-auto disabled:opacity-50 focus:outline-none focus:ring-0"
+        aria-describedby={reportError ? 'report-error' : undefined}
+      />
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".txt,text/plain,application/pdf"
+        onChange={handleFileChange}
+        className="hidden"
+        aria-label="Upload file"
+      />
+      <button
+        type="button"
+        disabled={isUploading}
+        onClick={() => fileInputRef.current?.click()}
+        className="text-[17px] font-normal text-[#007aff] active:opacity-60 disabled:opacity-40 disabled:no-underline text-left w-fit py-1"
+      >
+        {isUploading ? 'Processing PDF...' : 'Upload .txt or .pdf file'}
+      </button>
+      {reportError && (
+        <p id="report-error" className="text-[13px] text-[#ff3b30]" role="alert">
+          {reportError}
+        </p>
+      )}
+      <div className="flex flex-wrap gap-2 shrink-0">
+        {!embedded && (
+          <button
+            type="button"
+            onClick={handleClose}
+            className="glass-btn px-3 py-2 text-sm font-medium rounded-xl text-text"
+          >
+            Cancel
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={handleSubmit}
+          className="w-full py-3 text-[17px] font-medium rounded-[12px] bg-[#007aff] text-white active:opacity-85 disabled:opacity-40 disabled:cursor-not-allowed"
+          disabled={!paste.trim() || isUploading}
+        >
+          {isUploading ? 'Processing…' : 'Analyze report'}
+        </button>
+      </div>
+    </div>
+  );
+
+  if (embedded) {
+    return (
+      <div className="rounded-[10px] bg-white p-4 border border-black/[0.06]">
+        <h3 className="text-[13px] font-semibold text-[#8e8e93] mb-3">Report text</h3>
+        {formBody}
+      </div>
+    );
+  }
+
   if (!isOpen) {
     return (
       <button
@@ -94,72 +166,39 @@ export function ReportInput() {
   }
 
   return (
-    <div className="absolute inset-0 z-20 bg-white rounded-2xl border border-border shadow-xl flex flex-col" role="dialog" aria-modal="true" aria-labelledby="report-dialog-title">
+    <div
+      className="absolute inset-0 z-20 bg-white rounded-2xl border border-border shadow-xl flex flex-col"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="report-dialog-title"
+    >
       <div className="px-4 py-3 border-b border-border flex items-center justify-between shrink-0 bg-slate-50 rounded-t-2xl">
-        <h3 id="report-dialog-title" className="text-sm font-semibold text-text">Paste or upload report</h3>
+        <h3 id="report-dialog-title" className="text-sm font-semibold text-text">
+          Paste or upload report
+        </h3>
         <button
           type="button"
           onClick={handleClose}
           className="glass-btn p-1.5 rounded-xl text-text-secondary hover:text-text transition-colors"
           aria-label="Close"
         >
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
         </button>
       </div>
-      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col p-4 gap-3">
-        <label className="text-xs font-medium text-text-secondary shrink-0">
-          Paste report text below or upload a .txt or .pdf file
-        </label>
-        <textarea
-          value={paste}
-          onChange={(e) => { setPaste(e.target.value); setReportError(null); }}
-          placeholder={isUploading ? "Extracting text from PDF..." : "Paste medical report text here..."}
-          disabled={isUploading}
-          className="glass-input min-h-[120px] max-h-[40vh] w-full px-3 py-2 text-sm rounded-xl text-text placeholder:text-text-secondary resize-y overflow-y-auto disabled:opacity-50"
-          aria-describedby={reportError ? 'report-error' : undefined}
-        />
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".txt,text/plain,application/pdf"
-          onChange={handleFileChange}
-          className="hidden"
-          aria-label="Upload file"
-        />
-        <button
-          type="button"
-          disabled={isUploading}
-          onClick={() => fileInputRef.current?.click()}
-          className="text-xs text-accent hover:underline disabled:opacity-50 disabled:no-underline"
-        >
-          {isUploading ? "Processing PDF..." : "Upload .txt or .pdf file"}
-        </button>
-        {reportError && (
-          <p id="report-error" className="text-xs text-red-600" role="alert">
-            {reportError}
-          </p>
-        )}
-        <div className="flex gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={handleClose}
-            className="glass-btn px-3 py-2 text-sm font-medium rounded-xl text-text"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={handleSubmit}
-            className="px-3 py-2 text-sm font-medium rounded-lg bg-accent text-white hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed"
-            disabled={!paste.trim() || isUploading}
-          >
-            {isUploading ? "Processing..." : "Analyze report"}
-          </button>
-        </div>
-      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col p-4 gap-3">{formBody}</div>
     </div>
   );
 }
