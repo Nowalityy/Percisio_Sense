@@ -4,6 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
+    "sync-favicon": "node -e \"require('fs').copyFileSync('public/favicon/favicon.ico','public/favicon.ico')\"",
+    "predev": "npm run sync-favicon",
+    "prebuild": "npm run sync-favicon",
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
