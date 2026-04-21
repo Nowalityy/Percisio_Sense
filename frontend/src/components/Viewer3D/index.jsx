@@ -1,13 +1,21 @@
-import { useState, Suspense, useEffect, Component, useRef, useCallback } from 'react';
-import * as THREE from 'three';
-import { Canvas } from '@react-three/fiber';
+import { useState, useEffect, Component, useRef, useCallback } from 'react';
+import { useThree } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import { useSceneStore } from '../../store';
-import { SceneLights } from './SceneLights';
-import { ScannerModel } from './ScannerModel';
-import { FocusCamera } from './FocusCamera';
-import { SegmentFilterPanel } from './SegmentFilterPanel';
 import { createHistoryState, canNavigateBack, canNavigateForward } from '../../utils/historyManager';
+import { SEGMENTS } from './medicalColors';
+import { PERFORMANCE_CONFIG } from '../../performance.config';
+import { disposeRenderer } from '../../hooks/useDispose';
+import { useLeakDetector } from '../../hooks/useLeakDetector';
+import { buildVisibilityMapForMode } from '../../viewer-core/segmentRules';
+import { ViewerToolbar } from './ViewerToolbar';
+import { ViewerHistoryControls } from './ViewerHistoryControls';
+import {
+  ViewerLoadingOverlay,
+  ViewerAnalyzingOverlay,
+  ViewerStaticOverlays,
+} from './ViewerOverlays';
+import { ViewerCanvas } from './ViewerCanvas';
 
 // -----------------------------------------------------------------------------
 // Constants
@@ -15,7 +23,8 @@ import { createHistoryState, canNavigateBack, canNavigateForward } from '../../u
 
 const ROTATION_STEP = Math.PI / 8;
 const DEFAULT_ROTATION = { x: -Math.PI / 2, y: 0, z: 0 };
-const INITIAL_LOADING_TOTAL = 38;
+const INITIAL_LOADING_TOTAL = SEGMENTS.length;
+const VIEW_MODES = ['Skeleton', 'Organs', 'Vessels', 'Full'];
 
 // -----------------------------------------------------------------------------
 // Subcomponents
@@ -27,13 +36,13 @@ function CanvasLoader({ current, total }) {
   return (
     <Html center>
       <div className="flex flex-col items-center gap-3">
-        <div className="w-48 h-1.5 bg-slate-200 rounded-full overflow-hidden shadow-inner">
+        <div className="w-48 h-1.5 bg-slate-700 rounded-full overflow-hidden shadow-inner">
           <div
-            className="h-full bg-accent transition-all duration-300 ease-out"
+            className="h-full bg-[var(--brand-primary)] transition-all duration-300 ease-out" // BRAND: #62C5EF
             style={{ width: `${progress}%` }}
           />
         </div>
-        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-600 glass-btn px-3 py-1 rounded-full">
+        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-200 glass-btn px-3 py-1 rounded-full">
           Loading {current} / {total}
         </div>
       </div>
@@ -58,9 +67,9 @@ class ModelErrorBoundary extends Component {
       }
       return (
         <Html center>
-          <div className="px-4 py-3 rounded-lg bg-red-50 border border-red-200 text-sm text-red-900 max-w-md shadow-sm">
+          <div className="px-4 py-3 rounded-lg bg-red-400/10 border border-red-300/25 text-sm text-red-100 max-w-md shadow-sm">
             <p className="font-semibold">3D Error</p>
-            <p className="text-xs text-red-700">Unable to load some segments.</p>
+            <p className="text-xs text-red-200">Unable to load some segments.</p>
           </div>
         </Html>
       );
@@ -69,18 +78,34 @@ class ModelErrorBoundary extends Component {
   }
 }
 
-function CompactButton({ onClick, icon, title }) {
+function CompactButton({ onClick, icon, title, active = false }) {
   return (
     <button
       type="button"
       onClick={onClick}
-      className="glass-btn p-2.5 rounded-xl text-slate-600 active:scale-95 flex items-center justify-center transition-all duration-200 hover:bg-slate-100 hover:shadow-md focus:ring-2 focus:ring-accent/20 focus:ring-offset-1"
+      className={`glass-btn p-2.5 rounded-xl active:scale-95 flex items-center justify-center text-xs ${
+        active ? 'text-[var(--text-on-brand)] bg-[var(--brand-primary)] border-[var(--border-brand)] shadow-[var(--shadow-md)]' : 'text-slate-700'
+      }`}
       title={title}
       aria-label={title}
     >
       {icon}
     </button>
   );
+}
+
+function CameraZoomController({ zoomLevel }) {
+  const { camera } = useThree();
+
+  useEffect(() => {
+    const nextZoom = 0.8 + (Number(zoomLevel) / 100) * 0.65;
+    // r3f exposes mutable THREE objects by design — direct mutation is expected.
+    // eslint-disable-next-line react-hooks/immutability
+    camera.zoom = nextZoom;
+    camera.updateProjectionMatrix();
+  }, [camera, zoomLevel]);
+
+  return null;
 }
 
 // -----------------------------------------------------------------------------
@@ -90,10 +115,14 @@ function CompactButton({ onClick, icon, title }) {
 export default function Viewer3D() {
   const [rotation, setRotation] = useState(DEFAULT_ROTATION);
   const [isAutoSpinning, setIsAutoSpinning] = useState(false);
+  const [zoomLevel, setZoomLevel] = useState(38);
+  const [viewMode, setViewMode] = useState('Full');
   const [loadingProgress, setLoadingProgress] = useState({
     current: 0,
     total: INITIAL_LOADING_TOTAL,
   });
+  const isModelReady =
+    loadingProgress.total > 0 && loadingProgress.current >= loadingProgress.total;
 
   const currentFocus = useSceneStore((s) => s.currentFocus);
   const citedOrgans = useSceneStore((s) => s.citedOrgans);
@@ -101,15 +130,22 @@ export default function Viewer3D() {
   const goToNextCitedOrgan = useSceneStore((s) => s.goToNextCitedOrgan);
   const goToPrevCitedOrgan = useSceneStore((s) => s.goToPrevCitedOrgan);
   const segmentVisibility = useSceneStore((s) => s.segmentVisibility);
+  const setManySegmentVisibility = useSceneStore((s) => s.setManySegmentVisibility);
   const navigationHistory = useSceneStore((s) => s.navigationHistory);
   const historyIndex = useSceneStore((s) => s.historyIndex);
   const addToHistory = useSceneStore((s) => s.addToHistory);
-  const navigateHistory = useSceneStore((s) => s.navigateHistory);
   const historyPushRequest = useSceneStore((s) => s.historyPushRequest);
   const isAnalyzing = useSceneStore((s) => s.isAnalyzing);
-
   const isRestoringRef = useRef(false);
   const prevStateRef = useRef({ focus: currentFocus, visibility: segmentVisibility });
+  const containerRef = useRef(null);
+  const rendererRef = useRef(null);
+  const lastZoomUpdateRef = useRef(0);
+  const isLowEndDevice =
+    typeof navigator !== 'undefined' &&
+    navigator.hardwareConcurrency > 0 &&
+    navigator.hardwareConcurrency < PERFORMANCE_CONFIG.LOW_END_CPU_CORES;
+  useLeakDetector('Viewer3D.container', containerRef);
 
   const handleProgress = useCallback((current, total) => {
     setLoadingProgress({ current, total });
@@ -156,7 +192,22 @@ export default function Viewer3D() {
     if (defaultCameraState) {
       store.setPendingCameraRestore(defaultCameraState);
     }
+    setZoomLevel(38);
   }, []);
+
+  const handleZoomChange = useCallback((nextValue) => {
+    const now = performance.now();
+    // PERF: Throttle zoom updates to 60 FPS to avoid control spam.
+    if (now - lastZoomUpdateRef.current < PERFORMANCE_CONFIG.FRAME_THROTTLE_MS) {
+      return;
+    }
+    lastZoomUpdateRef.current = now;
+    setZoomLevel(nextValue);
+  }, []);
+
+  useEffect(() => {
+    setManySegmentVisibility(buildVisibilityMapForMode(SEGMENTS, viewMode));
+  }, [setManySegmentVisibility, viewMode]);
 
   const handleHistoryNavigation = useCallback((direction) => {
     const store = useSceneStore.getState();
@@ -175,9 +226,7 @@ export default function Viewer3D() {
     }
 
     if (state.segmentVisibility && typeof state.segmentVisibility.forEach === 'function') {
-      state.segmentVisibility.forEach((visible, segmentName) => {
-        useSceneStore.getState().setSegmentVisibility(segmentName, visible);
-      });
+      useSceneStore.getState().setManySegmentVisibility(state.segmentVisibility);
     }
 
     if (state.cameraState != null) {
@@ -243,73 +292,50 @@ export default function Viewer3D() {
     saveToHistory();
   }, [historyPushRequest, historyIndex, saveToHistory]);
 
+  useEffect(() => {
+    return () => {
+      // PERF: Release renderer resources on viewer unmount.
+      disposeRenderer(rendererRef.current);
+    };
+  }, []);
+
   return (
-    <div className="w-full h-full bg-white overflow-hidden relative group">
-      {/* Vignette très subtile sur les bords du viewer */}
+    <div ref={containerRef} className="w-full h-full overflow-hidden relative group">
       <div
         className="absolute inset-0 pointer-events-none z-10"
         style={{
-          background: 'radial-gradient(ellipse 80% 70% at 50% 50%, transparent 55%, rgba(15, 23, 42, 0.04) 100%)',
+          background:
+            'radial-gradient(ellipse 80% 70% at 50% 50%, transparent 52%, rgba(226, 232, 240, 0.42) 100%)',
         }}
         aria-hidden
       />
-      {/* Quand l’IA analyse : légère désaturation + overlay avec spinner et texte */}
-      {isAnalyzing && (
-        <div
-          className="absolute inset-0 pointer-events-none z-20 flex flex-col items-end justify-start pt-3 pr-3 gap-2"
-          aria-live="polite"
-        >
-          <div className="flex items-center gap-2 text-xs text-slate-500">
-            <span className="inline-block w-4 h-4 border-2 border-slate-300 border-t-accent rounded-full animate-spin" aria-hidden />
-            <span>Analyzing anatomical structures…</span>
-          </div>
-        </div>
+      <div className="absolute inset-0 pointer-events-none rounded-[16px] border border-[var(--border-brand)]/40 opacity-0 group-hover:opacity-100 transition-opacity z-20 shadow-[var(--shadow-md)]" /> {/* BRAND: #62C5EF */}
+      {!isModelReady && (
+        <ViewerLoadingOverlay current={loadingProgress.current} total={loadingProgress.total} />
       )}
+
+      <ViewerAnalyzingOverlay isAnalyzing={isAnalyzing} />
       <div
         className="w-full h-full transition-[filter] duration-300"
         style={{ filter: isAnalyzing ? 'saturate(0.97)' : 'saturate(1)' }}
       >
-      <SegmentFilterPanel />
-
-      <div className="absolute top-4 left-4 z-30 flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => handleHistoryNavigation('back')}
-          disabled={!canNavigateBack(historyIndex)}
-          className="glass-btn px-3 py-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm font-medium text-slate-700"
-          title="Previous (Ctrl+Z)"
-          aria-label="Previous view"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M19 12H5" />
-            <path d="M12 19l-7-7 7-7" />
-          </svg>
-        </button>
-        <button
-          type="button"
-          onClick={() => handleHistoryNavigation('forward')}
-          disabled={!canNavigateForward(historyIndex, navigationHistory.length)}
-          className="glass-btn px-3 py-2 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 text-sm font-medium text-slate-700"
-          title="Next (Ctrl+Shift+Z)"
-          aria-label="Next view"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M5 12h14" />
-            <path d="M12 5l7 7-7 7" />
-          </svg>
-        </button>
-      </div>
+      <ViewerToolbar viewMode={viewMode} viewModes={VIEW_MODES} onModeChange={setViewMode} />
+      <ViewerHistoryControls
+        historyIndex={historyIndex}
+        navigationHistoryLength={navigationHistory.length}
+        onNavigate={handleHistoryNavigation}
+      />
 
       {(currentFocus || citedOrgans.length > 1) && (
-        <div className="absolute top-14 left-4 z-30 flex items-center gap-1.5">
+        <div className="absolute top-16 left-4 z-30 flex items-center gap-1.5">
           {citedOrgans.length > 1 && (
-            <div className="flex items-center gap-1 glass-btn rounded-full px-2 py-1.5 text-[10px] font-medium text-slate-700">
+            <div className="flex items-center gap-1 glass-btn rounded-full px-2 py-1.5 text-[10px] font-medium text-slate-100">
               <button
                 type="button"
                 onClick={goToPrevCitedOrgan}
-                className="p-1 rounded-full hover:bg-slate-200 transition-colors"
-                title="Organe précédent"
-                aria-label="Organe précédent"
+                className="p-1 rounded-full hover:bg-white/15 transition-colors"
+                title="Previous organ"
+                aria-label="Previous organ"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="m15 18-6-6 6-6" />
@@ -321,9 +347,9 @@ export default function Viewer3D() {
               <button
                 type="button"
                 onClick={goToNextCitedOrgan}
-                className="p-1 rounded-full hover:bg-slate-200 transition-colors"
-                title="Organe suivant"
-                aria-label="Organe suivant"
+                className="p-1 rounded-full hover:bg-white/15 transition-colors"
+                title="Next organ"
+                aria-label="Next organ"
               >
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="m9 18 6-6-6-6" />
@@ -335,7 +361,7 @@ export default function Viewer3D() {
             <button
               type="button"
               onClick={handleReset}
-              className="px-3 py-1.5 rounded-full bg-red-500 hover:bg-red-600 text-white text-[10px] font-bold uppercase tracking-wider border border-red-400 active:scale-95 shadow-md"
+              className="px-3 py-1.5 rounded-full bg-red-500/85 hover:bg-red-500 text-white text-[10px] font-bold uppercase tracking-wider border border-red-300/40 active:scale-95 shadow-md"
               aria-label="Reset camera view and clear organ focus"
               title="Reset view"
             >
@@ -345,69 +371,58 @@ export default function Viewer3D() {
         </div>
       )}
 
-      <Canvas
-        shadows={false}
-        dpr={[1, 2]}
-        camera={{ position: [0, 0.1, 3.19], fov: 50, near: 0.01, far: 2000 }}
-        gl={{
-          antialias: true,
-          alpha: false,
-          powerPreference: 'high-performance',
-          stencil: false,
-          depth: true,
-          logarithmicDepthBuffer: false,
-          preserveDrawingBuffer: false,
-        }}
-        onCreated={({ scene }) => {
-          scene.background = new THREE.Color('#ffffff');
-        }}
+      <ViewerCanvas
+        isLowEndDevice={isLowEndDevice}
+        maxDpr={PERFORMANCE_CONFIG.MAX_DPR}
+        rendererRef={rendererRef}
+        loadingProgress={loadingProgress}
+        modelErrorBoundary={ModelErrorBoundary}
+        canvasLoader={CanvasLoader}
+        rotation={rotation}
+        isAutoSpinning={isAutoSpinning}
+        onProgress={handleProgress}
       >
-        <SceneLights />
-        <group position={[0, 0.11, 0]}>
-          <ModelErrorBoundary>
-            <Suspense
-              fallback={
-                <CanvasLoader current={loadingProgress.current} total={loadingProgress.total} />
-              }
-            >
-              <ScannerModel
-                rotation={rotation}
-                isAutoSpinning={isAutoSpinning}
-                onProgress={handleProgress}
-              />
-            </Suspense>
-          </ModelErrorBoundary>
-        </group>
-        <FocusCamera />
-      </Canvas>
+        <CameraZoomController zoomLevel={zoomLevel} />
+      </ViewerCanvas>
 
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-20">
-        <div className="flex items-center gap-1 p-1.5 glass-btn rounded-2xl overflow-hidden">
-          <CompactButton onClick={handleReset} title="Reset" icon={<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>} />
+      <div className="absolute right-4 top-1/2 -translate-y-1/2 z-40 glass-card px-2 py-3 flex flex-col items-center gap-2">
+        <button type="button" className="text-text-secondary text-xs" onClick={() => setZoomLevel((v) => Math.min(100, v + 6))}>+</button>
+        <input
+          aria-label="Zoom level"
+          type="range"
+          min="0"
+          max="100"
+          value={zoomLevel}
+          onChange={(event) => handleZoomChange(Number(event.target.value))}
+          className="[writing-mode:bt-lr] appearance-none h-28 w-1 rounded-full bg-white/20 accent-[var(--brand-primary)]" // BRAND: #62C5EF
+          style={{ writingMode: 'vertical-lr', direction: 'rtl' }}
+        />
+        <button type="button" className="text-text-secondary text-xs" onClick={() => setZoomLevel((v) => Math.max(0, v - 6))}>−</button>
+      </div>
+
+      <ViewerStaticOverlays />
+
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30">
+        <div className="flex items-center gap-1 p-1.5 glass-card rounded-full overflow-hidden">
+          <CompactButton onClick={() => handleHistoryNavigation('back')} title="Undo" icon="↶" />
+          <CompactButton onClick={() => handleHistoryNavigation('forward')} title="Redo" icon="↷" />
           <div className="w-px h-4 bg-slate-400/20 mx-0.5" />
-          <CompactButton onClick={handleFlip} title="Flip" icon={<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m17 2 4 4-4 4"/><path d="M3 18v-2c0-4.4 3.6-8 8-8h10"/><path d="m7 22-4-4 4-4"/><path d="M21 6v2c0 4.4-3.6 8-8 8H3"/></svg>} />
+          <CompactButton onClick={() => handleRotate('up')} title="Pan up" icon="↑" />
+          <CompactButton onClick={() => handleRotate('down')} title="Pan down" icon="↓" />
+          <CompactButton onClick={() => handleRotate('left')} title="Pan left" icon="←" />
+          <CompactButton onClick={() => handleRotate('right')} title="Pan right" icon="→" />
           <div className="w-px h-4 bg-slate-400/20 mx-0.5" />
-          <div className="flex gap-0.5">
-            <CompactButton onClick={() => handleRotate('up')} title="Up" icon={<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m18 15-6-6-6 6"/></svg>} />
-            <CompactButton onClick={() => handleRotate('down')} title="Down" icon={<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>} />
-            <CompactButton onClick={() => handleRotate('left')} title="Left" icon={<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>} />
-            <CompactButton onClick={() => handleRotate('right')} title="Right" icon={<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>} />
-          </div>
+          <CompactButton onClick={() => handleRotate('tilt-left')} title="Rotate left" icon="⟲" />
+          <CompactButton onClick={() => handleRotate('tilt-right')} title="Rotate right" icon="⟳" />
           <div className="w-px h-4 bg-slate-400/20 mx-0.5" />
-          <div className="flex gap-0.5">
-            <CompactButton onClick={() => handleRotate('tilt-left')} title="Tilt Left" icon={<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12a10 10 0 0 0-10-10"/><path d="m7 15-5-3 5-3"/><path d="M2 12h5"/></svg>} />
-            <CompactButton onClick={() => handleRotate('tilt-right')} title="Tilt Right" icon={<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12a10 10 0 0 1 10-10"/><path d="m17 9 5 3-5 3"/><path d="M22 12h-5"/></svg>} />
-          </div>
-          <div className="w-px h-4 bg-slate-400/20 mx-0.5" />
-          <button
-            type="button"
+          <CompactButton
             onClick={toggleAutoSpin}
-            className={`p-2.5 rounded-xl transition-all active:scale-90 ${isAutoSpinning ? 'bg-blue-600 text-white shadow-lg shadow-blue-500/40 animate-pulse' : 'hover:bg-slate-100 text-slate-500'}`}
-            title="Auto-rotation"
-            aria-label={isAutoSpinning ? 'Stop auto-rotation' : 'Start auto-rotation'}
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
-          </button>
+            active={isAutoSpinning}
+            title={isAutoSpinning ? 'Stop spin' : 'Auto spin'}
+            icon="◎"
+          />
+          <CompactButton onClick={handleFlip} title="Flip" icon="⇅" />
+          <CompactButton onClick={handleReset} title="Reset" icon="⌂" />
         </div>
       </div>
       </div>

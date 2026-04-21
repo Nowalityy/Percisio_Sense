@@ -1,39 +1,8 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useSceneStore } from '../../store';
 import { SEGMENTS, getSegmentColor } from './medicalColors';
-
-const SEGMENT_CATEGORIES = {
-  organs: {
-    label: 'Organs',
-    keywords: ['heart', 'liver', 'lung', 'stomach', 'pancreas', 'spleen', 'thyroid', 'adrenal', 'esophagus', 'trachea'],
-  },
-  bones: {
-    label: 'Bones',
-    keywords: ['clavicle', 'scapula', 'humerus', 'sternum', 'spinal-cord'],
-  },
-  vessels: {
-    label: 'Vessels',
-    keywords: ['aorta', 'artery', 'vein', 'vena-cava', 'brachiocephalic', 'carotid', 'subclavian', 'pulmonary', 'portal'],
-  },
-  muscles: {
-    label: 'Muscles',
-    keywords: ['muscle'],
-  },
-  other: {
-    label: 'Other',
-    keywords: ['segment_1'],
-  },
-};
-
-function getSegmentCategory(segmentName) {
-  const lower = segmentName.toLowerCase();
-  for (const [category, { keywords }] of Object.entries(SEGMENT_CATEGORIES)) {
-    if (keywords.some((keyword) => lower.includes(keyword))) {
-      return category;
-    }
-  }
-  return 'other';
-}
+import { PERFORMANCE_CONFIG } from '../../performance.config';
+import { SEGMENT_CATEGORIES, getSegmentCategory } from '../../viewer-core/segmentRules';
 
 function SegmentItem({ segmentName, isVisible, onToggle }) {
   const color = getSegmentColor(segmentName);
@@ -41,7 +10,7 @@ function SegmentItem({ segmentName, isVisible, onToggle }) {
 
   return (
     <div
-      className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition-all duration-200 hover:bg-slate-100 focus-within:bg-slate-50 ${
+      className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition-all duration-200 hover:bg-white/10 focus-within:bg-white/5 ${
         !isVisible ? 'opacity-50' : ''
       }`}
       onClick={() => onToggle(segmentName)}
@@ -50,17 +19,17 @@ function SegmentItem({ segmentName, isVisible, onToggle }) {
         type="checkbox"
         checked={isVisible}
         onChange={() => onToggle(segmentName)}
-        className="w-4 h-4 rounded border-gray-300 text-accent focus:ring-accent cursor-pointer"
+        className="w-4 h-4 rounded border-slate-300/30 text-[var(--brand-primary)] bg-transparent focus:ring-[var(--brand-primary)] cursor-pointer" // BRAND: #62C5EF
         onClick={(e) => e.stopPropagation()}
       />
       <div
-        className="w-3 h-3 rounded-full border border-gray-300"
+        className="w-3 h-3 rounded-full border border-slate-300/30"
         style={{ backgroundColor: color }}
       />
-      <span className="flex-1 text-sm text-gray-700 capitalize">
+      <span className="flex-1 text-sm text-text capitalize">
         {segmentName.replace(/-/g, ' ')}
       </span>
-      <span className="text-xs text-slate-500 px-1.5 py-0.5 rounded bg-slate-100 border border-border">
+      <span className="text-xs text-text-secondary px-1.5 py-0.5 rounded bg-white/5 border border-white/10">
         {SEGMENT_CATEGORIES[category]?.label || 'Autre'}
       </span>
     </div>
@@ -71,10 +40,10 @@ function QuickFilterButton({ label, onClick, active }) {
   return (
     <button
       onClick={onClick}
-      className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+      className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
         active
-          ? 'bg-accent text-white'
-          : 'glass-btn text-slate-700'
+          ? 'bg-[var(--brand-primary)] text-[var(--text-on-brand)]'
+          : 'glass-btn text-text-secondary'
       }`}
     >
       {label}
@@ -85,16 +54,25 @@ function QuickFilterButton({ label, onClick, active }) {
 export function SegmentFilterPanel() {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState(null);
 
   const segmentVisibility = useSceneStore((s) => s.segmentVisibility);
   const toggleSegmentVisibility = useSceneStore((s) => s.toggleSegmentVisibility);
 
+  useEffect(() => {
+    // PERF: Debounce expensive filter queries to avoid rapid list recompute.
+    const timer = window.setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, PERFORMANCE_CONFIG.FILTER_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
+
   const filteredSegments = useMemo(() => {
     let filtered = SEGMENTS;
 
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
+    if (debouncedSearchQuery) {
+      const query = debouncedSearchQuery.toLowerCase();
       filtered = filtered.filter((name) => name.toLowerCase().includes(query));
     }
 
@@ -106,7 +84,7 @@ export function SegmentFilterPanel() {
     }
 
     return filtered;
-  }, [searchQuery, activeCategory]);
+  }, [debouncedSearchQuery, activeCategory]);
 
   const visibleCount = useMemo(() => {
     let count = 0;
@@ -146,7 +124,7 @@ export function SegmentFilterPanel() {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="absolute top-4 right-4 z-30 px-2 py-1.5 rounded-md flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 border border-slate-200/80 bg-white/90 backdrop-blur-sm transition-colors"
+        className="glass-btn px-3 py-2 rounded-xl flex items-center gap-1.5 text-xs font-medium"
         title="Filter segments"
         aria-label="Filter segments"
       >
@@ -169,12 +147,12 @@ export function SegmentFilterPanel() {
   }
 
   return (
-    <div className="absolute top-4 right-4 z-30 w-80 bg-white rounded-2xl border border-border shadow-lg flex flex-col max-h-[80vh]">
-      <div className="px-4 py-3 border-b border-border flex items-center justify-between bg-slate-50 rounded-t-2xl">
-        <h3 className="text-sm font-semibold text-slate-800">Segment Filtering</h3>
+    <div className="absolute top-11 right-0 z-40 w-80 glass-card flex flex-col max-h-[78vh]">
+      <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-text">Segment Filtering</h3>
         <button
           onClick={() => setIsOpen(false)}
-          className="text-gray-400 hover:text-gray-600 transition-colors"
+          className="text-slate-400 hover:text-slate-100 transition-colors"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
@@ -193,7 +171,7 @@ export function SegmentFilterPanel() {
         </button>
       </div>
 
-      <div className="px-4 py-3 border-b border-border">
+      <div className="px-4 py-3 border-b border-white/10">
         <input
           type="text"
           placeholder="Search for a segment..."
@@ -203,7 +181,7 @@ export function SegmentFilterPanel() {
         />
       </div>
 
-      <div className="px-4 py-2 border-b border-border flex flex-wrap gap-2">
+      <div className="px-4 py-2 border-b border-white/10 flex flex-wrap gap-2">
         {Object.entries(SEGMENT_CATEGORIES).map(([key, { label }]) => (
           <QuickFilterButton
             key={key}
@@ -214,28 +192,28 @@ export function SegmentFilterPanel() {
         ))}
       </div>
 
-      <div className="px-4 py-2 border-b border-border flex items-center justify-between">
-        <span className="text-xs text-gray-600">
+      <div className="px-4 py-2 border-b border-white/10 flex items-center justify-between">
+        <span className="text-xs text-text-secondary">
           {visibleCount} / {filteredSegments.length} visible
         </span>
         <div className="flex gap-2">
           <button
             onClick={handleShowAll}
-            className="text-xs text-accent hover:text-accent/80 font-medium"
+            className="text-xs text-[var(--brand-primary-dark)] hover:opacity-80 font-medium" // BRAND: #62C5EF
           >
             Show All
           </button>
-          <span className="text-gray-300">|</span>
+          <span className="text-slate-500">|</span>
           <button
             onClick={handleHideAll}
-            className="text-xs text-gray-600 hover:text-gray-800 font-medium"
+            className="text-xs text-text-secondary hover:text-text font-medium"
           >
             Hide All
           </button>
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-2 py-2">
+      <div className="flex-1 overflow-y-auto px-2 py-2 app-scrollbar">
         <div className="space-y-1">
           {filteredSegments.map((segmentName) => (
             <SegmentItem

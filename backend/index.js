@@ -5,6 +5,13 @@ import OpenAI from 'openai';
 import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
 import { createRequire } from 'module';
+import { REPORT_ORGAN_PATTERNS } from './shared/reportOrganPatterns.js';
+import { FOCUS_KEYS as CANONICAL_FOCUS_KEYS, sanitizeLlmFocus } from './lib/focusSanitize.js';
+import {
+  chatRequestSchema,
+  MAX_MESSAGE_LENGTH,
+  MAX_REPORT_TEXT_LENGTH,
+} from './validation/chatSchemas.js';
 
 const require = createRequire(import.meta.url);
 const fileUpload = require('express-fileupload');
@@ -13,60 +20,16 @@ const pdf = require('pdf-parse');
 dotenv.config();
 
 const DEFAULT_PORT = 4000;
-const MAX_MESSAGE_LENGTH = 10_000;
-const MAX_REPORT_TEXT_LENGTH = 20_000;
 
 const MOCK_DELAY_MS = 600;
 const OPENAI_MODEL_DEFAULT = 'gpt-4o';
-const LOG_MESSAGE_PREFIX_LENGTH = 50;
 
 const app = express();
 const PORT = process.env.PORT || DEFAULT_PORT;
 
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : null;
 
-const SEGMENTS = [
-  'aorta',
-  'brachiocephalic-trunk',
-  'esophagus',
-  'heart',
-  'inferior-lobe-of-left-lung',
-  'inferior-lobe-of-right-lung',
-  'inferior-vena-cava',
-  'left-atrial-appendage',
-  'left-brachiocephalic-vein',
-  'left-clavicle',
-  'left-common-carotid-artery',
-  'left-deep-back-muscle',
-  'left-humerus',
-  'left-scapula',
-  'left-subclavian-artery',
-  'liver',
-  'middle-lobe-of-right-lung',
-  'pancreas',
-  'portal-vein-and-splenic-vein',
-  'pulmonary-venous-system',
-  'right-adrenal-gland',
-  'right-brachiocephalic-vein',
-  'right-clavicle',
-  'right-common-carotid-artery',
-  'right-deep-back-muscle',
-  'right-humerus',
-  'right-scapula',
-  'right-subclavian-artery',
-  'segment_1',
-  'spinal-cord',
-  'spleen',
-  'sternum',
-  'stomach',
-  'superior-lobe-of-left-lung',
-  'superior-lobe-of-right-lung',
-  'superior-vena-cava',
-  'thyroid',
-  'trachea',
-];
-
-const SEGMENT_NAME_SET = new Set(SEGMENTS);
+/** CANONICAL_FOCUS_KEYS + sanitizeLlmFocus: ./lib/focusSanitize.js */
 
 const ORGAN_SYNONYMS = {
   aorte: 'aorta',
@@ -115,12 +78,33 @@ const ORGAN_SYNONYMS = {
   surrénales: 'adrenal',
   'glande surrenale': 'adrenal',
   'glande surrénale': 'adrenal',
+  'rein gauche': 'left kidney',
+  'rein droit': 'right kidney',
+  carotide: 'carotid',
+  'veine cave': 'vena cava',
 };
 
 const ORGAN_TO_SEGMENT_MAP = {
+  'left kidney': 'left kidney',
+  'right kidney': 'right kidney',
+  'left adrenal': 'left adrenal',
+  'right adrenal': 'right adrenal',
+  'left lung': 'left lung',
+  'right lung': 'right lung',
+  'urinary bladder': 'urinary bladder',
+  'small bowel': 'small bowel',
+  'portal vein': 'portal vein',
+  'spinal-cord': 'spinal-cord',
+  'costal cartilage': 'costal cartilage',
+  'cervical spine': 'cervical spine',
+  'thoracic spine': 'thoracic spine',
+  'lumbar spine': 'lumbar spine',
+  'vena cava': 'vena cava',
+  'brachiocephalic vein': 'brachiocephalic vein',
   heart: 'heart',
   liver: 'liver',
   lung: 'lung',
+  lungs: 'lung',
   stomach: 'stomach',
   pancreas: 'pancreas',
   spleen: 'spleen',
@@ -132,19 +116,39 @@ const ORGAN_TO_SEGMENT_MAP = {
   scapula: 'scapula',
   humerus: 'humerus',
   muscle: 'muscle',
+  iliopsoas: 'iliopsoas',
+  carotid: 'carotid',
+  subclavian: 'subclavian',
   artery: 'artery',
   vein: 'vein',
+  vessel: 'vessel',
   pulmonary: 'pulmonary',
-  'spinal-cord': 'spinal-cord',
   sternum: 'sternum',
   adrenal: 'adrenal',
-  'left lung': 'left lung',
-  'right lung': 'right lung',
-  lungs: 'lung',
+  colon: 'colon',
+  duodenum: 'duodenum',
+  gallbladder: 'gallbladder',
+  bladder: 'bladder',
+  prostate: 'prostate',
+  bowel: 'small bowel',
   kidney: 'kidney',
   kidneys: 'kidney',
-  skeleton: 'clavicle',
-  bones: 'clavicle',
+  skeleton: 'skeleton',
+  bones: 'skeleton',
+  brachiocephalic: 'brachiocephalic',
+  trunk: 'trunk',
+  mediastinum: 'mediastinum',
+  diaphragm: 'diaphragm',
+  pleura: 'pleura',
+  iliac: 'iliac',
+  femur: 'femur',
+  hip: 'hip',
+  gluteus: 'gluteus',
+  rib: 'rib',
+  ribs: 'ribs',
+  vertebra: 'vertebra',
+  vertebrae: 'vertebrae',
+  sacrum: 'sacrum',
 };
 
 function buildSystemPrompt() {
@@ -174,9 +178,10 @@ MANDATORY OUTPUT FORMAT (JSON ONLY):
 }
 
 3D VISUALIZATION LOGIC:
-- You control a 3D viewer. To point the user to a specific area, set "focus" to the EXACT name from this list:
-${SEGMENTS.join(', ')}
-- CATEGORY VIEW: To show a whole system, use: "lung", "vein", "clavicle", "scapula", "artery", "trunk", "muscle", "adrenal", "kidney".
+- You control a 3D viewer. Set "focus" to EXACTLY one of these canonical keys (use lowercase, multi-word keys as shown):
+${CANONICAL_FOCUS_KEYS.join(', ')}
+- Use category keys like "lung", "left lung", "right lung", "kidney", "artery", "vein", "skeleton", "portal vein", "pulmonary" for whole-system views.
+- "heart" zooms to cardiac structures available in the model; "liver" maps to upper-abdomen visualization.
 - Only set "focus" if it directly relates to the current topic of conversation.
 
 AI SAFETY & ETHICS:
@@ -192,11 +197,13 @@ function cleanText(text) {
 }
 
 function findDirectMatch(normalizedText) {
-  return SEGMENTS.find((segment) => {
+  return CANONICAL_FOCUS_KEYS.find((key) => {
+    const k = key.replace(/-/g, ' ');
     return (
-      normalizedText === segment ||
-      normalizedText.includes(segment) ||
-      normalizedText.includes(segment.replace(/-/g, ' '))
+      normalizedText === key ||
+      normalizedText === k ||
+      normalizedText.includes(key) ||
+      normalizedText.includes(k)
     );
   });
 }
@@ -297,26 +304,7 @@ function getUserInquiryForShortcuts(message) {
   return message.slice(idx + CONTEXT_USER_INQUIRY_MARKER.length).trim();
 }
 
-/** Organ detection: canonical name -> regex (EN + FR, word boundary). */
-const REPORT_ORGAN_PATTERNS = [
-  ['lungs', /\b(lung|lungs|pulmonary|pleura|pleural|poumon|poumons|pulmonaire|plèvre|pleural)\b/gi],
-  ['heart', /\b(heart|cardiac|atrium|ventricle|pericardium|cœur|coeur|cardiaque|atrium|ventricule|péricarde)\b/gi],
-  ['liver', /\b(liver|hepatic|foie|hépatique|hepatique)\b/gi],
-  ['bones', /\b(bone|skeleton|spine|vertebra|clavicle|scapula|humerus|sternum|rib|os|squelette|colonne|vertèbre|clavicule|omoplate|humérus|humerus|sternum|côte|cotes)\b/gi],
-  ['vessels', /\b(aorta|artery|vein|vessel|vascular|IVC|SVC|aorte|artère|artères|veine|veines|vasculaire)\b/gi],
-  ['pleura', /\b(pleura|pleural|plèvre|pleural)\b/gi],
-  ['mediastinum', /\b(mediastinum|mediastinal|médiastin|mediastinal)\b/gi],
-  ['diaphragm', /\b(diaphragm|diaphragme)\b/gi],
-  ['kidney', /\b(kidney|renal|rein|reins|rénal|renal)\b/gi],
-  ['spleen', /\b(spleen|splenic|rate|splénique|splenique)\b/gi],
-  ['pancreas', /\b(pancreas|pancreatic|pancréas|pancreas|pancréatique|pancreatique)\b/gi],
-  ['stomach', /\b(stomach|gastric|estomac|gastrique)\b/gi],
-  ['thyroid', /\b(thyroid|thyroïde|thyroide)\b/gi],
-  ['brain', /\b(brain|cerebral|cerveau|cérébral|cerebral)\b/gi],
-  ['spinal cord', /\b(spinal\s*cord|spine|moelle\s*épinière|moelle\s*epiniere|colonne|rachis)\b/gi],
-  ['esophagus', /\b(esophagus|oesophagus|œsophage|oesophage|esophage)\b/gi],
-  ['trachea', /\b(trachea|tracheal|trachée|trachee|tracheal)\b/gi],
-];
+/** REPORT_ORGAN_PATTERNS: ./shared/reportOrganPatterns.js */
 const ANOMALY_KEYWORDS = /\b(nodule|mass|lesion|lésion|effusion|atelectasis|consolidation|enlarged|dilation|dilatation|fracture|embolism|pneumothorax|thickening|épaississement|opacity|infiltrate|infiltration|edema|oedème|stenosis|sténose|abnormal|anomalie|pathology|pathologie|enlargement|collection|abcès|abces|stercolithe|nodulaire)\b/gi;
 
 /** Section headers (FR/EN) -> canonical organ key for fallback when line-based extraction finds few organs. */
@@ -548,14 +536,6 @@ function parseJsonResponse(content) {
   }
 }
 
-function sanitizeLlmFocus(focus) {
-  if (focus == null) return null;
-  if (typeof focus !== 'string') return null;
-  const trimmed = focus.trim();
-  if (!trimmed) return null;
-  return SEGMENT_NAME_SET.has(trimmed) ? trimmed : null;
-}
-
 async function handleOpenAIRequest(message, detectedOrgan) {
   const completion = await openai.chat.completions.create({
     model: process.env.OPENAI_MODEL || OPENAI_MODEL_DEFAULT,
@@ -615,10 +595,18 @@ const chatRateLimit = rateLimit({
 });
 
 app.use(express.json({ limit: '50kb' }));
-app.use(fileUpload());
+
+const pdfUploadMiddleware = fileUpload({
+  limits: { fileSize: 2 * 1024 * 1024 },
+  abortOnLimit: true,
+});
+
+app.get('/health', (_req, res) => {
+  res.json({ ok: true, uptime: process.uptime() });
+});
 
 /** Endpoint to extract text from a medical scan PDF. No login required. */
-app.post('/extract-pdf', chatRateLimit, async (req, res) => {
+app.post('/extract-pdf', chatRateLimit, pdfUploadMiddleware, async (req, res) => {
   try {
     if (!req.files || !req.files.report) {
       return res.status(400).json({ error: 'No PDF file uploaded. Use parameter name "report".' });
@@ -643,7 +631,7 @@ app.post('/extract-pdf', chatRateLimit, async (req, res) => {
 
     res.json({ text: extractedText });
   } catch (err) {
-    console.error('PDF extraction error full stack:', err);
+    console.error('PDF extraction error:', err?.message ?? err);
     res.status(500).json({ error: 'Internal server error during PDF processing.' });
   }
 });
@@ -658,41 +646,23 @@ if (!openai) {
 }
 
 app.post('/chat', chatRateLimit, async (req, res) => {
-
-
-
-  const { message, reportText } = req.body ?? {};
-
-  if (typeof message !== 'string') {
-    return res.status(400).json({ error: 'Message required' });
-  }
-
-  const trimmed = message.trim();
-  if (trimmed.length === 0) {
-    return res.status(400).json({ error: 'Message must not be empty' });
-  }
-  if (trimmed.length > MAX_MESSAGE_LENGTH) {
+  const parsedBody = chatRequestSchema.safeParse(req.body ?? {});
+  if (!parsedBody.success) {
+    const first = parsedBody.error.issues[0];
     return res.status(400).json({
-      error: `Message must not exceed ${MAX_MESSAGE_LENGTH} characters`,
+      error: first?.message ?? 'Invalid request body',
     });
   }
 
-  const prefix =
-    trimmed.length <= LOG_MESSAGE_PREFIX_LENGTH
-      ? trimmed
-      : trimmed.substring(0, LOG_MESSAGE_PREFIX_LENGTH) + '…';
-  // Reduced logging for production safety
-  // console.log(`📨 Request length=${trimmed.length} prefix="${prefix}"`);
+  const { message: trimmed, reportText } = parsedBody.data;
 
   const userInquiry = getUserInquiryForShortcuts(trimmed);
   const detectedOrgan = extractOrgan(userInquiry);
-  // console.log(`🔍 Detected organ: ${detectedOrgan ?? 'none'}`);
-
 
   try {
     let result;
     if (isFocusOnlyRequest(userInquiry, detectedOrgan)) {
-      console.log('🎯 Focus-only request: empty reply + focus', detectedOrgan);
+      console.log('[chat] focus-only request (no LLM reply)');
       result = { reply: '', focus: detectedOrgan };
     } else if (openai) {
       try {
@@ -708,7 +678,6 @@ app.post('/chat', chatRateLimit, async (req, res) => {
       result = await handleMockRequest(trimmed, detectedOrgan);
     }
 
-    // reportText is sent by the client for both: (1) first message when a report is loaded, (2) any follow-up message while a report is in context
     const reportTextStr =
       typeof reportText === 'string' && reportText.trim().length > 0 ? reportText.trim() : null;
     let cards = [];

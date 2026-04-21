@@ -6,7 +6,13 @@ export const CAMERA = {
   ZOOM_DURATION_MS: 400,
   ZOOM_DISTANCE_MIN: 1.4,
   ZOOM_DISTANCE_MAX: 20,
-  ORBIT_MIN_DISTANCE: 0.5,
+  /** Keep focus zooms on a consistent frontal axis (+Z). */
+  FOCUS_FRONT_SIGN: 1,
+  /** World-units: organs smaller than this get a proportionally closer camera (fixes tiny meshes). */
+  FOCUS_REFERENCE_MAX_DIM: 1.25,
+  /** Floor for focus distance — allows framing very small segments (e.g. auriculette). */
+  FOCUS_DISTANCE_MIN: 0.42,
+  ORBIT_MIN_DISTANCE: 0.4,
   ORBIT_MAX_DISTANCE: 100,
   ORBIT_MIN_POLAR: 0.1,
   ORBIT_MAX_POLAR: Math.PI - 0.1,

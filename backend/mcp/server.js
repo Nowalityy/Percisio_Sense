@@ -6,6 +6,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import { REPORT_ORGAN_PATTERNS } from '../shared/reportOrganPatterns.js';
 
 const log = (...args) => console.error('[mcp]', ...args);
 
@@ -88,20 +89,8 @@ function deduplicateFindings(findings) {
   return Array.from(map.values());
 }
 
-const ORGAN_DICTIONARIES = {
-  lungs: /\b(poumon|poumons|lung|lungs|lobe|bronche|pneumothorax|opacité|opacite|verre dépoli|verre depoli|nodule|pulmonaire|pleura|pleural|plèvre|pleural)\b/gi,
-  heart: /\b(heart|cardiac|cœur|coeur|cardiaque|atrium|ventricle|ventricule|pericardium|péricarde)\b/gi,
-  liver: /\b(liver|hepatic|foie|hépatique|hepatique)\b/gi,
-  bones: /\b(bone|skeleton|spine|vertebra|clavicle|scapula|humerus|sternum|rib|os|squelette|colonne|vertèbre|vertebre|clavicule|omoplate|humérus|humerus|sternum|côte|cote|fracture|osseuse|osseux)\b/gi,
-  vessels: /\b(aorta|artery|vein|vessel|vascular|aorte|artère|artere|veine|vasculaire|embolie|embolism)\b/gi,
-  mediastinum: /\b(mediastinum|mediastinal|médiastin|mediastinal|adénopathie|adenopathie|ganglion)\b/gi,
-  kidney: /\b(kidney|renal|rein|reins|rénal|renal)\b/gi,
-  spleen: /\b(spleen|splenic|rate|splénique|splenique)\b/gi,
-};
-
-const REPORT_ORGAN_PATTERNS = Object.entries(ORGAN_DICTIONARIES);
-// Prioritize multi-word medical expressions
-const ANOMALY_KEYWORDS_REGEX = /\b(nodule pulmonaire|kyste hépatique|adénopathie médiastinale|fracture osseuse|embolie pulmonaire|épanchement pleural|nodule solide|abcès hépatique|lésion suspecte|masse tumorale|verre dépoli|nodule pulmonaire|opacité nodulaire|nodule|adénopathie|fracture|hémorragie|opacité|atelectasie|abcès|abcés|kyste|pneumothorax|embolie)\b/gi;
+const ANOMALY_KEYWORDS_REGEX =
+  /\b(nodule pulmonaire|kyste hépatique|adénopathie médiastinale|fracture osseuse|embolie pulmonaire|épanchement pleural|nodule solide|abcès hépatique|lésion suspecte|masse tumorale|verre dépoli|opacité nodulaire|nodule|mass|lesion|lésion|effusion|atelectasis|consolidation|enlarged|dilation|dilatation|fracture|embolism|pneumothorax|thickening|épaississement|opacity|infiltrate|infiltration|edema|oedème|stenosis|sténose|abnormal|anomalie|pathology|pathologie|enlargement|collection|abcès|abces|stercolithe|nodulaire|hémorragie|opacité|atelectasie|abcés|kyste|embolie|adénopathie)\b/gi;
 
 function extractFindingsImpl(reportText) {
   if (!reportText || typeof reportText !== 'string') return { byOrgan: {}, riskFlags: [], ignoredNegated: [], recommendations: [] };

@@ -21,7 +21,7 @@ export function ConversationHistory() {
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        className="text-[17px] font-normal text-[#007aff] active:opacity-60 py-1"
+        className="text-sm text-[var(--brand-primary-dark)] hover:opacity-80 py-1" // BRAND: #62C5EF
         title="Conversation history"
         aria-label="Open conversation history"
       >
@@ -31,15 +31,15 @@ export function ConversationHistory() {
   }
 
   return (
-    <div ref={containerRef} className="absolute inset-0 z-20 bg-white rounded-2xl border border-border shadow-xl flex flex-col" role="dialog" aria-modal="true" aria-labelledby="conv-history-title">
-      <div className="px-4 py-3 border-b border-border flex items-center justify-between bg-slate-50 rounded-t-2xl">
+    <div ref={containerRef} className="absolute inset-0 z-20 glass-panel flex flex-col" role="dialog" aria-modal="true" aria-labelledby="conv-history-title">
+      <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between rounded-t-2xl">
         <h3 id="conv-history-title" className="text-sm font-semibold text-text">Conversation History</h3>
         <div className="flex items-center gap-2">
           {conversationHistory.length > 0 && (
             <button
               type="button"
               onClick={clearConversationHistory}
-              className="text-xs text-text-secondary hover:text-text transition-colors"
+              className="text-xs text-text-secondary hover:text-text"
             >
               Clear
             </button>
@@ -47,7 +47,7 @@ export function ConversationHistory() {
           <button
             type="button"
             onClick={() => setIsOpen(false)}
-            className="p-1 text-text-secondary hover:text-text transition-colors rounded"
+            className="p-1 text-text-secondary hover:text-text rounded"
             aria-label="Close conversation history"
           >
             <svg
@@ -68,7 +68,7 @@ export function ConversationHistory() {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto px-4 py-3">
+      <div className="flex-1 overflow-y-auto px-4 py-3 app-scrollbar">
         {conversationHistory.length === 0 ? (
           <div className="text-center text-sm text-text-secondary py-8">
             No history available
@@ -78,10 +78,10 @@ export function ConversationHistory() {
             {conversationHistory.map((msg, idx) => (
               <div
                 key={idx}
-                className={`p-2 rounded-lg text-xs ${
+                className={`p-2.5 rounded-lg text-xs border ${
                   msg.from === 'user'
-                    ? 'bg-accent/10 text-text ml-auto max-w-[80%]'
-                    : 'bg-panel text-text-secondary'
+                    ? 'bg-[var(--brand-primary-light)] border-[var(--border-brand)] text-text ml-auto max-w-[80%]' // BRAND: #62C5EF
+                    : 'bg-white/[0.03] border-white/10 text-text-secondary'
                 }`}
               >
                 {msg.text}

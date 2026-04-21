@@ -1,6 +1,6 @@
 /**
  * Lighting setup for the 3D scene.
- * Ambient légèrement réduit + key light renforcée pour plus de relief sur le modèle.
+ * Slightly reduced ambient + stronger key light for more depth on the model.
  */
 export function SceneLights() {
   return (
