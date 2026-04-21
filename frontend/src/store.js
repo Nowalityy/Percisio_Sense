@@ -20,6 +20,10 @@ export const useSceneStore = create(
         analyzedReport: null,
         lastCards: [],
         lastMeta: null,
+        /** Currently-selected DICOM study id; null means viewer is locked. */
+        selectedDicom: null,
+        setSelectedDicom: (dicomId) =>
+          set({ selectedDicom: dicomId ?? null }),
         segmentVisibility: new Map(), // Map<segmentName, boolean>
         navigationHistory: [],
         historyIndex: -1,
@@ -128,6 +132,22 @@ export const useSceneStore = create(
             newMap.set(segmentName, visible);
             return { segmentVisibility: newMap };
           }),
+        setManySegmentVisibility: (entries) =>
+          set((state) => {
+            const newMap = new Map(state.segmentVisibility);
+            if (entries instanceof Map) {
+              entries.forEach((visible, segmentName) => {
+                newMap.set(segmentName, Boolean(visible));
+              });
+              return { segmentVisibility: newMap };
+            }
+            if (entries && typeof entries === 'object') {
+              Object.entries(entries).forEach(([segmentName, visible]) => {
+                newMap.set(segmentName, Boolean(visible));
+              });
+            }
+            return { segmentVisibility: newMap };
+          }),
         toggleSegmentVisibility: (segmentName) =>
           set((state) => {
             const newMap = new Map(state.segmentVisibility);
@@ -186,18 +206,20 @@ export const useSceneStore = create(
             currentFocus: null,
             lastCards: [],
             lastMeta: null,
+            selectedDicom: null,
           }),
       }),
       {
         name: 'percisio-sense-storage',
-        partialize: (state) => ({
-          conversationHistory: state.conversationHistory,
-          analyzedReport: state.analyzedReport,
-          lastReply: state.lastReply,
-          citedOrgans: state.citedOrgans,
-          citedOrganIndex: state.citedOrganIndex,
-          lastCards: state.lastCards,
-          lastMeta: state.lastMeta,
+        /**
+         * Do not persist DICOM selection, report, findings, or chat messages.
+         * Each new session (refresh or "new session" button) must start fresh
+         * — user re-selects a DICOM to unlock the viewer and load the report.
+         */
+        partialize: () => ({}),
+        merge: (_persistedState, currentState) => ({
+          ...currentState,
+          conversationHistory: [],
         }),
       }
     )

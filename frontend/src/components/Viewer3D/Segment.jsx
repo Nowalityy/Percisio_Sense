@@ -1,18 +1,29 @@
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
-import { useLoader, useThree } from '@react-three/fiber';
+import { useLoader } from '@react-three/fiber';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader';
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader';
 import { getSegmentColor, SEGMENTS } from './medicalColors';
 import { useSceneStore } from '../../store';
-import { isInFrustum } from '../../utils/performanceUtils';
-import { isSegmentInFocus, getSegmentNamesForFocus } from './focusUtils';
+import { getFocusSegmentSet } from './focusUtils';
 
 // -----------------------------------------------------------------------------
 // Constants
 // -----------------------------------------------------------------------------
 
-const BONE_KEYWORDS = ['clavicle', 'scapula', 'sternum', 'humerus', 'spinal-cord'];
+const BONE_KEYWORDS = [
+  'clavicle',
+  'scapula',
+  'sternum',
+  'humerus',
+  'spinal cord',
+  'spinal-cord',
+  'rib',
+  'vertebra',
+  'sacrum',
+  'femur',
+  'cartilage',
+];
 const SKIN_SEGMENT_NAME = 'segment_1';
 const DIMMED_COLOR = '#94a3b8';
 const DIMMED_OPACITY = 0.2;
@@ -23,6 +34,9 @@ const RENDER_ORDER = {
   BONE_OFFSET: 100,
   SKIN: 200,
 };
+const SEGMENT_INDEX_BY_NAME = new Map(
+  SEGMENTS.map((segmentName, index) => [segmentName, index])
+);
 
 const MATERIAL_CONFIG = {
   DEFAULT: {
@@ -60,7 +74,8 @@ const MATERIAL_CONFIG = {
 // -----------------------------------------------------------------------------
 
 function isBone(segmentName) {
-  return BONE_KEYWORDS.some((keyword) => segmentName.includes(keyword));
+  const s = segmentName.toLowerCase();
+  return BONE_KEYWORDS.some((keyword) => s.includes(keyword.toLowerCase()));
 }
 
 function getRenderOrder(segmentName, segmentIndex) {
@@ -107,7 +122,10 @@ function createMaterial(segmentName, color) {
 function configureMesh(mesh, segmentName, color) {
   mesh.name = segmentName;
   mesh.visible = true;
-  mesh.renderOrder = getRenderOrder(segmentName, SEGMENTS.indexOf(segmentName));
+  mesh.renderOrder = getRenderOrder(
+    segmentName,
+    SEGMENT_INDEX_BY_NAME.get(segmentName) ?? -1
+  );
   mesh.material = createMaterial(segmentName, color);
 }
 
@@ -131,62 +149,61 @@ function applyFocusStateToMesh(mesh, segmentName, isDimmed) {
 // Component
 // -----------------------------------------------------------------------------
 
+function segmentUrl(name, ext) {
+  return `/models/segments/${encodeURIComponent(name)}${ext}`;
+}
+
 export function Segment({ name, onLoad }) {
-  const materials = useLoader(MTLLoader, `/models/segments/${name}.mtl`);
-  const obj = useLoader(OBJLoader, `/models/segments/${name}.obj`, (loader) => {
+  const materials = useLoader(MTLLoader, segmentUrl(name, '.mtl'));
+  const obj = useLoader(OBJLoader, segmentUrl(name, '.obj'), (loader) => {
     materials.preload();
     loader.setMaterials(materials);
   });
-  const { camera } = useThree();
   const segmentVisibility = useSceneStore((s) => s.segmentVisibility);
   const currentFocus = useSceneStore((s) => s.currentFocus);
+  const segmentObject = useMemo(() => obj.clone(true), [obj]);
 
   const isUserVisible = useMemo(
     () => segmentVisibility.get(name) !== false,
     [name, segmentVisibility]
   );
 
-  const isInView = useMemo(() => {
-    if (!obj) return true;
-    return isInFrustum(obj, camera);
-  }, [obj, camera]);
-
-  const isFocused = useMemo(
-    () => (currentFocus ? isSegmentInFocus(name, currentFocus) : false),
-    [name, currentFocus]
-  );
-  const hasValidFocus = useMemo(
-    () => (currentFocus ? getSegmentNamesForFocus(currentFocus).length > 0 : false),
+  const focusSegmentSet = useMemo(
+    () => (currentFocus ? getFocusSegmentSet(currentFocus) : new Set()),
     [currentFocus]
   );
+  const isFocused = focusSegmentSet.has(name);
+  const hasValidFocus = focusSegmentSet.size > 0;
   const isDimmed = Boolean(hasValidFocus && !isFocused);
 
   useEffect(() => {
-    if (!obj) return;
+    if (!segmentObject) return;
     const color = getSegmentColor(name);
-    obj.traverse((child) => {
+    segmentObject.traverse((child) => {
       if (child.isMesh) {
+        // PERF: Ensure meshes outside camera frustum are skipped by GPU.
+        child.frustumCulled = true;
         configureMesh(child, name, color);
-        child.visible = isUserVisible && isInView;
+        child.visible = isUserVisible;
       }
     });
     onLoad?.(name);
-  }, [name, obj, onLoad, isUserVisible, isInView]);
+  }, [name, segmentObject, onLoad, isUserVisible]);
 
   useEffect(() => {
-    if (!obj) return;
-    obj.traverse((child) => {
-      if (child.isMesh) child.visible = isUserVisible && isInView;
+    if (!segmentObject) return;
+    segmentObject.traverse((child) => {
+      if (child.isMesh) child.visible = isUserVisible;
     });
-  }, [obj, isUserVisible, isInView]);
+  }, [segmentObject, isUserVisible]);
 
   useEffect(() => {
-    if (!obj) return;
-    obj.traverse((child) => {
+    if (!segmentObject) return;
+    segmentObject.traverse((child) => {
       if (child.isMesh) applyFocusStateToMesh(child, name, isDimmed);
     });
-  }, [obj, name, isDimmed]);
+  }, [segmentObject, name, isDimmed]);
 
   if (!isUserVisible) return null;
-  return <primitive object={obj} />;
+  return <primitive object={segmentObject} />;
 }

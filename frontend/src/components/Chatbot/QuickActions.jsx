@@ -1,6 +1,15 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useSceneStore } from '../../store';
 import { focusOnOrgan } from '../../utils/viewerUtils.js';
+
+const TOOL_CARDS = [
+  { id: 'measurement', label: 'Measurement', desc: 'Distance and volume tools', icon: '📏' },
+  { id: 'annotation', label: 'Annotation', desc: 'Mark and tag findings', icon: '🖊️' },
+  { id: 'segmentation', label: 'Segmentation', desc: 'Auto-segment organ groups', icon: '🧠' },
+  { id: 'export', label: 'Export', desc: 'Generate DICOM or PDF outputs', icon: '📤' },
+  { id: 'compare', label: 'Compare', desc: 'Side-by-side timeline scans', icon: '🧬' },
+  { id: 'share', label: 'Share', desc: 'Securely share a case view', icon: '🔗' },
+];
 
 const CATEGORIES = [
   {
@@ -48,10 +57,10 @@ const MORE_ACTIONS = [
 ];
 
 function segmentClass(active) {
-  return `flex-1 min-w-0 py-1.5 px-2 rounded-[7px] text-[13px] font-medium transition-[background,box-shadow,color] duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-[#007aff]/35 ${
+  return `flex-1 min-w-0 py-1.5 px-2 rounded-full text-xs font-medium transition-[background,box-shadow,color] duration-200 ease-out focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]/35 ${
     active
-      ? 'bg-white text-[#1c1c1e] shadow-[0_1px_3px_rgba(0,0,0,0.08)]'
-      : 'text-[#8e8e93] hover:text-[#636366]'
+      ? 'bg-[var(--brand-primary)] text-[var(--text-on-brand)] shadow-[var(--shadow-md)]'
+      : 'text-text-secondary hover:text-text'
   }`;
 }
 
@@ -69,10 +78,41 @@ export function QuickActions({ embedded = false }) {
 
   const activeCategory = CATEGORIES.find((c) => c.id === activeTab) ?? CATEGORIES[0];
 
+  useEffect(() => {
+    if (!moreOpen) return;
+    const onEscape = (event) => {
+      if (event.key === 'Escape') {
+        setMoreOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onEscape);
+    return () => window.removeEventListener('keydown', onEscape);
+  }, [moreOpen]);
+
   return (
-    <div className={`shrink-0 min-w-0 ${embedded ? '' : 'px-4 py-3 border-b border-black/[0.08] bg-white'}`}>
-      <p className="text-[13px] font-semibold text-[#8e8e93] mb-2 px-0.5">3D focus</p>
-      <div className="flex p-[3px] rounded-[9px] bg-[#00000014] gap-0 mb-3">
+    <div className={`shrink-0 min-w-0 ${embedded ? '' : 'px-4 py-3 border-b border-white/10 bg-white/[0.02]'}`}>
+      <p className="text-sm font-semibold text-text mb-2 px-0.5">Clinical Tools</p>
+
+      <div className="grid grid-cols-2 gap-2 mb-4">
+        {TOOL_CARDS.map((tool) => (
+          <button
+            key={tool.id}
+            type="button"
+            aria-disabled="true"
+            disabled
+            className="glass-card p-3 text-left group opacity-75 cursor-not-allowed"
+            title={`${tool.label} (coming soon)`}
+          >
+            <span className="text-lg">{tool.icon}</span>
+            <p className="mt-2 text-sm text-text font-medium">{tool.label}</p>
+            <p className="mt-1 text-[11px] text-text-secondary">{tool.desc}</p>
+            <span className="mt-2 inline-block text-xs text-[var(--brand-primary-dark)]">Coming soon</span> {/* BRAND: #62C5EF */}
+          </button>
+        ))}
+      </div>
+
+      <p className="text-xs font-semibold uppercase tracking-wide text-text-secondary mb-2 px-0.5">Focus shortcuts</p>
+      <div className="flex p-[3px] rounded-full bg-white/5 border border-white/10 gap-0 mb-3">
         {CATEGORIES.map((cat) => (
           <button
             key={cat.id}
@@ -87,6 +127,8 @@ export function QuickActions({ embedded = false }) {
           <button
             type="button"
             onClick={() => setMoreOpen((o) => !o)}
+            aria-expanded={moreOpen}
+            aria-controls="quick-actions-more-menu"
             className={`${segmentClass(moreOpen)} w-full`}
           >
             More
@@ -94,13 +136,18 @@ export function QuickActions({ embedded = false }) {
           {moreOpen && (
             <>
               <div className="fixed inset-0 z-10" aria-hidden onClick={() => setMoreOpen(false)} />
-              <div className="absolute left-0 right-0 top-full mt-1 z-20 py-1 rounded-[10px] bg-white border border-black/[0.08] shadow-[0_4px_24px_rgba(0,0,0,0.12)] overflow-hidden">
+              <div
+                id="quick-actions-more-menu"
+                role="menu"
+                className="absolute left-0 right-0 top-full mt-1 z-20 py-1 rounded-xl bg-[#0f172a] border border-white/10 shadow-[0_4px_24px_rgba(0,0,0,0.28)] overflow-hidden"
+              >
                 {MORE_ACTIONS.map((action) => (
                   <button
                     key={action.focus}
                     type="button"
                     onClick={() => handleQuickAction(action.focus)}
-                    className="w-full text-left px-4 py-3 text-[17px] font-normal text-[#1c1c1e] active:bg-black/[0.04] border-b border-black/[0.06] last:border-0"
+                    role="menuitem"
+                    className="w-full text-left px-4 py-2.5 text-sm text-text active:bg-white/[0.04] border-b border-white/10 last:border-0"
                   >
                     {action.label}
                   </button>
@@ -110,16 +157,16 @@ export function QuickActions({ embedded = false }) {
           )}
         </div>
       </div>
-      <div className="rounded-[10px] bg-white border border-black/[0.06] overflow-hidden divide-y divide-black/[0.08]">
+      <div className="rounded-xl bg-white/[0.03] border border-white/10 overflow-hidden divide-y divide-white/10">
         {activeCategory.actions.map((action) => (
           <button
             key={action.focus}
             type="button"
             onClick={() => handleQuickAction(action.focus)}
-            className="w-full text-left px-4 py-3.5 min-h-[44px] text-[17px] font-normal text-[#1c1c1e] flex items-center justify-between active:bg-black/[0.03]"
+            className="w-full text-left px-4 py-3 min-h-[42px] text-sm text-text flex items-center justify-between active:bg-white/[0.04]"
           >
             {action.label}
-            <span className="text-[#c7c7cc] text-xl font-extralight">›</span>
+            <span className="text-slate-400 text-xl font-extralight">›</span>
           </button>
         ))}
       </div>

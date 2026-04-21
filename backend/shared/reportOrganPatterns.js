@@ -1,0 +1,51 @@
+/**
+ * Single source of truth for organ-line detection (backend extractFindings + MCP extract_findings).
+ * Order: more specific patterns before broad ones.
+ */
+export const REPORT_ORGAN_PATTERNS = [
+  ['gallbladder', /\b(gallbladder|gall\s*bladder|vesicule|vésicule|vésicule\s+biliaire|vesicule\s+biliaire)\b/gi],
+  ['colon', /\b(colon|colonic|sigmoid|cecum|caecum|colique)\b/gi],
+  ['small bowel', /\b(small\s*bowel|intestin|intestine|grele|grêle|duodenal|jejunal|ileal)\b/gi],
+  ['duodenum', /\b(duodenum|duodenal|duodénum|duodenal)\b/gi],
+  ['urinary bladder', /\b(urinary\s*bladder|bladder|vesical|vessie)\b/gi],
+  ['prostate', /\b(prostate|prostatic|prostatique)\b/gi],
+  ['left kidney', /\b(left kidney|rein gauche)\b/gi],
+  ['right kidney', /\b(right kidney|rein droit)\b/gi],
+  [
+    'left adrenal',
+    /\b(left adrenal|adrenal\s+left|glande\s+surrénale\s+gauche|surrénale\s+gauche|surrenale\s+gauche)\b/gi,
+  ],
+  [
+    'right adrenal',
+    /\b(right adrenal|adrenal\s+right|glande\s+surrénale\s+droite|surrénale\s+droite|surrenale\s+droite)\b/gi,
+  ],
+  ['adrenal', /\b(adrenal|surrenal|surrénal|surrenale)\b/gi],
+  ['lungs', /\b(lung|lungs|pulmonary|lobe\s+(of\s+)?(left|right)|poumon|poumons|pulmonaire)\b/gi],
+  ['heart', /\b(heart|cardiac|atrium|ventricle|pericardium|cœur|coeur|cardiaque|ventricule|péricarde)\b/gi],
+  ['liver', /\b(liver|hepatic|foie|hépatique|hepatique)\b/gi],
+  ['cervical spine', /\b(cervical\s+spine|cervical\s+vertebra|rachis\s+cervical)\b/gi],
+  ['thoracic spine', /\b(thoracic\s+spine|thoracic\s+vertebra|dorsal\s+vertebra|dorsal\s+spine)\b/gi],
+  ['lumbar spine', /\b(lumbar\s+spine|lumbar\s+vertebra|lombaire|rachis\s+lombaire)\b/gi],
+  ['bones', /\b(bone|skeleton|vertebra|clavicle|scapula|humerus|sternum|rib|côte|cotes|femur|sacrum|os|squelette|colonne|vertèbre|fracture)\b/gi],
+  ['carotid', /\b(carotid|carotide|common\s+carotid)\b/gi],
+  ['subclavian', /\b(subclavian|sous-clavier|sous\s+clavier)\b/gi],
+  ['vena cava', /\b(vena\s+cava|\bIVC\b|\bSVC\b|veine\s+cave)\b/gi],
+  [
+    'brachiocephalic vein',
+    /\b(brachiocephalic\s+vein|veine\s+brachio[- ]céphalique|brachiocephalic\s+veins)\b/gi,
+  ],
+  ['vessels', /\b(aorta|artery|arteries|vein|veins|vessel|vascular|IVC|SVC|iliac|aorte|artère|veine|vasculaire|brachiocephalic|subclavian|carotid)\b/gi],
+  ['iliopsoas', /\b(iliopsoas|psoas|iliopsoas\s+muscle|muscle\s+psoas)\b/gi],
+  ['pleura', /\b(pleura|pleural|plèvre)\b/gi],
+  ['mediastinum', /\b(mediastinum|mediastinal|médiastin)\b/gi],
+  ['diaphragm', /\b(diaphragm|diaphragme)\b/gi],
+  ['kidney', /\b(kidney|kidneys|renal|rein|reins|rénal)\b/gi],
+  ['spleen', /\b(spleen|splenic|rate|splénique|splenique)\b/gi],
+  ['pancreas', /\b(pancreas|pancreatic|pancréas|pancréatique|pancreatique)\b/gi],
+  ['stomach', /\b(stomach|gastric|estomac|gastrique)\b/gi],
+  ['thyroid', /\b(thyroid|thyroïde|thyroide)\b/gi],
+  ['brain', /\b(brain|cerebral|cerveau|cérébral)\b/gi],
+  ['spinal cord', /\b(spinal\s*cord|moelle\s*épinière|moelle\s*epiniere|rachis(?!\s*cinglé))\b/gi],
+  ['esophagus', /\b(esophagus|oesophagus|œsophage|oesophage|esophage)\b/gi],
+  ['trachea', /\b(trachea|tracheal|trachée|trachee)\b/gi],
+];

@@ -1,4 +1,5 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useMemo, useEffect } from 'react';
+import { wrap } from 'comlink';
 import { useSceneStore } from '../../store';
 import { EXTRACT_PDF_URL } from '../../config/api.js';
 
@@ -17,9 +18,25 @@ export function ReportInput({ embedded = false }) {
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
   const setAnalyzedReport = useSceneStore((s) => s.setAnalyzedReport);
+  const workerRef = useRef(null);
 
-  const handleSubmit = () => {
-    const text = paste.trim();
+  const reportWorker = useMemo(() => {
+    // PERF: Move text cleanup/parsing off the main thread.
+    const worker = new Worker(new URL('../../workers/report.worker.ts', import.meta.url), {
+      type: 'module',
+    });
+    workerRef.current = worker;
+    return wrap(worker);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      workerRef.current?.terminate?.();
+    };
+  }, []);
+
+  const handleSubmit = async () => {
+    const text = (await reportWorker.normalizeReport(paste)).trim();
     if (!text) {
       setReportError('Please paste or upload report text.');
       return;
@@ -50,13 +67,14 @@ export function ReportInput({ embedded = false }) {
       formData.append('report', file);
 
       try {
-        const res = await fetch(PDF_EXTRACT_URL, {
+        const res = await fetch(EXTRACT_PDF_URL, {
           method: 'POST',
           body: formData,
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to extract PDF');
-        setPaste(data.text || '');
+        const normalized = await reportWorker.normalizeReport(data.text || '');
+        setPaste(normalized);
       } catch (err) {
         setReportError(err.message);
       } finally {
@@ -64,8 +82,9 @@ export function ReportInput({ embedded = false }) {
       }
     } else if (file.type === 'text/plain') {
       const reader = new FileReader();
-      reader.onload = () => {
-        setPaste(String(reader.result ?? ''));
+      reader.onload = async () => {
+        const normalized = await reportWorker.normalizeReport(String(reader.result ?? ''));
+        setPaste(normalized);
       };
       reader.onerror = () => setReportError('Could not read file.');
       reader.readAsText(file);
@@ -83,9 +102,17 @@ export function ReportInput({ embedded = false }) {
 
   const formBody = (
     <div className="flex flex-col gap-3">
-      <label className="text-[13px] text-[#8e8e93] shrink-0 leading-snug">
-        Paste report text or choose a file (.txt, .pdf).
-      </label>
+      <div className="rounded-xl border border-dashed border-[var(--border-brand)] bg-[var(--brand-primary-light)] p-4 text-center"> {/* BRAND: #62C5EF */}
+        <div className="mx-auto mb-2 size-9 rounded-lg border border-[var(--border-brand)] grid place-items-center text-[var(--brand-primary-dark)]"> {/* BRAND: #62C5EF */}
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+            <path d="M7 16l5-5 5 5M12 11V3" />
+            <path d="M4 17v2h16v-2" />
+          </svg>
+        </div>
+        <p className="text-sm text-text">Drop radiology report here</p>
+        <p className="text-xs text-text-secondary mt-1">or upload .txt / .pdf for parsing</p>
+      </div>
+
       <textarea
         value={paste}
         onChange={(e) => {
@@ -94,7 +121,7 @@ export function ReportInput({ embedded = false }) {
         }}
         placeholder={isUploading ? 'Extracting text from PDF...' : 'Paste medical report text here...'}
         disabled={isUploading}
-        className="min-h-[120px] max-h-[min(36vh,280px)] w-full px-3 py-3 text-[15px] rounded-[10px] border-0 bg-[#f2f2f7] text-[#1c1c1e] placeholder:text-[#8e8e93] resize-y overflow-y-auto disabled:opacity-50 focus:outline-none focus:ring-0"
+        className="glass-input min-h-[150px] max-h-[min(36vh,300px)] w-full px-3 py-3 text-sm resize-y overflow-y-auto disabled:opacity-50"
         aria-describedby={reportError ? 'report-error' : undefined}
       />
       <input
@@ -109,32 +136,28 @@ export function ReportInput({ embedded = false }) {
         type="button"
         disabled={isUploading}
         onClick={() => fileInputRef.current?.click()}
-        className="text-[17px] font-normal text-[#007aff] active:opacity-60 disabled:opacity-40 disabled:no-underline text-left w-fit py-1"
+        className="glass-btn text-sm px-3 py-2 w-fit"
       >
         {isUploading ? 'Processing PDF...' : 'Upload .txt or .pdf file'}
       </button>
       {reportError && (
-        <p id="report-error" className="text-[13px] text-[#ff3b30]" role="alert">
+        <p id="report-error" className="text-[13px] text-red-300" role="alert">
           {reportError}
         </p>
       )}
       <div className="flex flex-wrap gap-2 shrink-0">
         {!embedded && (
-          <button
-            type="button"
-            onClick={handleClose}
-            className="glass-btn px-3 py-2 text-sm font-medium rounded-xl text-text"
-          >
+          <button type="button" onClick={handleClose} className="glass-btn px-3 py-2 text-sm">
             Cancel
           </button>
         )}
         <button
           type="button"
           onClick={handleSubmit}
-          className="w-full py-3 text-[17px] font-medium rounded-[12px] bg-[#007aff] text-white active:opacity-85 disabled:opacity-40 disabled:cursor-not-allowed"
+          className="w-full py-3 text-sm font-semibold rounded-xl bg-[var(--brand-primary)] text-[var(--text-on-brand)] disabled:opacity-40 disabled:cursor-not-allowed shadow-[var(--shadow-md)]" // BRAND: #62C5EF
           disabled={!paste.trim() || isUploading}
         >
-          {isUploading ? 'Processing…' : 'Analyze report'}
+          {isUploading ? 'Processing...' : 'Analyze report'}
         </button>
       </div>
     </div>
@@ -142,8 +165,8 @@ export function ReportInput({ embedded = false }) {
 
   if (embedded) {
     return (
-      <div className="rounded-[10px] bg-white p-4 border border-black/[0.06]">
-        <h3 className="text-[13px] font-semibold text-[#8e8e93] mb-3">Report text</h3>
+      <div className="glass-card p-4">
+        <h3 className="text-sm font-semibold text-text mb-3">Report ingestion</h3>
         {formBody}
       </div>
     );
@@ -164,12 +187,12 @@ export function ReportInput({ embedded = false }) {
 
   return (
     <div
-      className="absolute inset-0 z-20 bg-white rounded-2xl border border-border shadow-xl flex flex-col"
+      className="absolute inset-0 z-20 glass-panel flex flex-col"
       role="dialog"
       aria-modal="true"
       aria-labelledby="report-dialog-title"
     >
-      <div className="px-4 py-3 border-b border-border flex items-center justify-between shrink-0 bg-slate-50 rounded-t-2xl">
+      <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between shrink-0 rounded-t-2xl">
         <h3 id="report-dialog-title" className="text-sm font-semibold text-text">
           Paste or upload report
         </h3>
@@ -195,7 +218,7 @@ export function ReportInput({ embedded = false }) {
           </svg>
         </button>
       </div>
-      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col p-4 gap-3">{formBody}</div>
+      <div className="flex-1 min-h-0 overflow-y-auto flex flex-col p-4 gap-3 app-scrollbar">{formBody}</div>
     </div>
   );
 }

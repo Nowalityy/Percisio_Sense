@@ -12,43 +12,19 @@ import { useSceneStore } from '../../store';
 import { serializeCameraStateFromScene, applyCameraState } from '../../utils/cameraStateUtils';
 import { CAMERA, clampZoomDistance } from './cameraConstants';
 import { getSegmentNamesForFocus, findOrganMeshes } from './focusUtils';
+import {
+  easeInOutCubic,
+  getVisibleMeshesBoundingBox,
+  computeFocusTarget,
+} from '../../viewer-core/cameraCore';
 
 // -----------------------------------------------------------------------------
-// Helpers
+// Helper: compute target camera Z and look-at for organ focus (Z-only zoom).
 // -----------------------------------------------------------------------------
 
-function easeInOutCubic(t) {
-  return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-}
-
-function getOrganBoundingBox(meshes) {
-  if (!meshes?.length) return null;
-  const box = new THREE.Box3();
-  for (const m of meshes) {
-    if (m.visible && m.geometry) box.expandByObject(m);
-  }
-  const size = box.getSize(new THREE.Vector3());
-  const maxDim = Math.max(size.x, size.y, size.z);
-  if (maxDim < 1e-6) return null;
-  return box;
-}
-
-// -----------------------------------------------------------------------------
-// Public API: compute target camera Z and look-at for organ focus (Z-only zoom).
-// -----------------------------------------------------------------------------
-
-export function focusOnOrganZ(organCenter, organSize, zoomLevel, lockX, lockY, currentCameraZ) {
+function focusOnOrganZ(organCenter, organSize, zoomLevel) {
   if (!organCenter || !(organCenter instanceof THREE.Vector3)) return null;
-  const dist = clampZoomDistance(zoomLevel);
-  const dx = lockX - organCenter.x;
-  const dy = lockY - organCenter.y;
-  const r2 = dist * dist - dx * dx - dy * dy;
-  const dz = r2 > 0 ? Math.sqrt(r2) : dist;
-  const sign = currentCameraZ > organCenter.z ? 1 : -1;
-  return {
-    cameraZ: organCenter.z + sign * dz,
-    target: organCenter.clone(),
-  };
+  return computeFocusTarget(organCenter, organSize, zoomLevel, clampZoomDistance, CAMERA);
 }
 
 // -----------------------------------------------------------------------------
@@ -58,10 +34,11 @@ export function focusOnOrganZ(organCenter, organSize, zoomLevel, lockX, lockY, c
 export function FocusCamera() {
   const controlsRef = useRef(null);
   const defaultStateSavedRef = useRef(false);
+  const rafThrottleRef = useRef(null);
   const currentFocus = useSceneStore((s) => s.currentFocus);
   const setGetCameraState = useSceneStore((s) => s.setGetCameraState);
   const setGetDefaultCameraState = useSceneStore((s) => s.setGetDefaultCameraState);
-  const { scene, camera } = useThree();
+  const { scene, camera, invalidate } = useThree();
 
   const [zoomAnimation, setZoomAnimation] = useState(null);
   const [isInteracting, setIsInteracting] = useState(false);
@@ -85,13 +62,13 @@ export function FocusCamera() {
 
     const meshes = findOrganMeshes(scene, currentFocus);
     if (meshes.length === 0) {
-      getSegmentNamesForFocus(currentFocus).forEach((segmentName) =>
-        useSceneStore.getState().setSegmentVisibility(segmentName, true)
-      );
+      const visibleSegments = getSegmentNamesForFocus(currentFocus);
+      const visibilityMap = new Map(visibleSegments.map((segmentName) => [segmentName, true]));
+      useSceneStore.getState().setManySegmentVisibility(visibilityMap);
       return;
     }
 
-    const box = getOrganBoundingBox(meshes);
+    const box = getVisibleMeshesBoundingBox(meshes);
     if (!box) return;
 
     const center = box.getCenter(new THREE.Vector3());
@@ -99,22 +76,23 @@ export function FocusCamera() {
     const result = focusOnOrganZ(
       center,
       size,
-      1,
-      camera.position.x,
-      camera.position.y,
-      camera.position.z
+      1
     );
     if (!result) return;
 
     setZoomAnimation({
+      startX: camera.position.x,
+      endX: result.cameraPosition.x,
+      startY: camera.position.y,
+      endY: result.cameraPosition.y,
       startZ: camera.position.z,
-      endZ: result.cameraZ,
+      endZ: result.cameraPosition.z,
       startTarget: controls.target.clone(),
       endTarget: result.target,
-      lockX: camera.position.x,
-      lockY: camera.position.y,
       startedAt: performance.now(),
     });
+    // PERF: Trigger demand-loop render for focus transition.
+    invalidate();
   }, [currentFocus, scene, camera]);
 
   useFrame(() => {
@@ -141,18 +119,31 @@ export function FocusCamera() {
       const t = Math.min(elapsed / CAMERA.ZOOM_DURATION_MS, 1);
       const eased = easeInOutCubic(t);
 
-      camera.position.x = zoomAnimation.lockX;
-      camera.position.y = zoomAnimation.lockY;
+      // r3f exposes mutable THREE objects by design — direct mutation is expected.
+      /* eslint-disable react-hooks/immutability */
+      camera.position.x = zoomAnimation.startX + (zoomAnimation.endX - zoomAnimation.startX) * eased;
+      camera.position.y = zoomAnimation.startY + (zoomAnimation.endY - zoomAnimation.startY) * eased;
       camera.position.z = zoomAnimation.startZ + (zoomAnimation.endZ - zoomAnimation.startZ) * eased;
       controls.target.lerpVectors(zoomAnimation.startTarget, zoomAnimation.endTarget, eased);
+      /* eslint-enable react-hooks/immutability */
 
       if (t >= 1) setZoomAnimation(null);
       controls.update();
+      // PERF: Keep demand-loop active while animation is running.
+      invalidate();
       return;
     }
 
     controls.update();
   });
+
+  useEffect(() => {
+    return () => {
+      if (rafThrottleRef.current != null) {
+        cancelAnimationFrame(rafThrottleRef.current);
+      }
+    };
+  }, []);
 
   return (
     <OrbitControls
@@ -173,6 +164,14 @@ export function FocusCamera() {
       onEnd={() => {
         setIsInteracting(false);
         useSceneStore.getState().requestHistoryPush?.();
+      }}
+      onChange={() => {
+        // PERF: Throttle control-driven re-renders to ~60 FPS.
+        if (rafThrottleRef.current != null) return;
+        rafThrottleRef.current = requestAnimationFrame(() => {
+          rafThrottleRef.current = null;
+          invalidate();
+        });
       }}
       makeDefault
     />
