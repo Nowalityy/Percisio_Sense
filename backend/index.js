@@ -3,6 +3,8 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import OpenAI from 'openai';
 import helmet from 'helmet';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { rateLimit } from 'express-rate-limit';
 import { createRequire } from 'module';
 import { REPORT_ORGAN_PATTERNS } from './shared/reportOrganPatterns.js';
@@ -26,6 +28,8 @@ const OPENAI_MODEL_DEFAULT = 'gpt-4o';
 
 const app = express();
 const PORT = process.env.PORT || DEFAULT_PORT;
+
+app.set('trust proxy', 1);
 
 const ALLOWED_ORIGINS = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',') : null;
 
@@ -576,7 +580,13 @@ async function handleMockRequest(message, detectedOrgan) {
   };
 }
 
-app.use(helmet());
+app.use(
+  helmet({
+    contentSecurityPolicy: false,
+    crossOriginEmbedderPolicy: false,
+    crossOriginResourcePolicy: { policy: 'cross-origin' },
+  })
+);
 app.use(
   cors({
     origin: handleCorsOrigin,
@@ -762,6 +772,15 @@ app.post('/chat', chatRateLimit, async (req, res) => {
     return res.status(500).json(validateChatResponse({ answer: '', cards: [], uiActions: [] }));
   }
 });
+
+if (process.env.NODE_ENV === 'production') {
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  const distDir = path.join(__dirname, '..', 'frontend', 'dist');
+  app.use(express.static(distDir));
+  app.get(/^\/(?!chat$|extract-pdf$|health$|api\/).*/, (_req, res) => {
+    res.sendFile(path.join(distDir, 'index.html'));
+  });
+}
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ Backend running on http://localhost:${PORT}`);
