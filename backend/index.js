@@ -5,6 +5,7 @@ import OpenAI from 'openai';
 import helmet from 'helmet';
 import compression from 'compression';
 import path from 'node:path';
+import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { rateLimit } from 'express-rate-limit';
 import { createRequire } from 'module';
@@ -775,23 +776,28 @@ app.post('/chat', chatRateLimit, async (req, res) => {
   }
 });
 
-if (process.env.NODE_ENV === 'production') {
+const APP_MODE = process.env.APP_MODE || 'monolithic';
+if (process.env.NODE_ENV === 'production' && APP_MODE !== 'backend') {
   const __dirname = path.dirname(fileURLToPath(import.meta.url));
   const distDir = path.join(__dirname, '..', 'frontend', 'dist');
-  app.use(
-    express.static(distDir, {
-      maxAge: '30d',
-      immutable: true,
-      setHeaders: (res, filePath) => {
-        if (filePath.endsWith('index.html')) {
-          res.setHeader('Cache-Control', 'no-cache');
-        }
-      },
-    })
-  );
-  app.get(/^\/(?!chat$|extract-pdf$|health$|api\/).*/, (_req, res) => {
-    res.sendFile(path.join(distDir, 'index.html'));
-  });
+  if (existsSync(distDir)) {
+    app.use(
+      express.static(distDir, {
+        maxAge: '30d',
+        immutable: true,
+        setHeaders: (res, filePath) => {
+          if (filePath.endsWith('index.html')) {
+            res.setHeader('Cache-Control', 'no-cache');
+          }
+        },
+      })
+    );
+    app.get(/^\/(?!chat$|extract-pdf$|health$|api\/).*/, (_req, res) => {
+      res.sendFile(path.join(distDir, 'index.html'));
+    });
+  } else {
+    console.log('ℹ️ frontend/dist not found — running in API-only mode');
+  }
 }
 
 app.listen(PORT, '0.0.0.0', () => {
