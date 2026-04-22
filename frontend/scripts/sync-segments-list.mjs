@@ -12,6 +12,13 @@ const root = join(__dirname, '..');
 const segDir = join(root, 'public/models/segments');
 const medicalColorsPath = join(root, 'src/components/Viewer3D/medicalColors.js');
 
+if (!fs.existsSync(segDir)) {
+  console.log(
+    `sync-segments-list: ${segDir} not found (models hosted on CDN) — skipping sync, using baked SEGMENTS list.`
+  );
+  process.exit(0);
+}
+
 const names = fs
   .readdirSync(segDir)
   .filter((f) => f.endsWith('.obj'))
