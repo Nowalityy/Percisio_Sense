@@ -33,3 +33,6 @@ frontend/public/models/Model.glb
 
 # Brain artifacts
 .gemini/
+
+# 3D models hosted on Cloudflare R2 CDN
+frontend/public/models/segments/

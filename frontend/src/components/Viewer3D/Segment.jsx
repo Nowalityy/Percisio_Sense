@@ -149,8 +149,11 @@ function applyFocusStateToMesh(mesh, segmentName, isDimmed) {
 // Component
 // -----------------------------------------------------------------------------
 
+const MODELS_BASE_URL = (import.meta.env.VITE_MODELS_BASE_URL || '').replace(/\/+$/, '');
+
 function segmentUrl(name, ext) {
-  return `/models/segments/${encodeURIComponent(name)}${ext}`;
+  const base = MODELS_BASE_URL || '';
+  return `${base}/models/segments/${encodeURIComponent(name)}${ext}`;
 }
 
 export function Segment({ name, onLoad }) {
