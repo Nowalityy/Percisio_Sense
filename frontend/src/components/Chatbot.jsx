@@ -9,7 +9,6 @@ import { PERFORMANCE_CONFIG } from '../performance.config';
 import { useLeakDetector } from '../hooks/useLeakDetector';
 import { SkeletonPanel } from './SkeletonPanel.jsx';
 
-const ReportTab = lazy(() => import('./Chatbot/ReportTab.jsx'));
 const ToolsTab = lazy(() => import('./Chatbot/ToolsTab.jsx'));
 
 const AUTO_SUMMARY_PROMPT_PREFIX =
@@ -327,7 +326,6 @@ function buildMessageWithContext(userMessage, analyzedReport) {
 }
 
 const PANEL_CHAT = 'chat';
-const PANEL_REPORT = 'report';
 const PANEL_TOOLS = 'tools';
 const panelVariants = {
   initial: { opacity: 0, y: 6 },
@@ -709,8 +707,6 @@ export default function Chatbot() {
 
 
 
-  const reportBadge = Boolean(analyzedReport) || lastCards.length > 0 || lastError === 'report';
-
   return (
     <div className={`assistant-panel relative flex flex-col h-full min-h-0 ${isLoading ? 'overflow-hidden' : ''}`}>
       {isLoading && (
@@ -734,18 +730,6 @@ export default function Chatbot() {
             className={mainPanelTabClass(panelTab === PANEL_CHAT)}
           >
             Chat
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={panelTab === PANEL_REPORT}
-            onClick={() => setPanelTab(PANEL_REPORT)}
-            className={`${mainPanelTabClass(panelTab === PANEL_REPORT)} inline-flex items-center justify-center gap-1`}
-          >
-            <span>Report</span>
-            {reportBadge && (
-              <span className="inline-flex h-1.5 w-1.5 rounded-full bg-[var(--brand-primary)]" title="Report or findings available" aria-hidden /> // BRAND: #62C5EF
-            )}
           </button>
           <button
             type="button"
@@ -882,7 +866,7 @@ export default function Chatbot() {
               )}
               {!analyzedReport && lastCards.length === 0 && !isLoading && (
                 <p className="text-xs text-text-secondary text-center px-2 py-2">
-                  Upload a report from the Report tab to see findings here.
+                  Select a DICOM study to load the scan report, or ask a question below.
                 </p>
               )}
               {isLoading && <LoadingIndicator />}
@@ -934,22 +918,6 @@ export default function Chatbot() {
                 </button>
               </div>
             </form>
-          </motion.div>
-        )}
-
-        {panelTab === PANEL_REPORT && (
-          <motion.div
-            key={PANEL_REPORT}
-            variants={panelVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            transition={{ duration: 0.2 }}
-            className="flex flex-col flex-1 min-h-0 overflow-hidden"
-          >
-            <Suspense fallback={<SkeletonPanel lines={4} className="m-3" />}>
-              <ReportTab />
-            </Suspense>
           </motion.div>
         )}
 
