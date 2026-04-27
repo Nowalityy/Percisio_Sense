@@ -1,6 +1,8 @@
 export function ViewerLoadingOverlay({ current, total }) {
-  const totalSafe = Math.max(1, Number(total) || 1);
-  const progress = Math.min(100, Math.round((Number(current) / totalSafe) * 100));
+  const totalNum = Number(total);
+  const hasWork = Number.isFinite(totalNum) && totalNum > 0;
+  const totalSafe = hasWork ? totalNum : 0;
+  const progress = hasWork ? Math.min(100, Math.round((Number(current) / totalSafe) * 100)) : 0;
   return (
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-[var(--surface-panel)]/92 backdrop-blur-sm">
       <div className="glass-card w-[min(420px,88%)] p-5 text-center">
@@ -8,17 +10,21 @@ export function ViewerLoadingOverlay({ current, total }) {
           Loading 3D viewer
         </p>
         <p className="mt-2 text-sm text-[var(--text-primary)]">
-          Preparing anatomical model...
+          {hasWork ? 'Preparing anatomical model...' : 'No segment list for this study (check deployment / segmentSets.json).'}
         </p>
-        <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-slate-200">
-          <div
-            className="h-full rounded-full bg-[var(--brand-primary)] transition-all duration-300 ease-out" // BRAND: #62C5EF
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-        <div className="mt-3 text-xs text-[var(--text-secondary)]">
-          {current} / {totalSafe} segments ({progress}%)
-        </div>
+        {hasWork ? (
+          <>
+            <div className="mt-4 h-2 w-full overflow-hidden rounded-full bg-slate-200">
+              <div
+                className="h-full rounded-full bg-[var(--brand-primary)] transition-all duration-300 ease-out" // BRAND: #62C5EF
+                style={{ width: `${progress}%` }}
+              />
+            </div>
+            <div className="mt-3 text-xs text-[var(--text-secondary)]">
+              {current} / {totalSafe} segments ({progress}%)
+            </div>
+          </>
+        ) : null}
       </div>
     </div>
   );

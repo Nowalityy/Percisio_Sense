@@ -29,8 +29,12 @@ const VIEW_MODES = ['Skeleton', 'Organs', 'Vessels', 'Full'];
 // -----------------------------------------------------------------------------
 
 function CanvasLoader({ current, total }) {
-  const totalSafe = Math.max(1, Number(total) || 1);
-  const progress = Math.round((Number(current) / totalSafe) * 100);
+  const totalNum = Number(total);
+  const totalSafe = Number.isFinite(totalNum) && totalNum > 0 ? totalNum : 1;
+  const progress =
+    Number.isFinite(totalNum) && totalNum > 0
+      ? Math.round((Number(current) / totalSafe) * 100)
+      : 0;
   return (
     <Html center>
       <div className="flex flex-col items-center gap-3">
@@ -41,7 +45,7 @@ function CanvasLoader({ current, total }) {
           />
         </div>
         <div className="text-[10px] font-bold uppercase tracking-widest text-slate-200 glass-btn px-3 py-1 rounded-full">
-          Loading {current} / {total}
+          Loading {current} / {Number.isFinite(totalNum) ? total : '—'}
         </div>
       </div>
     </Html>
@@ -119,10 +123,8 @@ export default function Viewer3D() {
   const [viewMode, setViewMode] = useState('Full');
   const [loadingProgress, setLoadingProgress] = useState(() => ({
     current: 0,
-    total: Math.max(1, getSegmentListForSet(useSceneStore.getState().anatomySegmentSet).length),
+    total: getSegmentListForSet(useSceneStore.getState().anatomySegmentSet).length,
   }));
-  const isModelReady =
-    loadingProgress.total > 0 && loadingProgress.current >= loadingProgress.total;
 
   const currentFocus = useSceneStore((s) => s.currentFocus);
   const citedOrgans = useSceneStore((s) => s.citedOrgans);
@@ -137,6 +139,11 @@ export default function Viewer3D() {
   const historyPushRequest = useSceneStore((s) => s.historyPushRequest);
   const isAnalyzing = useSceneStore((s) => s.isAnalyzing);
   const anatomySegmentSet = useSceneStore((s) => s.anatomySegmentSet);
+  const segmentExpected = getSegmentListForSet(anatomySegmentSet).length;
+  const isModelReady =
+    segmentExpected > 0 &&
+    loadingProgress.total === segmentExpected &&
+    loadingProgress.current >= segmentExpected;
   const isRestoringRef = useRef(false);
   const prevStateRef = useRef({ focus: currentFocus, visibility: segmentVisibility });
   const containerRef = useRef(null);
@@ -191,7 +198,7 @@ export default function Viewer3D() {
       skipAnatomyLoadResetRef.current = false;
       return;
     }
-    const total = Math.max(1, getSegmentListForSet(anatomySegmentSet).length);
+    const total = getSegmentListForSet(anatomySegmentSet).length;
     // set-state-in-effect: intentional synchronous reset before Segment useEffects; see block comment above.
     // eslint-disable-next-line react-hooks/set-state-in-effect -- reset must run before child useEffect (onLoad)
     setLoadingProgress({ current: 0, total });
