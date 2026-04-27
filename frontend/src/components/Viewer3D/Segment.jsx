@@ -6,7 +6,7 @@ import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader';
 import { getSegmentColor, isSkinSegment } from './medicalColors';
 import { useSceneStore } from '../../store';
 import { getFocusSegmentSet } from './focusUtils';
-import { segmentModelRelativePath } from '../../config/segmentAssets';
+import { segmentAbsoluteUrl } from '../../config/segmentAssets';
 
 // -----------------------------------------------------------------------------
 // Constants
@@ -144,17 +144,10 @@ function applyFocusStateToMesh(mesh, segmentName, isDimmed, skinOpacity) {
 // Component
 // -----------------------------------------------------------------------------
 
-const MODELS_BASE_URL = (import.meta.env.VITE_MODELS_BASE_URL || '').replace(/\/+$/, '');
-
-function segmentUrl(name, ext, setId) {
-  const base = MODELS_BASE_URL || '';
-  return `${base}/${segmentModelRelativePath(name, ext, setId)}`;
-}
-
 export function Segment({ name, orderIndex = -1, onLoad }) {
   const anatomySegmentSet = useSceneStore((s) => s.anatomySegmentSet);
-  const materials = useLoader(MTLLoader, segmentUrl(name, '.mtl', anatomySegmentSet));
-  const obj = useLoader(OBJLoader, segmentUrl(name, '.obj', anatomySegmentSet), (loader) => {
+  const materials = useLoader(MTLLoader, segmentAbsoluteUrl(name, '.mtl', anatomySegmentSet));
+  const obj = useLoader(OBJLoader, segmentAbsoluteUrl(name, '.obj', anatomySegmentSet), (loader) => {
     materials.preload();
     loader.setMaterials(materials);
   });
