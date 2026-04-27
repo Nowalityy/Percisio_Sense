@@ -4,21 +4,22 @@
  */
 import { getDefaultAnatomySetId } from '../segmentList';
 
-/** Public R2 bucket (same layout as `public/models/segments/`). Used when env is unset in production builds (e.g. Vercel). */
-const MODELS_CDN_DEFAULT = 'https://pub-4cafc161d51047b8b22ca1a006be74b3.r2.dev';
-
 /**
  * Base URL for segment OBJ/MTL with no trailing slash.
- * - Dev: empty → URLs are root-relative (`/models/segments/...`) served from Vite `public/`.
- * - Prod: `VITE_MODELS_BASE_URL` or {@link MODELS_CDN_DEFAULT} (segments are not in git on deploy).
+ *
+ * - **Default (empty):** URLs are `/models/segments/...` (same origin).
+ *   - Dev: Vite serves `public/models/segments/`.
+ *   - Prod (e.g. Vercel): configure a rewrite proxy to your R2 bucket (see `vercel.json`).
+ *     Direct browser loads from `*.r2.dev` often fail: R2 public buckets omit CORS, and
+ *     Three.js loaders need a readable cross-origin response.
+ *
+ * - **Override:** set `VITE_MODELS_BASE_URL` to a full origin (e.g. your CDN) **and** enable
+ *   CORS on that bucket (`GET`, `HEAD`, `OPTIONS`, `Access-Control-Allow-Origin`).
  */
 export function getModelsBaseUrl() {
   const raw = import.meta.env.VITE_MODELS_BASE_URL;
   if (typeof raw === 'string' && raw.trim() !== '') {
     return raw.replace(/\/+$/, '');
-  }
-  if (import.meta.env.PROD) {
-    return MODELS_CDN_DEFAULT;
   }
   return '';
 }
