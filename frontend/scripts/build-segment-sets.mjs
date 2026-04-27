@@ -29,7 +29,15 @@ if (fs.existsSync(segmentsRoot)) {
 }
 
 if (Object.keys(sets).length === 0) {
-  console.warn('build-segment-sets: no subdirs with .obj under public/models/segments — writing empty frednonopti');
+  // CI (e.g. Vercel) clones without `public/models/segments/` (gitignored). Do not
+  // overwrite the committed manifest — that would ship an empty list and break the viewer.
+  if (fs.existsSync(outFile)) {
+    console.warn(
+      'build-segment-sets: no local .obj under public/models/segments — keeping existing src/data/segmentSets.json'
+    );
+    process.exit(0);
+  }
+  console.warn('build-segment-sets: no segments and no existing JSON — writing empty frednonopti');
   sets.frednonopti = [];
 }
 
