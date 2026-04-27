@@ -3,6 +3,10 @@
     {
       "source": "/models/segments/:path*",
       "destination": "https://pub-4cafc161d51047b8b22ca1a006be74b3.r2.dev/models/segments/:path*"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
     }
   ]
 }
