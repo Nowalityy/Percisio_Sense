@@ -39,6 +39,10 @@ export function centerModelInGroup(
 ): void {
   if (!segmentsGroup || !rootGroup) return;
 
+  // Reset world scale/position on the root before measuring; a previous fit
+  // or mixed exports must not leave a scale that skews the AABB.
+  rootGroup.position.set(0, 0, 0);
+  rootGroup.scale.set(1, 1, 1);
   segmentsGroup.position.set(0, 0, 0);
   const box = new Box3().setFromObject(segmentsGroup);
   const center = box.getCenter(new Vector3());

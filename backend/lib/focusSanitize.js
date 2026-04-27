@@ -86,7 +86,7 @@ const LEGACY_LLM_FOCUS_MAP = {
   'portal-vein-and-splenic-vein': 'portal vein',
   'pulmonary-venous-system': 'pulmonary',
   'spinal-cord': 'spinal-cord',
-  segment_1: 'skeleton',
+  skinpercisio: 'skin',
   'left-kidney': 'left kidney',
   'right-kidney': 'right kidney',
   'left-adrenal-gland': 'left adrenal',

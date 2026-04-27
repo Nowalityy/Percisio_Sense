@@ -4,6 +4,7 @@ import { colors, radii, shadows, blur } from './design-tokens';
 import { SkeletonPanel } from './components/SkeletonPanel.jsx';
 import DicomSelector from './components/DicomSelector.jsx';
 import { useSceneStore } from './store.js';
+import { getDicomStudyById } from './config/dicomStudies.js';
 
 // Lazy-load heavy chunks (Three.js + R3F + viewer, Chatbot) for better LCP and TTI
 const Viewer3D = lazy(() => import('./components/Viewer3D.jsx'));
@@ -113,7 +114,7 @@ function App() {
           <div className="hidden md:flex flex-1 justify-center min-w-0">
             <div className="rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-xs text-text-secondary truncate">
               {selectedDicom
-                ? 'CT CAP · IV contrast · 08/09/2025'
+                ? getDicomStudyById(selectedDicom)?.label ?? 'Study loaded'
                 : 'No study loaded'}
             </div>
           </div>
@@ -186,7 +187,7 @@ function App() {
           <motion.section
             {...motionProps}
             transition={{ ...motionProps.transition, delay: 0.12 }}
-            className={`min-h-0 flex-col md:basis-[35%] md:max-w-[35%] gap-2 md:gap-2.5 ${
+            className={`min-h-0 min-w-0 flex-col md:basis-[35%] md:max-w-[35%] gap-2 md:gap-2.5 ${
               mobilePanel === 'chat' ? 'flex' : 'hidden md:flex'
             }`}
             aria-label="Clinical AI assistant"

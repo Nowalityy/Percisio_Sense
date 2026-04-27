@@ -58,7 +58,7 @@ export const SEGMENT_CATEGORIES = {
   },
   other: {
     label: 'Other',
-    keywords: ['segment_1'],
+    keywords: ['skin'],
   },
 } as const;
 

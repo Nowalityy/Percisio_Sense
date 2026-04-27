@@ -4,6 +4,7 @@ import { Canvas } from '@react-three/fiber';
 import { SceneLights } from './SceneLights';
 import { ScannerModel } from './ScannerModel';
 import { FocusCamera } from './FocusCamera';
+import { getModelRootWorldY } from '../../config/dicomStudies.js';
 
 export function ViewerCanvas({
   isLowEndDevice,
@@ -15,8 +16,11 @@ export function ViewerCanvas({
   rotation,
   isAutoSpinning,
   onProgress,
+  anatomySegmentSet,
   children,
 }) {
+  const modelGroupY = getModelRootWorldY(anatomySegmentSet);
+
   return (
     <Canvas
       shadows={false}
@@ -40,9 +44,8 @@ export function ViewerCanvas({
       }}
     >
       <SceneLights />
-      {/* Small upward Y offset so the body sits clear of the bottom/top toolbars
-          and appears visually centered in the viewport. */}
-      <group position={[0, 0.7, 0]}>
+      {/* Base Y lift + optional per-segment-set offset (see dicomStudies.js). */}
+      <group position={[0, modelGroupY, 0]}>
         <ModelErrorBoundary>
           <Suspense
             fallback={
@@ -50,6 +53,7 @@ export function ViewerCanvas({
             }
           >
             <ScannerModel
+              key={anatomySegmentSet}
               rotation={rotation}
               isAutoSpinning={isAutoSpinning}
               onProgress={onProgress}

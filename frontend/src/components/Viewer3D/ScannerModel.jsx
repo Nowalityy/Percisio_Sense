@@ -1,15 +1,19 @@
-import { useRef, Suspense, memo, useCallback } from 'react';
+import { useRef, Suspense, memo, useCallback, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
-import { SEGMENTS } from './medicalColors';
 import { Segment } from './Segment';
 import { useDispose } from '../../hooks/useDispose';
 import { applyModelRotation, centerModelInGroup } from '../../viewer-core/modelCore';
+import { useSceneStore } from '../../store';
+import { getSegmentListForSet } from '../../segmentList';
 
 export const ScannerModel = memo(function ScannerModel({
   rotation = { x: 0, y: 0, z: 0 },
   isAutoSpinning,
   onProgress,
 }) {
+  const anatomySegmentSet = useSceneStore((s) => s.anatomySegmentSet);
+  const setModelGroup = useSceneStore((s) => s.setModelGroup);
+  const segmentNames = getSegmentListForSet(anatomySegmentSet);
   const { invalidate } = useThree();
   const groupRef = useRef();
   const segmentsRef = useRef();
@@ -19,6 +23,14 @@ export const ScannerModel = memo(function ScannerModel({
     () => [segmentsRef.current, groupRef.current],
     []
   );
+
+  // Clear the published model group when this instance unmounts (e.g., DICOM
+  // switch via the `key={anatomySegmentSet}` on ScannerModel) so consumers
+  // (FocusCamera) know the previous model is gone before the new one finishes
+  // loading.
+  useEffect(() => {
+    return () => setModelGroup(null);
+  }, [setModelGroup]);
 
   useFrame((state, delta) => {
     const changed = applyModelRotation(groupRef.current, rotation, isAutoSpinning, delta);
@@ -36,26 +48,30 @@ export const ScannerModel = memo(function ScannerModel({
 
       loadedSegmentsRef.current.add(name);
       const currentCount = loadedSegmentsRef.current.size;
-      const totalItems = SEGMENTS.length;
+      const totalItems = segmentNames.length;
 
       if (onProgress) {
         onProgress(currentCount, totalItems);
       }
 
-      // Center and scale the model only once when all segments are loaded (avoids zoom/dezoom on load)
       if (currentCount === totalItems) {
         centerModelInGroup(segmentsRef.current, groupRef.current);
+        // Publish the centered & scaled root group so FocusCamera can fit
+        // the camera to the actual world-space bounding box of the model
+        // (instead of using hardcoded coordinates per anatomy set).
+        setModelGroup(groupRef.current);
+        invalidate();
       }
     },
-    [onProgress]
+    [onProgress, segmentNames.length, invalidate, setModelGroup]
   );
 
   return (
     <group ref={groupRef}>
       <group ref={segmentsRef}>
-        {SEGMENTS.map((name) => (
+        {segmentNames.map((name, index) => (
           <Suspense key={name} fallback={null}>
-            <Segment name={name} onLoad={onSegmentLoaded} />
+            <Segment name={name} orderIndex={index} onLoad={onSegmentLoaded} />
           </Suspense>
         ))}
       </group>

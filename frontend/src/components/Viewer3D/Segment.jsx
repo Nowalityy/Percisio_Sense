@@ -1,11 +1,12 @@
 import { useEffect, useMemo } from 'react';
 import * as THREE from 'three';
-import { useLoader } from '@react-three/fiber';
+import { useLoader, useThree } from '@react-three/fiber';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader';
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader';
-import { getSegmentColor, SEGMENTS } from './medicalColors';
+import { getSegmentColor, isSkinSegment } from './medicalColors';
 import { useSceneStore } from '../../store';
 import { getFocusSegmentSet } from './focusUtils';
+import { segmentModelRelativePath } from '../../config/segmentAssets';
 
 // -----------------------------------------------------------------------------
 // Constants
@@ -24,19 +25,15 @@ const BONE_KEYWORDS = [
   'femur',
   'cartilage',
 ];
-const SKIN_SEGMENT_NAME = 'segment_1';
 const DIMMED_COLOR = '#94a3b8';
 const DIMMED_OPACITY = 0.2;
-const SKIN_OPACITY = 0.15;
+const SKIN_DEFAULT_OPACITY = 0.15;
 
 const RENDER_ORDER = {
   BASE: 10,
   BONE_OFFSET: 100,
   SKIN: 200,
 };
-const SEGMENT_INDEX_BY_NAME = new Map(
-  SEGMENTS.map((segmentName, index) => [segmentName, index])
-);
 
 const MATERIAL_CONFIG = {
   DEFAULT: {
@@ -46,7 +43,7 @@ const MATERIAL_CONFIG = {
   },
   SKIN: {
     transparent: true,
-    opacity: SKIN_OPACITY,
+    opacity: SKIN_DEFAULT_OPACITY,
     depthWrite: false,
     side: THREE.FrontSide,
     roughness: 0.8,
@@ -79,25 +76,26 @@ function isBone(segmentName) {
 }
 
 function getRenderOrder(segmentName, segmentIndex) {
-  if (segmentName === SKIN_SEGMENT_NAME) return RENDER_ORDER.SKIN;
+  if (isSkinSegment(segmentName)) return RENDER_ORDER.SKIN;
   let order = segmentIndex >= 0 ? segmentIndex + RENDER_ORDER.BASE : RENDER_ORDER.BASE;
   if (isBone(segmentName)) order += RENDER_ORDER.BONE_OFFSET;
   return order;
 }
 
-function getDefaultOpacity(segmentName) {
-  return segmentName === SKIN_SEGMENT_NAME ? SKIN_OPACITY : 1;
+function getDefaultOpacity(segmentName, skinOpacity) {
+  return isSkinSegment(segmentName) ? skinOpacity : 1;
 }
 
 function getDefaultTransparent(segmentName) {
-  return segmentName === SKIN_SEGMENT_NAME;
+  return isSkinSegment(segmentName);
 }
 
-function createMaterial(segmentName, color) {
-  if (segmentName === SKIN_SEGMENT_NAME) {
+function createMaterial(segmentName, color, skinOpacity) {
+  if (isSkinSegment(segmentName)) {
     return new THREE.MeshStandardMaterial({
       ...MATERIAL_CONFIG.DEFAULT,
       ...MATERIAL_CONFIG.SKIN,
+      opacity: skinOpacity,
       color,
     });
   }
@@ -119,17 +117,14 @@ function createMaterial(segmentName, color) {
   });
 }
 
-function configureMesh(mesh, segmentName, color) {
+function configureMesh(mesh, segmentName, color, orderIndex, skinOpacity) {
   mesh.name = segmentName;
   mesh.visible = true;
-  mesh.renderOrder = getRenderOrder(
-    segmentName,
-    SEGMENT_INDEX_BY_NAME.get(segmentName) ?? -1
-  );
-  mesh.material = createMaterial(segmentName, color);
+  mesh.renderOrder = getRenderOrder(segmentName, orderIndex);
+  mesh.material = createMaterial(segmentName, color, skinOpacity);
 }
 
-function applyFocusStateToMesh(mesh, segmentName, isDimmed) {
+function applyFocusStateToMesh(mesh, segmentName, isDimmed, skinOpacity) {
   if (!mesh.material) return;
   const mat = mesh.material;
   if (isDimmed) {
@@ -139,9 +134,9 @@ function applyFocusStateToMesh(mesh, segmentName, isDimmed) {
     mat.depthWrite = false;
   } else {
     mat.color.set(getSegmentColor(segmentName));
-    mat.opacity = getDefaultOpacity(segmentName);
+    mat.opacity = getDefaultOpacity(segmentName, skinOpacity);
     mat.transparent = getDefaultTransparent(segmentName);
-    mat.depthWrite = segmentName !== SKIN_SEGMENT_NAME;
+    mat.depthWrite = !isSkinSegment(segmentName);
   }
 }
 
@@ -151,20 +146,26 @@ function applyFocusStateToMesh(mesh, segmentName, isDimmed) {
 
 const MODELS_BASE_URL = (import.meta.env.VITE_MODELS_BASE_URL || '').replace(/\/+$/, '');
 
-function segmentUrl(name, ext) {
+function segmentUrl(name, ext, setId) {
   const base = MODELS_BASE_URL || '';
-  return `${base}/models/segments/${encodeURIComponent(name)}${ext}`;
+  return `${base}/${segmentModelRelativePath(name, ext, setId)}`;
 }
 
-export function Segment({ name, onLoad }) {
-  const materials = useLoader(MTLLoader, segmentUrl(name, '.mtl'));
-  const obj = useLoader(OBJLoader, segmentUrl(name, '.obj'), (loader) => {
+export function Segment({ name, orderIndex = -1, onLoad }) {
+  const anatomySegmentSet = useSceneStore((s) => s.anatomySegmentSet);
+  const materials = useLoader(MTLLoader, segmentUrl(name, '.mtl', anatomySegmentSet));
+  const obj = useLoader(OBJLoader, segmentUrl(name, '.obj', anatomySegmentSet), (loader) => {
     materials.preload();
     loader.setMaterials(materials);
   });
   const segmentVisibility = useSceneStore((s) => s.segmentVisibility);
   const currentFocus = useSceneStore((s) => s.currentFocus);
+  const skinOpacity = useSceneStore((s) => s.skinOpacity);
   const segmentObject = useMemo(() => obj.clone(true), [obj]);
+  // Canvas runs in `frameloop="demand"` (see ViewerCanvas) — three.js only
+  // redraws after `invalidate()`. Mutating mat.opacity in a useEffect does
+  // not trigger a re-render on its own, so we explicitly invalidate.
+  const invalidate = useThree((state) => state.invalidate);
 
   const isUserVisible = useMemo(
     () => segmentVisibility.get(name) !== false,
@@ -186,26 +187,35 @@ export function Segment({ name, onLoad }) {
       if (child.isMesh) {
         // PERF: Ensure meshes outside camera frustum are skipped by GPU.
         child.frustumCulled = true;
-        configureMesh(child, name, color);
+        configureMesh(child, name, color, orderIndex, skinOpacity);
         child.visible = isUserVisible;
       }
     });
     onLoad?.(name);
-  }, [name, segmentObject, onLoad, isUserVisible]);
+    invalidate();
+    // skinOpacity intentionally omitted: handled by the dedicated effect below
+    // so material instances aren't recreated on every slider tick.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [name, orderIndex, segmentObject, onLoad, isUserVisible, invalidate]);
 
+  // Mount/unmount of the <primitive> below changes the scene graph without
+  // triggering a frame in `frameloop="demand"`. We must invalidate whenever
+  // visibility flips so toggling a segment off/on actually updates the canvas.
   useEffect(() => {
     if (!segmentObject) return;
     segmentObject.traverse((child) => {
       if (child.isMesh) child.visible = isUserVisible;
     });
-  }, [segmentObject, isUserVisible]);
+    invalidate();
+  }, [segmentObject, isUserVisible, invalidate]);
 
   useEffect(() => {
     if (!segmentObject) return;
     segmentObject.traverse((child) => {
-      if (child.isMesh) applyFocusStateToMesh(child, name, isDimmed);
+      if (child.isMesh) applyFocusStateToMesh(child, name, isDimmed, skinOpacity);
     });
-  }, [segmentObject, name, isDimmed]);
+    invalidate();
+  }, [segmentObject, name, isDimmed, skinOpacity, invalidate]);
 
   if (!isUserVisible) return null;
   return <primitive object={segmentObject} />;

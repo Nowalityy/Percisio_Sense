@@ -1,4 +1,5 @@
-import { SEGMENTS } from './medicalColors';
+import { useSceneStore } from '../../store';
+import { getSegmentListForSet } from '../../segmentList';
 import {
   CATEGORY_MATCHES,
   cardTitleToFocusKey as mapCardTitleToFocusKey,
@@ -12,12 +13,17 @@ export function cardTitleToFocusKey(title) {
   return mapCardTitleToFocusKey(title);
 }
 
+function activeSegmentList() {
+  const setId = useSceneStore.getState().anatomySegmentSet;
+  return getSegmentListForSet(setId);
+}
+
 export function getSegmentNamesForFocus(focusKey) {
-  return getSegmentNamesForFocusInList(focusKey, SEGMENTS);
+  return getSegmentNamesForFocusInList(focusKey, activeSegmentList());
 }
 
 export function getFocusSegmentSet(focusKey) {
-  return buildFocusSegmentSet(focusKey, SEGMENTS);
+  return buildFocusSegmentSet(focusKey, activeSegmentList());
 }
 
 export function isSegmentInFocus(segmentName, focusKey) {

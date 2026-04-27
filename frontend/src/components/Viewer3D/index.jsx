@@ -1,9 +1,9 @@
-import { useState, useEffect, Component, useRef, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, Component, useRef, useCallback } from 'react';
 import { useThree } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import { useSceneStore } from '../../store';
 import { createHistoryState, canNavigateBack, canNavigateForward } from '../../utils/historyManager';
-import { SEGMENTS } from './medicalColors';
+import { getSegmentListForSet } from '../../segmentList';
 import { PERFORMANCE_CONFIG } from '../../performance.config';
 import { disposeRenderer } from '../../hooks/useDispose';
 import { useLeakDetector } from '../../hooks/useLeakDetector';
@@ -21,9 +21,7 @@ import { ViewerCanvas } from './ViewerCanvas';
 // Constants
 // -----------------------------------------------------------------------------
 
-const ROTATION_STEP = Math.PI / 8;
 const DEFAULT_ROTATION = { x: -Math.PI / 2, y: 0, z: 0 };
-const INITIAL_LOADING_TOTAL = SEGMENTS.length;
 const VIEW_MODES = ['Skeleton', 'Organs', 'Vessels', 'Full'];
 
 // -----------------------------------------------------------------------------
@@ -113,14 +111,16 @@ function CameraZoomController({ zoomLevel }) {
 // -----------------------------------------------------------------------------
 
 export default function Viewer3D() {
-  const [rotation, setRotation] = useState(DEFAULT_ROTATION);
-  const [isAutoSpinning, setIsAutoSpinning] = useState(false);
+  /**
+   * The model is rendered at a fixed rotation (DEFAULT_ROTATION). Camera
+   * framing is handled in FocusCamera.
+   */
   const [zoomLevel, setZoomLevel] = useState(38);
   const [viewMode, setViewMode] = useState('Full');
-  const [loadingProgress, setLoadingProgress] = useState({
+  const [loadingProgress, setLoadingProgress] = useState(() => ({
     current: 0,
-    total: INITIAL_LOADING_TOTAL,
-  });
+    total: Math.max(1, getSegmentListForSet(useSceneStore.getState().anatomySegmentSet).length),
+  }));
   const isModelReady =
     loadingProgress.total > 0 && loadingProgress.current >= loadingProgress.total;
 
@@ -136,6 +136,7 @@ export default function Viewer3D() {
   const addToHistory = useSceneStore((s) => s.addToHistory);
   const historyPushRequest = useSceneStore((s) => s.historyPushRequest);
   const isAnalyzing = useSceneStore((s) => s.isAnalyzing);
+  const anatomySegmentSet = useSceneStore((s) => s.anatomySegmentSet);
   const isRestoringRef = useRef(false);
   const prevStateRef = useRef({ focus: currentFocus, visibility: segmentVisibility });
   const containerRef = useRef(null);
@@ -151,43 +152,10 @@ export default function Viewer3D() {
     setLoadingProgress({ current, total });
   }, []);
 
-  const handleRotate = useCallback((direction) => {
-    setIsAutoSpinning(false);
-    setRotation((prev) => {
-      switch (direction) {
-        case 'up':
-          return { ...prev, x: prev.x - ROTATION_STEP };
-        case 'down':
-          return { ...prev, x: prev.x + ROTATION_STEP };
-        case 'left':
-          return { ...prev, y: prev.y - ROTATION_STEP };
-        case 'right':
-          return { ...prev, y: prev.y + ROTATION_STEP };
-        case 'tilt-left':
-          return { ...prev, z: prev.z - ROTATION_STEP };
-        case 'tilt-right':
-          return { ...prev, z: prev.z + ROTATION_STEP };
-        case 'reset':
-          return { ...DEFAULT_ROTATION };
-        default:
-          return prev;
-      }
-    });
-  }, []);
-
-  const handleFlip = useCallback(() => {
-    setIsAutoSpinning(false);
-    setRotation((prev) => ({ ...prev, x: prev.x + Math.PI }));
-  }, []);
-
-  const toggleAutoSpin = useCallback(() => {
-    setIsAutoSpinning((prev) => !prev);
-  }, []);
-
   const handleReset = useCallback(() => {
     const store = useSceneStore.getState();
+    store.setCameraAutoSpin(false);
     store.clearCameraFocus();
-    setRotation({ ...DEFAULT_ROTATION });
     const defaultCameraState = store.getDefaultCameraState?.();
     if (defaultCameraState) {
       store.setPendingCameraRestore(defaultCameraState);
@@ -206,8 +174,39 @@ export default function Viewer3D() {
   }, []);
 
   useEffect(() => {
-    setManySegmentVisibility(buildVisibilityMapForMode(SEGMENTS, viewMode));
-  }, [setManySegmentVisibility, viewMode]);
+    const list = getSegmentListForSet(anatomySegmentSet);
+    setManySegmentVisibility(buildVisibilityMapForMode(list, viewMode));
+  }, [setManySegmentVisibility, viewMode, anatomySegmentSet]);
+
+  const skipAnatomyLoadResetRef = useRef(true);
+  /**
+   * Reset the loading bar in `useLayoutEffect` (not `useEffect` + `setTimeout(0)`).
+   * If we zero progress after child `useEffect` runs, Segment `onLoad` has
+   * already fired and will not re-run — progress can stay 0 / total forever
+   * after many fast switches. Layout effect runs before child passive effects
+   * (onLoad) and before paint, so the bar resets before segment hooks run.
+   */
+  useLayoutEffect(() => {
+    if (skipAnatomyLoadResetRef.current) {
+      skipAnatomyLoadResetRef.current = false;
+      return;
+    }
+    const total = Math.max(1, getSegmentListForSet(anatomySegmentSet).length);
+    // set-state-in-effect: intentional synchronous reset before Segment useEffects; see block comment above.
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset must run before child useEffect (onLoad)
+    setLoadingProgress({ current: 0, total });
+  }, [anatomySegmentSet]);
+
+  /** Keep zoom slider aligned with FocusCamera when the DICOM / segment set changes. */
+  const skipAnatomyZoomResetRef = useRef(true);
+  useLayoutEffect(() => {
+    if (skipAnatomyZoomResetRef.current) {
+      skipAnatomyZoomResetRef.current = false;
+      return;
+    }
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync with FocusCamera default when dataset changes
+    setZoomLevel(38);
+  }, [anatomySegmentSet]);
 
   const handleHistoryNavigation = useCallback((direction) => {
     const store = useSceneStore.getState();
@@ -378,9 +377,10 @@ export default function Viewer3D() {
         loadingProgress={loadingProgress}
         modelErrorBoundary={ModelErrorBoundary}
         canvasLoader={CanvasLoader}
-        rotation={rotation}
-        isAutoSpinning={isAutoSpinning}
+        rotation={DEFAULT_ROTATION}
+        isAutoSpinning={false}
         onProgress={handleProgress}
+        anatomySegmentSet={anatomySegmentSet}
       >
         <CameraZoomController zoomLevel={zoomLevel} />
       </ViewerCanvas>
@@ -404,24 +404,6 @@ export default function Viewer3D() {
 
       <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30">
         <div className="flex items-center gap-1 p-1.5 glass-card rounded-full overflow-hidden">
-          <CompactButton onClick={() => handleHistoryNavigation('back')} title="Undo" icon="↶" />
-          <CompactButton onClick={() => handleHistoryNavigation('forward')} title="Redo" icon="↷" />
-          <div className="w-px h-4 bg-slate-400/20 mx-0.5" />
-          <CompactButton onClick={() => handleRotate('up')} title="Pan up" icon="↑" />
-          <CompactButton onClick={() => handleRotate('down')} title="Pan down" icon="↓" />
-          <CompactButton onClick={() => handleRotate('left')} title="Pan left" icon="←" />
-          <CompactButton onClick={() => handleRotate('right')} title="Pan right" icon="→" />
-          <div className="w-px h-4 bg-slate-400/20 mx-0.5" />
-          <CompactButton onClick={() => handleRotate('tilt-left')} title="Rotate left" icon="⟲" />
-          <CompactButton onClick={() => handleRotate('tilt-right')} title="Rotate right" icon="⟳" />
-          <div className="w-px h-4 bg-slate-400/20 mx-0.5" />
-          <CompactButton
-            onClick={toggleAutoSpin}
-            active={isAutoSpinning}
-            title={isAutoSpinning ? 'Stop spin' : 'Auto spin'}
-            icon="◎"
-          />
-          <CompactButton onClick={handleFlip} title="Flip" icon="⇅" />
           <CompactButton onClick={handleReset} title="Reset" icon="⌂" />
         </div>
       </div>

@@ -2,8 +2,8 @@ import { SegmentFilterPanel } from './SegmentFilterPanel';
 
 export function ViewerToolbar({ viewMode, viewModes, onModeChange }) {
   return (
-    <div className="absolute top-3 left-3 right-3 z-40 flex items-start justify-end gap-2">
-      <div className="flex items-center gap-2">
+    <div className="absolute top-3 left-3 right-3 z-40 flex items-start justify-end gap-2 flex-wrap">
+      <div className="flex items-center gap-2 min-w-0">
         <SegmentFilterPanel />
         <div className="glass-card p-1.5 flex items-center gap-1">
           {viewModes.map((mode) => (

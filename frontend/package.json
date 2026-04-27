@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "sync-favicon": "node -e \"require('fs').copyFileSync('public/favicon/favicon.ico','public/favicon.ico')\"",
-    "sync-segments": "node scripts/sync-segments-list.mjs",
-    "predev": "npm run sync-favicon",
-    "prebuild": "npm run sync-segments && npm run sync-favicon",
+    "build-segment-sets": "node scripts/build-segment-sets.mjs",
+    "predev": "npm run build-segment-sets && npm run sync-favicon",
+    "prebuild": "npm run build-segment-sets && npm run sync-favicon",
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",

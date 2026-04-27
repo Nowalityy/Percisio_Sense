@@ -1,5 +1,6 @@
 /**
- * Realistic medical color palette — filenames must match `public/models/segments/*.obj` exactly.
+ * Realistic medical color palette for segment labels. Basenames per set are generated
+ * into `src/data/segmentSets.json` via `npm run build-segment-sets` (paths in `segmentAssets.js`).
  */
 export const MEDICAL_COLORS = {
   heart: '#dc2626',
@@ -33,8 +34,19 @@ export const MEDICAL_COLORS = {
   'spinal-cord': '#e2e8f0',
   muscle: '#991b1b',
   'deep-back-muscle': '#7f1d1d',
-  segment_1: '#f9dfc5',
+  skin: '#f9dfc5',
 };
+
+/**
+ * Skin/envelope meshes — matched by name (`skinpercisio`, or any future export
+ * containing the word "skin"). Centralized here so `Segment.jsx`, the filter
+ * panel and color helpers stay in sync.
+ * @param {string} name
+ */
+export function isSkinSegment(name) {
+  if (!name) return false;
+  return name.toLowerCase().includes('skin');
+}
 
 /**
  * @param {string} name — segment id (same as OBJ basename)
@@ -42,6 +54,7 @@ export const MEDICAL_COLORS = {
 export function getSegmentColor(name) {
   const n = name.toLowerCase().replace(/-/g, ' ');
 
+  if (isSkinSegment(name)) return MEDICAL_COLORS.skin;
   if (n.includes('lung')) return MEDICAL_COLORS.lung;
   if (n.includes('kidney')) return MEDICAL_COLORS.kidney;
   if (n.includes('adrenal')) return MEDICAL_COLORS.adrenal;
@@ -95,114 +108,3 @@ export function getSegmentColor(name) {
   }
   return '#94a3b8';
 }
-
-/** Basenames of `public/models/segments/*.obj` (must stay in sync with files on disk). */
-export const SEGMENTS = [
-  'aorta',
-  'brachiocephalic trunk',
-  'C5 vertebra',
-  'C6 vertebra',
-  'C7 vertebra',
-  'colon',
-  'costal cartilage',
-  'duodenum',
-  'esophagus',
-  'gallbladder',
-  'inferior lobe of left lung',
-  'inferior lobe of right lung',
-  'inferior vena cava',
-  'L1 vertebra',
-  'L2 vertebra',
-  'L3 vertebra',
-  'L4 vertebra',
-  'L5 vertebra',
-  'left adrenal gland',
-  'left atrial appendage',
-  'left brachiocephalic vein',
-  'left clavicle',
-  'left common carotid artery',
-  'left common iliac artery',
-  'left common iliac vein',
-  'left deep back muscle',
-  'left femur',
-  'left gluteus maximus',
-  'left gluteus medius',
-  'left gluteus minimus',
-  'left hip',
-  'left humerus',
-  'left iliopsoas muscle',
-  'left kidney',
-  'left rib 1',
-  'left rib 10',
-  'left rib 11',
-  'left rib 12',
-  'left rib 2',
-  'left rib 3',
-  'left rib 4',
-  'left rib 5',
-  'left rib 6',
-  'left rib 7',
-  'left rib 8',
-  'left rib 9',
-  'left scapula',
-  'left subclavian artery',
-  'middle lobe of right lung',
-  'pancreas',
-  'portal vein and splenic vein',
-  'prostate',
-  'pulmonary venous system',
-  'right adrenal gland',
-  'right brachiocephalic vein',
-  'right clavicle',
-  'right common carotid artery',
-  'right common iliac artery',
-  'right common iliac vein',
-  'right deep back muscle',
-  'right femur',
-  'right gluteus maximus',
-  'right gluteus medius',
-  'right gluteus minimus',
-  'right hip',
-  'right humerus',
-  'right iliopsoas muscle',
-  'right kidney',
-  'right rib 1',
-  'right rib 10',
-  'right rib 11',
-  'right rib 12',
-  'right rib 2',
-  'right rib 3',
-  'right rib 4',
-  'right rib 5',
-  'right rib 6',
-  'right rib 7',
-  'right rib 8',
-  'right rib 9',
-  'right scapula',
-  'right subclavian artery',
-  'S1 vertebra',
-  'Sacrum',
-  'small bowel',
-  'spinal cord',
-  'spleen',
-  'sternum',
-  'stomach',
-  'superior lobe of left lung',
-  'superior lobe of right lung',
-  'superior vena cava',
-  'T1 vertebra',
-  'T10 vertebra',
-  'T11 vertebra',
-  'T12 vertebra',
-  'T2 vertebra',
-  'T3 vertebra',
-  'T4 vertebra',
-  'T5 vertebra',
-  'T6 vertebra',
-  'T7 vertebra',
-  'T8 vertebra',
-  'T9 vertebra',
-  'thyroid',
-  'trachea',
-  'urinary bladder',
-];

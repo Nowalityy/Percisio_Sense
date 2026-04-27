@@ -1,48 +1,7 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef, useEffect } from 'react';
 import { useSceneStore } from '../store.js';
-
-const DICOM_STUDIES = [
-  {
-    id: 'scan-tap-2025-09-08',
-    label: 'SCAN TAP AVEC IV 08-09-2025 TAP PORTAL',
-  },
-];
-
-const PREDEFINED_REPORTS = {
-  'scan-tap-2025-09-08': `CHEST-ABDOMEN-PELVIS CT SCAN
-Date: 02/12/2026 — Dr Julien MARTIN
-
-Indication:
-Diffuse abdominal pain evolving for several weeks, associated with fatigue and moderate weight loss. Family history of tumoral pathologies.
-
-Technique:
-Chest-abdomen-pelvis CT acquisition performed without and then with intravenous injection of iodinated contrast agent, at portal phase.
-
-Findings:
-
-Thoracic region:
-- Thyroid of normal morphology and density
-- No mediastinal or axillary lymphadenopathy
-- No pleural or pericardial effusion
-- Proximal bronchial tree clear
-- No focal suspicious pulmonary lesion
-
-Abdomino-pelvic region:
-- Liver of normal size and density
-- Two hypodense hepatic lesions: segment VII (8 mm), segment V (6 mm) — non-specific appearance
-- Spleen, pancreas and adrenal glands unremarkable
-- Kidneys of normal morphology, no suspicious lesion
-- No abdominal or pelvic lymphadenopathy
-- No intra-abdominal effusion
-- Appendix of normal appearance
-- Bone structures without suspicious findings
-- Benign vertebral hemangiomas at T8 and T11
-
-Conclusion:
-- No suspicious chest-abdomen-pelvis abnormality
-- Two small uncharacterized hepatic lesions
-- Complementary hepatic MRI recommended for characterization`,
-};
+import { getDefaultAnatomySetId } from '../segmentList.js';
+import { DICOM_STUDIES, fetchScanReportText, getDicomStudyById } from '../config/dicomStudies.js';
 
 const PLACEHOLDER_VALUE = '';
 
@@ -50,6 +9,15 @@ export default function DicomSelector() {
   const selectedDicom = useSceneStore((s) => s.selectedDicom);
   const setSelectedDicom = useSceneStore((s) => s.setSelectedDicom);
   const setAnalyzedReport = useSceneStore((s) => s.setAnalyzedReport);
+  const setAnatomySegmentSet = useSceneStore((s) => s.setAnatomySegmentSet);
+  const reportFetchAbortRef = useRef(null);
+
+  useEffect(
+    () => () => {
+      reportFetchAbortRef.current?.abort();
+    },
+    []
+  );
 
   const selectedLabel = useMemo(
     () => DICOM_STUDIES.find((d) => d.id === selectedDicom)?.label ?? '',
@@ -57,19 +25,42 @@ export default function DicomSelector() {
   );
 
   const handleChange = useCallback(
-    (e) => {
+    async (e) => {
       const value = e.target.value;
+      reportFetchAbortRef.current?.abort();
+
       if (!value) {
         setSelectedDicom(null);
+        setAnatomySegmentSet(getDefaultAnatomySetId());
         return;
       }
-      const report = PREDEFINED_REPORTS[value];
+      const study = getDicomStudyById(value);
+      if (!study) {
+        setSelectedDicom(null);
+        setAnatomySegmentSet(getDefaultAnatomySetId());
+        return;
+      }
+
       setSelectedDicom(value);
-      if (typeof report === 'string' && report.trim().length > 0) {
-        setAnalyzedReport(report);
+      if (study.segmentSetId) {
+        setAnatomySegmentSet(study.segmentSetId);
+      }
+
+      const ac = new AbortController();
+      reportFetchAbortRef.current = ac;
+      try {
+        const text = await fetchScanReportText(value, ac.signal);
+        setAnalyzedReport(text.trim().length > 0 ? text : null);
+      } catch (err) {
+        if (err && typeof err === 'object' && err.name === 'AbortError') {
+          return;
+        }
+        setAnalyzedReport(
+          `Le rapport n’a pas pu être chargé (fichier attendu : public/reports/${value}.txt).`
+        );
       }
     },
-    [setSelectedDicom, setAnalyzedReport]
+    [setSelectedDicom, setAnatomySegmentSet, setAnalyzedReport]
   );
 
   return (
@@ -96,12 +87,17 @@ export default function DicomSelector() {
         </label>
       </div>
 
-      <div className="relative">
+      {/*
+        Do not use `truncate` (overflow: hidden) on <select> — it breaks the native
+        options menu in several Chromium/WebKit builds (click opens list then it
+        won’t select / menu doesn’t appear correctly).
+      */}
+      <div className="relative z-20">
         <select
           id="dicom-study-select"
           value={selectedDicom ?? PLACEHOLDER_VALUE}
           onChange={handleChange}
-          className="glass-input w-full appearance-none pr-7 pl-2.5 py-1.5 text-[11px] truncate"
+          className="glass-input w-full min-w-0 max-w-full appearance-none pr-7 pl-2.5 py-1.5 text-[11px] cursor-pointer"
           aria-label="DICOM study"
           title={selectedLabel || 'Select a DICOM study'}
         >

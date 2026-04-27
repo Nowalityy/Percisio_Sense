@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useSceneStore } from '../../store';
-import { SEGMENTS, getSegmentColor } from './medicalColors';
+import { getSegmentListForSet } from '../../segmentList';
+import { getSegmentColor, isSkinSegment } from './medicalColors';
 import { PERFORMANCE_CONFIG } from '../../performance.config';
 import { SEGMENT_CATEGORIES, getSegmentCategory } from '../../viewer-core/segmentRules';
 
@@ -58,7 +59,21 @@ export function SegmentFilterPanel() {
   const [activeCategory, setActiveCategory] = useState(null);
 
   const segmentVisibility = useSceneStore((s) => s.segmentVisibility);
+  const anatomySegmentSet = useSceneStore((s) => s.anatomySegmentSet);
   const toggleSegmentVisibility = useSceneStore((s) => s.toggleSegmentVisibility);
+  const skinOpacity = useSceneStore((s) => s.skinOpacity);
+  const setSkinOpacity = useSceneStore((s) => s.setSkinOpacity);
+  const segmentList = useMemo(
+    () => getSegmentListForSet(anatomySegmentSet),
+    [anatomySegmentSet]
+  );
+  const skinSegmentName = useMemo(
+    () => segmentList.find((name) => isSkinSegment(name)) ?? null,
+    [segmentList]
+  );
+  const isSkinVisible = skinSegmentName
+    ? segmentVisibility.get(skinSegmentName) !== false
+    : false;
 
   useEffect(() => {
     // PERF: Debounce expensive filter queries to avoid rapid list recompute.
@@ -69,7 +84,7 @@ export function SegmentFilterPanel() {
   }, [searchQuery]);
 
   const filteredSegments = useMemo(() => {
-    let filtered = SEGMENTS;
+    let filtered = segmentList;
 
     if (debouncedSearchQuery) {
       const query = debouncedSearchQuery.toLowerCase();
@@ -84,7 +99,7 @@ export function SegmentFilterPanel() {
     }
 
     return filtered;
-  }, [debouncedSearchQuery, activeCategory]);
+  }, [segmentList, debouncedSearchQuery, activeCategory]);
 
   const visibleCount = useMemo(() => {
     let count = 0;
@@ -180,6 +195,44 @@ export function SegmentFilterPanel() {
           className="glass-input w-full px-3 py-2 text-sm rounded-xl"
         />
       </div>
+
+      {skinSegmentName && (
+        <div className="px-4 py-3 border-b border-white/10 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <label
+              htmlFor="skin-opacity-slider"
+              className="text-xs font-medium text-text-secondary flex items-center gap-1.5"
+            >
+              <span
+                className="size-3 rounded-full border border-white/20"
+                style={{ backgroundColor: getSegmentColor(skinSegmentName) }}
+                aria-hidden
+              />
+              Skin opacity
+            </label>
+            <span className="text-xs tabular-nums text-text-secondary w-9 text-right">
+              {Math.round(skinOpacity * 100)}%
+            </span>
+          </div>
+          <input
+            id="skin-opacity-slider"
+            type="range"
+            min="0"
+            max="1"
+            step="0.01"
+            value={skinOpacity}
+            onChange={(e) => setSkinOpacity(parseFloat(e.target.value))}
+            disabled={!isSkinVisible}
+            className="w-full accent-[var(--brand-primary)] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+            aria-label="Skin opacity"
+          />
+          {!isSkinVisible && (
+            <p className="text-[10px] text-text-secondary leading-snug">
+              Skin segment hidden — toggle it on below to see opacity changes.
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="px-4 py-2 border-b border-white/10 flex flex-wrap gap-2">
         {Object.entries(SEGMENT_CATEGORIES).map(([key, { label }]) => (
