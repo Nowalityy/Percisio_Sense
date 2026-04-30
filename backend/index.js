@@ -17,9 +17,13 @@ import {
 } from './lib/focusSanitize.js';
 import {
   chatRequestSchema,
-  MAX_MESSAGE_LENGTH,
   MAX_REPORT_TEXT_LENGTH,
 } from './validation/chatSchemas.js';
+import {
+  hashReportContent,
+  getExtractFindingsCached,
+  setExtractFindingsCached,
+} from './lib/findingsExtractCache.js';
 
 const require = createRequire(import.meta.url);
 const fileUpload = require('express-fileupload');
@@ -170,7 +174,10 @@ CLINICAL ROLE & TONE:
 
 CONTEXT RULES:
 - If the user provides "[CONTEXT - ANALYZED DOCUMENT]", use it as your primary source of truth.
-- LANGUAGE: Always respond in the SAME LANGUAGE as the user's latest question. If they ask in French, reply in French. If in English, reply in English.
+- When earlier turns are present in the thread, the report may only appear in a previous user message — use the full conversation and prioritize the latest user question.
+- NEVER paste, reproduce, or quote the full report verbatim. Do not repeat large blocks of the source text. Give concise synthesis; at most one short line of quotation when clinically necessary.
+- The complete document is already in the user message for your analysis only — your "reply" must not echo it back.
+- LANGUAGE: Always answer in **English** (clinical summaries, explanations, and chat). Source documents may be non‑English; translate clinically relevant content into clear professional English in your reply. Only use another language if the user explicitly asks for that language by name.
 - If no report is provided, answer from general medical knowledge but explicitly state that you are speaking generally and don't have the patient's specific data.
 
 REPORTING STRUCTURE:
@@ -486,24 +493,41 @@ function validateChatResponse(payload) {
   return { answer, cards, uiActions };
 }
 
-/** Strict API shape: { answer, cards, uiActions } (+ optional _meta). uiActions type exactly "FOCUS_ORGAN". */
-function toResponse(result, cards = [], meta = null) {
+/** Builds Chat Completions messages: system + prior turns + latest user line. */
+function buildOpenAIMessages(priorTurns, latestUserMessage) {
+  const messages = [{ role: 'system', content: buildSystemPrompt() }];
+  const turns = Array.isArray(priorTurns) ? priorTurns : [];
+  for (const turn of turns) {
+    const role = turn?.role;
+    const content = typeof turn?.content === 'string' ? turn.content : '';
+    if (!content.trim()) continue;
+    if (role !== 'user' && role !== 'assistant') continue;
+    messages.push({ role, content });
+  }
+  messages.push({ role: 'user', content: latestUserMessage });
+  return messages;
+}
+
+/**
+ * API shape: { answer, uiActions } and optionally `cards` when findings were (re)computed.
+ * Omit `cards` on follow-up requests so the client keeps the prior findings panel.
+ */
+function toResponse(result, cards /* undefined | array */, meta = null) {
   const uiActions = [];
   const safeFocus = sanitizeLlmFocus(result.focus);
   if (safeFocus) {
     uiActions.push({ type: 'FOCUS_ORGAN', organ: safeFocus });
   }
-  const normalizedCards = (Array.isArray(cards) ? cards : []).map((c, i) => ({
-    id: c.id ?? `card-${i}`,
-    title: typeof c.title === 'string' ? c.title : 'Finding',
-    content: typeof c.content === 'string' ? c.content : (c.text != null ? String(c.text) : ''),
-  }));
   const answer = typeof result.reply === 'string' ? result.reply : '';
-  const payload = validateChatResponse({
-    answer,
-    cards: normalizedCards,
-    uiActions,
-  });
+  const payload = { answer, uiActions };
+  if (cards !== undefined) {
+    const normalizedCards = (Array.isArray(cards) ? cards : []).map((c, i) => ({
+      id: c.id ?? `card-${i}`,
+      title: typeof c.title === 'string' ? c.title : 'Finding',
+      content: typeof c.content === 'string' ? c.content : (c.text != null ? String(c.text) : ''),
+    }));
+    payload.cards = normalizedCards;
+  }
   if (meta && typeof meta === 'object') {
     payload._meta = meta;
   }
@@ -560,13 +584,10 @@ function parseJsonResponse(content) {
   }
 }
 
-async function handleOpenAIRequest(message, detectedOrgan) {
+async function handleOpenAIRequest(priorTurns, latestMessage, detectedOrgan) {
   const completion = await openai.chat.completions.create({
     model: process.env.OPENAI_MODEL || OPENAI_MODEL_DEFAULT,
-    messages: [
-      { role: 'system', content: buildSystemPrompt() },
-      { role: 'user', content: message },
-    ],
+    messages: buildOpenAIMessages(priorTurns, latestMessage),
     temperature: 0.7,
   });
 
@@ -575,9 +596,14 @@ async function handleOpenAIRequest(message, detectedOrgan) {
   const parsed = parseJsonResponse(cleanContent);
 
   if (parsed) {
+    const reply = typeof parsed.reply === 'string' ? parsed.reply : '';
+    let focus = parsed.focus;
+    if (focus == null || (typeof focus === 'string' && !focus.trim())) {
+      focus = detectedOrgan;
+    }
     return {
-      reply: parsed.reply,
-      focus: parsed.focus,
+      reply,
+      focus,
     };
   }
 
@@ -587,12 +613,18 @@ async function handleOpenAIRequest(message, detectedOrgan) {
   };
 }
 
-async function handleMockRequest(message, detectedOrgan) {
+async function handleMockRequest(_priorTurns, latestMessage, detectedOrgan) {
   await new Promise((resolve) => setTimeout(resolve, MOCK_DELAY_MS));
 
+  const preview =
+    typeof latestMessage === 'string'
+      ? latestMessage.length > 160
+        ? `${latestMessage.slice(0, 160)}…`
+        : latestMessage
+      : '';
   const mockReply = detectedOrgan
-    ? `(Mock) Vous avez mentionné l'organe: ${detectedOrgan}. Voici des informations sur cet organe.`
-    : `(Mock) I heard: "${message}". No API Key configured.`;
+    ? `(Mock) You mentioned the organ: ${detectedOrgan}. Here is placeholder information for that structure.`
+    : `(Mock) Heard: "${preview}". No API key configured.`;
 
   return {
     reply: mockReply,
@@ -625,7 +657,7 @@ const chatRateLimit = rateLimit({
   message: { error: 'Too many requests, please try again later.' },
 });
 
-app.use(express.json({ limit: '50kb' }));
+app.use(express.json({ limit: '256kb' }));
 
 const pdfUploadMiddleware = fileUpload({
   limits: { fileSize: 2 * 1024 * 1024 },
@@ -685,7 +717,8 @@ app.post('/chat', chatRateLimit, async (req, res) => {
     });
   }
 
-  const { message: trimmed, reportText } = parsedBody.data;
+  const { message: trimmed, reportText, history: requestHistory } = parsedBody.data;
+  const priorTurns = Array.isArray(requestHistory) ? requestHistory : [];
 
   const userInquiry = getUserInquiryForShortcuts(trimmed);
   const detectedOrgan = extractOrgan(userInquiry);
@@ -697,67 +730,72 @@ app.post('/chat', chatRateLimit, async (req, res) => {
       result = { reply: '', focus: detectedOrgan };
     } else if (openai) {
       try {
-        result = await handleOpenAIRequest(trimmed, detectedOrgan);
+        result = await handleOpenAIRequest(priorTurns, trimmed, detectedOrgan);
       } catch (apiErr) {
         console.warn(
           'OpenAI API error (e.g. quota), falling back to mock:',
           apiErr.message ?? apiErr.code
         );
-        result = await handleMockRequest(trimmed, detectedOrgan);
+        result = await handleMockRequest(priorTurns, trimmed, detectedOrgan);
       }
     } else {
-      result = await handleMockRequest(trimmed, detectedOrgan);
+      result = await handleMockRequest(priorTurns, trimmed, detectedOrgan);
     }
 
     const reportTextStr =
       typeof reportText === 'string' && reportText.trim().length > 0 ? reportText.trim() : null;
-    let cards = [];
+    let cardsPayload = undefined;
     let responseMeta = null;
 
     if (reportTextStr) {
-      if (reportTextStr.length > MAX_REPORT_TEXT_LENGTH) {
-        console.warn('[backend] reportText exceeds max length, using local fallback (size:', reportTextStr.length, ')');
-        const { byOrgan } = extractFindings(reportTextStr);
-        cards = Object.entries(byOrgan).map(([organName, lines]) => ({
-          title: organName.charAt(0).toUpperCase() + organName.slice(1),
-          content: lines.map((l) => `- ${l}`).join('\n'),
-        }));
-        responseMeta = { cardsFrom: 'fallback' };
-      } else {
-        try {
-          const { callTool } = await import('./mcp/client.js');
-          /** Une seule requête MCP : findings + riskFlags + clinicalPriority déjà inclus (server.js). */
-          const out = await callTool('extract_findings', { reportText: reportTextStr });
-          console.log('[backend] MCP extract_findings OK (bundle)');
-          const byOrgan = out?.byOrgan ?? {};
-          const entries = Object.entries(byOrgan);
-          const capped = entries.length > 8 ? entries.sort((a, b) => b[1].length - a[1].length).slice(0, 8) : entries;
-          cards = capped.map(([organName, lines]) => ({
-            title: organName.charAt(0).toUpperCase() + organName.slice(1),
-            content: (Array.isArray(lines) ? lines : []).map((l) => `- ${l}`).join('\n'),
-          }));
+      const extractCacheKey = hashReportContent(reportTextStr);
+      let extractBundle = getExtractFindingsCached(extractCacheKey);
 
-          const flagsBundle = Array.isArray(out?.riskFlags) ? out.riskFlags : [];
-          if (flagsBundle.length > 0) {
-            const riskContent = flagsBundle
-              .map((f) => `- [${f.level ?? 'risk'}] ${f.text ?? ''}`)
-              .join('\n');
-            cards.push({ id: 'card-risks', title: 'Risks', content: riskContent });
-          }
-
-          if (out?.clinicalPriority && typeof out.clinicalPriority === 'object') {
-            if (!responseMeta) responseMeta = {};
-            responseMeta.clinicalPriority = out.clinicalPriority;
-          }
-        } catch (mcpErr) {
-          console.warn('MCP extract_findings failed, using local fallback:', mcpErr?.message ?? mcpErr);
+      if (!extractBundle) {
+        if (reportTextStr.length > MAX_REPORT_TEXT_LENGTH) {
+          console.warn('[backend] reportText exceeds max length, using local fallback (size:', reportTextStr.length, ')');
           const { byOrgan } = extractFindings(reportTextStr);
-          cards = Object.entries(byOrgan).map(([organName, lines]) => ({
-            title: organName.charAt(0).toUpperCase() + organName.slice(1),
-            content: lines.map((l) => `- ${l}`).join('\n'),
-          }));
-          responseMeta = { cardsFrom: 'fallback' };
+          extractBundle = { byOrgan, riskFlags: [], clinicalPriority: null, _extractSource: 'oversized' };
+        } else {
+          try {
+            const { callTool } = await import('./mcp/client.js');
+            const out = await callTool('extract_findings', { reportText: reportTextStr });
+            console.log('[backend] MCP extract_findings OK (bundle)');
+            extractBundle = { ...out, _extractSource: 'mcp' };
+          } catch (mcpErr) {
+            console.warn('MCP extract_findings failed, using local fallback:', mcpErr?.message ?? mcpErr);
+            const { byOrgan } = extractFindings(reportTextStr);
+            extractBundle = { byOrgan, riskFlags: [], clinicalPriority: null, _extractSource: 'fallback' };
+          }
         }
+        setExtractFindingsCached(extractCacheKey, extractBundle);
+      } else {
+        console.log('[backend] extract_findings cache hit (MCP not re-run for this report)');
+      }
+
+      if (extractBundle._extractSource && extractBundle._extractSource !== 'mcp') {
+        responseMeta = { cardsFrom: 'fallback' };
+      }
+
+      const byOrgan = extractBundle?.byOrgan ?? {};
+      const entries = Object.entries(byOrgan);
+      const capped = entries.length > 8 ? entries.sort((a, b) => b[1].length - a[1].length).slice(0, 8) : entries;
+      let cards = capped.map(([organName, lines]) => ({
+        title: organName.charAt(0).toUpperCase() + organName.slice(1),
+        content: (Array.isArray(lines) ? lines : []).map((l) => `- ${l}`).join('\n'),
+      }));
+
+      const flagsBundle = Array.isArray(extractBundle?.riskFlags) ? extractBundle.riskFlags : [];
+      if (flagsBundle.length > 0) {
+        const riskContent = flagsBundle
+          .map((f) => `- [${f.level ?? 'risk'}] ${f.text ?? ''}`)
+          .join('\n');
+        cards.push({ id: 'card-risks', title: 'Risks', content: riskContent });
+      }
+
+      if (extractBundle?.clinicalPriority && typeof extractBundle.clinicalPriority === 'object') {
+        if (!responseMeta) responseMeta = {};
+        responseMeta.clinicalPriority = extractBundle.clinicalPriority;
       }
 
       const organCardsOnly = cards.filter((c) => c?.id !== 'card-risks');
@@ -778,9 +816,10 @@ app.post('/chat', chatRateLimit, async (req, res) => {
           responseMeta.cardsFrom = responseMeta.cardsFrom || 'sections';
         }
       }
+      cardsPayload = cards;
     }
 
-    return res.json(toResponse(result, cards, responseMeta));
+    return res.json(toResponse(result, cardsPayload, responseMeta));
   } catch (err) {
     console.error('Chat error:', err.message ?? err);
     return res.status(500).json(validateChatResponse({ answer: '', cards: [], uiActions: [] }));

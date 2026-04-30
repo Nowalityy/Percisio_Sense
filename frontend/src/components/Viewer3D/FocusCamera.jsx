@@ -30,9 +30,16 @@ import {
 // Helper: compute target camera Z and look-at for organ focus (Z-only zoom).
 // -----------------------------------------------------------------------------
 
-function focusOnOrganZ(organCenter, organSize, zoomLevel) {
+function focusOnOrganZ(organCenter, organSize, zoomLevel, framingOptions) {
   if (!organCenter || !(organCenter instanceof THREE.Vector3)) return null;
-  return computeFocusTarget(organCenter, organSize, zoomLevel, clampZoomDistance, CAMERA);
+  return computeFocusTarget(
+    organCenter,
+    organSize,
+    zoomLevel,
+    clampZoomDistance,
+    CAMERA,
+    framingOptions
+  );
 }
 
 // -----------------------------------------------------------------------------
@@ -51,8 +58,8 @@ function zoomLevelToCameraZoom(level) {
 
 const DEFAULT_CAMERA_ZOOM = zoomLevelToCameraZoom(DEFAULT_ZOOM_SLIDER_LEVEL);
 
-/** Padding factor around the bounding sphere when fitting (1 = tight). */
-const FIT_PADDING = 1.15;
+const DEFAULT_BODY_FIT_PADDING = 1.15;
+
 /** Vertical offset (in sphere radii) for the slightly-elevated anterior view. */
 const FIT_ELEVATION = 0.07;
 
@@ -219,7 +226,7 @@ export function FocusCamera({ zoomLevel = DEFAULT_ZOOM_SLIDER_LEVEL }) {
     const fit = fitCameraToBoundingBox(
       box,
       camera,
-      FIT_PADDING,
+      DEFAULT_BODY_FIT_PADDING,
       FIT_ELEVATION,
       CAMERA.FIT_VERTICAL_TARGET_BIAS
     );
@@ -344,7 +351,21 @@ export function FocusCamera({ zoomLevel = DEFAULT_ZOOM_SLIDER_LEVEL }) {
 
       const center = box.getCenter(new THREE.Vector3());
       const size = box.getSize(new THREE.Vector3());
-      const result = focusOnOrganZ(center, size, CAMERA.FOCUS_ORGAN_ZOOM_LEVEL);
+      const orbitClamp =
+        modelSphereRadius != null && Number.isFinite(modelSphereRadius) && modelSphereRadius > 0
+          ? getOrbitDistanceLimits(modelSphereRadius, true)
+          : null;
+      const result = focusOnOrganZ(center, size, CAMERA.FOCUS_ORGAN_ZOOM_LEVEL, {
+        framingCamera: camera,
+        framingPadding: CAMERA.FOCUS_ORGAN_FRAMING_PADDING,
+        framingElevation: FIT_ELEVATION,
+        orbitDistanceClamp: orbitClamp,
+        distanceMultiplier: CAMERA.FOCUS_ORGAN_DISTANCE_MULTIPLIER,
+        minDistanceFactor: CAMERA.FOCUS_ORGAN_MIN_DISTANCE_FACTOR,
+        bodySphereRadius: modelSphereRadius,
+        tinyMeshMaxRelToBody: CAMERA.FOCUS_TINY_MESH_MAX_REL_TO_BODY,
+        tinyMeshMinRhoFrac: CAMERA.FOCUS_TINY_MESH_MIN_RHO_FRAC,
+      });
       if (!result) return;
 
       setZoomAnimation({
@@ -365,7 +386,7 @@ export function FocusCamera({ zoomLevel = DEFAULT_ZOOM_SLIDER_LEVEL }) {
     return () => {
       cancelled = true;
     };
-  }, [currentFocus, scene, camera, modelGroup, invalidate]);
+  }, [currentFocus, scene, camera, modelGroup, modelSphereRadius, invalidate]);
 
   useFrame((_, delta) => {
     const controls = controlsRef.current;

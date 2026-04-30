@@ -37,8 +37,8 @@ if (Object.keys(sets).length === 0) {
     );
     process.exit(0);
   }
-  console.warn('build-segment-sets: no segments and no existing JSON — writing empty frednonopti');
-  sets.frednonopti = [];
+  console.warn('build-segment-sets: no segments and no existing JSON — writing empty percisio_export');
+  sets.percisio_export = [];
 }
 
 fs.mkdirSync(outDir, { recursive: true });

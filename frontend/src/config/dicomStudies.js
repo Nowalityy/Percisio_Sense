@@ -2,15 +2,10 @@
  * DICOM study list for the app shell. Each entry maps to a folder under
  * `public/models/segments/<segmentSetId>/` (see `segmentSets.json`).
  *
- * Reports for the chat are listed separately as {@link SCAN_REPORT_OPTIONS} (`Report 1`…`Report 8`).
+ * Text reports in the chat dropdown use patient-centered labels (see {@link SCAN_REPORT_OPTIONS}).
  */
 
 export const DICOM_STUDIES = [
-  {
-    id: 'scan-tap-2025-09-08',
-    label: 'SCAN TAP AVEC IV 08-09-2025 TAP PORTAL (frednonopti — source DICOM)',
-    segmentSetId: 'frednonopti',
-  },
   {
     id: 'alan-dicom',
     label: 'Alan DICOM (percisio_export)',
@@ -34,31 +29,59 @@ export const DICOM_STUDIES = [
 ];
 
 /**
- * Numbered reports in `public/reports/` — labels shown in the report dropdown.
- * - Reports 1–4: `.txt` exports
- * - Reports 5–8: PDFs (text is extracted client-side for the chat context)
+ * Reports in `public/reports/`. Dropdown labels: patient + exam for `.txt`; for PDFs, clinical
+ * descriptors only (no file-format suffix). Edit `label` when patient metadata is known.
  */
 export const SCAN_REPORT_OPTIONS = [
-  { id: 'report-1', label: 'Report 1', fileName: 'alan-dicom.txt', format: 'text' },
-  { id: 'report-2', label: 'Report 2', fileName: 'sandra5-dicom.txt', format: 'text' },
-  { id: 'report-3', label: 'Report 3', fileName: 'paul2-dicom.txt', format: 'text' },
-  { id: 'report-4', label: 'Report 4', fileName: 'fred-dicom.txt', format: 'text' },
-  { id: 'report-5', label: 'Report 5', fileName: 'rapport_5_AP.pdf', format: 'pdf' },
-  { id: 'report-6', label: 'Report 6', fileName: 'rapport_6_TAP.pdf', format: 'pdf' },
-  { id: 'report-7', label: 'Report 7', fileName: 'rapport_7_TAP.pdf', format: 'pdf' },
-  { id: 'report-8', label: 'Report 8', fileName: 'rapport_8_AP.pdf', format: 'pdf' },
+  {
+    id: 'report-1',
+    label: 'Laura SCHMIDT — Thoracic CT',
+    fileName: 'alan-dicom.txt',
+    format: 'text',
+  },
+  {
+    id: 'report-2',
+    label: 'Camille DURAND — Thoraco-abdomino-pelvic CT',
+    fileName: 'sandra5-dicom.txt',
+    format: 'text',
+  },
+  {
+    id: 'report-3',
+    label: 'Karim BENSAID — Abdomino-pelvic CT — uro, low-dose',
+    fileName: 'paul2-dicom.txt',
+    format: 'text',
+  },
+  {
+    id: 'report-4',
+    label: 'Julien MARTIN — Abdomino-pelvic CT',
+    fileName: 'fred-dicom.txt',
+    format: 'text',
+  },
+  {
+    id: 'report-5',
+    label: 'Abdomino-pelvic imaging — case 5',
+    fileName: 'rapport_5_AP.pdf',
+    format: 'pdf',
+  },
+  {
+    id: 'report-6',
+    label: 'TAP / whole-body imaging — case 6',
+    fileName: 'rapport_6_TAP.pdf',
+    format: 'pdf',
+  },
+  {
+    id: 'report-7',
+    label: 'TAP / whole-body imaging — case 7',
+    fileName: 'rapport_7_TAP.pdf',
+    format: 'pdf',
+  },
+  {
+    id: 'report-8',
+    label: 'Abdomino-pelvic imaging — case 8',
+    fileName: 'rapport_8_AP.pdf',
+    format: 'pdf',
+  },
 ];
-
-/**
- * When a DICOM study is selected, load this report id by default (see `SCAN_REPORT_OPTIONS`).
- */
-export const DICOM_STUDY_TO_DEFAULT_REPORT_ID = Object.freeze({
-  'scan-tap-2025-09-08': 'report-1',
-  'alan-dicom': 'report-1',
-  'sandra5-dicom': 'report-2',
-  'paul2-dicom': 'report-3',
-  'fred-dicom': 'report-4',
-});
 
 /**
  * @param {string} fileName - basename under `public/reports/`
