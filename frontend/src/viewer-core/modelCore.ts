@@ -1,4 +1,24 @@
+import type { Object3D } from 'three';
 import { Box3, MathUtils, Vector3, Group } from 'three';
+
+/**
+ * THREE.Box3 / frustum logic skip `visible=false`. For full-body bounds (scale, camera fit)
+ * we need all segments included even when Skeleton/Organs modes hide meshes.
+ */
+export function withSubtreeForcedVisible<T>(root: Object3D, measure: () => T): T {
+  const visibilitySnapshot = new Map<Object3D, boolean>();
+  root.traverse((node) => {
+    visibilitySnapshot.set(node, node.visible);
+    node.visible = true;
+  });
+  try {
+    return measure();
+  } finally {
+    visibilitySnapshot.forEach((visible, obj) => {
+      obj.visible = visible;
+    });
+  }
+}
 
 export const MODEL_CORE = {
   rotationLerpFactor: 0.1,
@@ -44,7 +64,9 @@ export function centerModelInGroup(
   rootGroup.position.set(0, 0, 0);
   rootGroup.scale.set(1, 1, 1);
   segmentsGroup.position.set(0, 0, 0);
-  const box = new Box3().setFromObject(segmentsGroup);
+
+  const box = withSubtreeForcedVisible(segmentsGroup, () => new Box3().setFromObject(segmentsGroup));
+
   const center = box.getCenter(new Vector3());
   const size = box.getSize(new Vector3());
 

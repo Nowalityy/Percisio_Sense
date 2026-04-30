@@ -46,13 +46,15 @@ export function findOrganMeshes(scene, focusName) {
   const namesSet = new Set(segmentNames.map((segmentName) => segmentName.toLowerCase()));
 
   scene.traverse((child) => {
-    if (!child.isMesh || !child.name) return;
-    const normalized = child.name.toLowerCase();
-    if (namesSet.has(normalized)) {
+    if (!child.isMesh) return;
+    const fromUserData =
+      typeof child.userData?.segmentId === 'string' ? child.userData.segmentId.toLowerCase() : null;
+    if (fromUserData && namesSet.has(fromUserData)) {
       result.push(child);
       return;
     }
-    if (segmentNames.some((segmentName) => normalized.includes(segmentName.toLowerCase()))) {
+    const normalized = typeof child.name === 'string' ? child.name.toLowerCase() : '';
+    if (normalized && namesSet.has(normalized)) {
       result.push(child);
     }
   });

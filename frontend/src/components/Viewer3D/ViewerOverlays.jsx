@@ -30,6 +30,29 @@ export function ViewerLoadingOverlay({ current, total }) {
   );
 }
 
+export function ViewerLoadFailureOverlay({ message, onRetry }) {
+  return (
+    <div
+      className="absolute inset-0 z-[60] flex items-center justify-center bg-[var(--surface-panel)]/95 backdrop-blur-sm px-4"
+      role="alert"
+    >
+      <div className="glass-card w-[min(420px,92%)] p-5 text-center space-y-3">
+        <p className="text-xs font-semibold uppercase tracking-wide text-[var(--text-secondary)]">
+          3D viewer
+        </p>
+        <p className="text-sm text-text">{message}</p>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="w-full py-2 rounded-xl text-sm font-medium bg-[var(--brand-primary)] text-[var(--text-on-brand)] border border-[var(--border-brand)]"
+        >
+          Retry loading
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function ViewerAnalyzingOverlay({ isAnalyzing }) {
   if (!isAnalyzing) return null;
   return (

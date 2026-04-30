@@ -1,13 +1,22 @@
 import { useCallback, useMemo, useRef, useEffect } from 'react';
 import { useSceneStore } from '../store.js';
 import { getDefaultAnatomySetId } from '../segmentList.js';
-import { DICOM_STUDIES, fetchScanReportText, getDicomStudyById } from '../config/dicomStudies.js';
+import {
+  DICOM_STUDIES,
+  SCAN_REPORT_OPTIONS,
+  DICOM_STUDY_TO_DEFAULT_REPORT_ID,
+  fetchReportContent,
+  getDicomStudyById,
+  getScanReportOptionById,
+} from '../config/dicomStudies.js';
 
 const PLACEHOLDER_VALUE = '';
 
 export default function DicomSelector() {
   const selectedDicom = useSceneStore((s) => s.selectedDicom);
+  const selectedReportId = useSceneStore((s) => s.selectedReportId);
   const setSelectedDicom = useSceneStore((s) => s.setSelectedDicom);
+  const setSelectedReportId = useSceneStore((s) => s.setSelectedReportId);
   const setAnalyzedReport = useSceneStore((s) => s.setAnalyzedReport);
   const setAnatomySegmentSet = useSceneStore((s) => s.setAnatomySegmentSet);
   const reportFetchAbortRef = useRef(null);
@@ -19,56 +28,108 @@ export default function DicomSelector() {
     []
   );
 
-  const selectedLabel = useMemo(
+  const selectedDicomLabel = useMemo(
     () => DICOM_STUDIES.find((d) => d.id === selectedDicom)?.label ?? '',
     [selectedDicom]
   );
 
-  const handleChange = useCallback(
+  const selectedReportLabel = useMemo(
+    () => SCAN_REPORT_OPTIONS.find((r) => r.id === selectedReportId)?.label ?? '',
+    [selectedReportId]
+  );
+
+  const reportMismatch =
+    Boolean(selectedDicom && selectedReportId && selectedDicom !== selectedReportId);
+
+  const loadReportText = useCallback(
+    async (reportId, signal) => {
+      if (!reportId) {
+        setAnalyzedReport(null);
+        return;
+      }
+      try {
+        const text = await fetchReportContent(reportId, signal);
+        setAnalyzedReport(text.trim().length > 0 ? text : null);
+      } catch (err) {
+        if (err && typeof err === 'object' && err.name === 'AbortError') {
+          return;
+        }
+        const opt = getScanReportOptionById(reportId);
+        const hint = opt ? `public/reports/${opt.fileName}` : reportId;
+        setAnalyzedReport(`Le rapport n’a pas pu être chargé (fichier attendu : ${hint}).`);
+      }
+    },
+    [setAnalyzedReport]
+  );
+
+  const handleReportChange = useCallback(
+    async (e) => {
+      const value = e.target.value;
+      reportFetchAbortRef.current?.abort();
+
+      if (!value) {
+        setSelectedReportId(null);
+        setAnalyzedReport(null);
+        return;
+      }
+
+      setSelectedReportId(value);
+      const ac = new AbortController();
+      reportFetchAbortRef.current = ac;
+      await loadReportText(value, ac.signal);
+    },
+    [setSelectedReportId, setAnalyzedReport, loadReportText]
+  );
+
+  const handleDicomChange = useCallback(
     async (e) => {
       const value = e.target.value;
       reportFetchAbortRef.current?.abort();
 
       if (!value) {
         setSelectedDicom(null);
+        setSelectedReportId(null);
         setAnatomySegmentSet(getDefaultAnatomySetId());
+        setAnalyzedReport(null);
         return;
       }
       const study = getDicomStudyById(value);
       if (!study) {
         setSelectedDicom(null);
+        setSelectedReportId(null);
         setAnatomySegmentSet(getDefaultAnatomySetId());
+        setAnalyzedReport(null);
         return;
       }
 
       setSelectedDicom(value);
+      const defaultReportId =
+        DICOM_STUDY_TO_DEFAULT_REPORT_ID[value] ?? 'report-1';
+      setSelectedReportId(defaultReportId);
       if (study.segmentSetId) {
         setAnatomySegmentSet(study.segmentSetId);
       }
 
       const ac = new AbortController();
       reportFetchAbortRef.current = ac;
-      try {
-        const text = await fetchScanReportText(value, ac.signal);
-        setAnalyzedReport(text.trim().length > 0 ? text : null);
-      } catch (err) {
-        if (err && typeof err === 'object' && err.name === 'AbortError') {
-          return;
-        }
-        setAnalyzedReport(
-          `Le rapport n’a pas pu être chargé (fichier attendu : public/reports/${value}.txt).`
-        );
-      }
+      await loadReportText(defaultReportId, ac.signal);
     },
-    [setSelectedDicom, setAnatomySegmentSet, setAnalyzedReport]
+    [
+      setSelectedDicom,
+      setSelectedReportId,
+      setAnatomySegmentSet,
+      setAnalyzedReport,
+      loadReportText,
+    ]
   );
 
   return (
     <div
       className="glass-panel shrink-0 p-2.5 shadow-[var(--shadow-sm)]"
       role="region"
-      aria-label="DICOM study selector"
+      aria-label="DICOM study and report selectors"
     >
+      {/* DICOM → 3D */}
       <div className="flex items-center gap-1.5 mb-1.5">
         <span
           className="size-4 rounded-md border border-[var(--border-brand)] bg-[var(--brand-primary-light)] grid place-items-center text-[var(--brand-primary-dark)] shrink-0"
@@ -81,25 +142,20 @@ export default function DicomSelector() {
         </span>
         <label
           htmlFor="dicom-study-select"
-          className="text-[10px] font-semibold uppercase tracking-wide text-text-secondary truncate"
+          className="text-[10px] font-semibold uppercase tracking-wide text-text-secondary truncate min-w-0"
         >
           Select a DICOM study
         </label>
       </div>
 
-      {/*
-        Do not use `truncate` (overflow: hidden) on <select> — it breaks the native
-        options menu in several Chromium/WebKit builds (click opens list then it
-        won’t select / menu doesn’t appear correctly).
-      */}
-      <div className="relative z-20">
+      <div className="relative z-20 mb-3">
         <select
           id="dicom-study-select"
           value={selectedDicom ?? PLACEHOLDER_VALUE}
-          onChange={handleChange}
+          onChange={handleDicomChange}
           className="glass-input w-full min-w-0 max-w-full appearance-none pr-7 pl-2.5 py-1.5 text-[11px] cursor-pointer"
-          aria-label="DICOM study"
-          title={selectedLabel || 'Select a DICOM study'}
+          aria-label="DICOM study (3D model)"
+          title={selectedDicomLabel || 'Select a DICOM study'}
         >
           <option value={PLACEHOLDER_VALUE} disabled>
             — Choose a study —
@@ -123,6 +179,64 @@ export default function DicomSelector() {
           <path d="M6 9l6 6 6-6" />
         </svg>
       </div>
+
+      {/* Report → chat context */}
+      <div className="flex items-center gap-1.5 mb-1.5">
+        <span
+          className="size-4 rounded-md border border-[var(--border-brand)] bg-[var(--brand-primary-light)] grid place-items-center text-[var(--brand-primary-dark)] shrink-0"
+          aria-hidden
+        >
+          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+            <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
+          </svg>
+        </span>
+        <label
+          htmlFor="scan-report-select"
+          className="text-[10px] font-semibold uppercase tracking-wide text-text-secondary truncate min-w-0"
+        >
+          Select a report
+        </label>
+      </div>
+
+      <div className="relative z-10">
+        <select
+          id="scan-report-select"
+          value={selectedReportId ?? PLACEHOLDER_VALUE}
+          onChange={handleReportChange}
+          className="glass-input w-full min-w-0 max-w-full appearance-none pr-7 pl-2.5 py-1.5 text-[11px] cursor-pointer"
+          aria-label="Scan report text for chat"
+          title={selectedReportLabel || 'Select a scan report'}
+        >
+          <option value={PLACEHOLDER_VALUE} disabled>
+            — Choose a report —
+          </option>
+          {SCAN_REPORT_OPTIONS.map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.label}
+            </option>
+          ))}
+        </select>
+        <svg
+          className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-[var(--text-muted)]"
+          width="10"
+          height="10"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.4"
+          aria-hidden
+        >
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </div>
+
+      {reportMismatch && (
+        <p className="mt-2 text-[9px] leading-snug text-amber-700/90 dark:text-amber-200/80" role="status">
+          Report differs from the selected DICOM study — the chat uses the report above; the 3D view matches
+          the study.
+        </p>
+      )}
 
       <div className="flex items-center gap-1.5 my-2" aria-hidden>
         <div className="flex-1 h-px bg-[var(--border-default)]" />

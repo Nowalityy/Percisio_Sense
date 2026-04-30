@@ -10,7 +10,11 @@ import { fileURLToPath } from 'node:url';
 import { rateLimit } from 'express-rate-limit';
 import { createRequire } from 'module';
 import { REPORT_ORGAN_PATTERNS } from './shared/reportOrganPatterns.js';
-import { FOCUS_KEYS as CANONICAL_FOCUS_KEYS, sanitizeLlmFocus } from './lib/focusSanitize.js';
+import {
+  FOCUS_KEYS as CANONICAL_FOCUS_KEYS,
+  sanitizeLlmFocus,
+  extractVertebraFocusFromPlainText,
+} from './lib/focusSanitize.js';
 import {
   chatRequestSchema,
   MAX_MESSAGE_LENGTH,
@@ -73,8 +77,6 @@ const ORGAN_SYNONYMS = {
   moelle: 'spinal-cord',
   'moelle epiniere': 'spinal-cord',
   'moelle épinière': 'spinal-cord',
-  vertèbre: 'spinal-cord',
-  vertèbres: 'spinal-cord',
   sternum: 'sternum',
   humerus: 'humerus',
   humérus: 'humerus',
@@ -186,6 +188,7 @@ MANDATORY OUTPUT FORMAT (JSON ONLY):
 3D VISUALIZATION LOGIC:
 - You control a 3D viewer. Set "focus" to EXACTLY one of these canonical keys (use lowercase, multi-word keys as shown):
 ${CANONICAL_FOCUS_KEYS.join(', ')}
+- For ONE specific vertebra use keys like "c7 vertebra", "t12 vertebra", "l3 vertebra" (suffix "vertebra" required), never a generic "vertebra" unless you mean the whole spine category.
 - Use category keys like "lung", "left lung", "right lung", "kidney", "artery", "vein", "skeleton", "portal vein", "pulmonary" for whole-system views.
 - "heart" zooms to cardiac structures available in the model; "liver" maps to upper-abdomen visualization.
 - Only set "focus" if it directly relates to the current topic of conversation.
@@ -198,8 +201,14 @@ AI SAFETY & ETHICS:
 }
 
 
+/** Lowercase + ponctuation ; ligatures FR (ex. œ dans « cœur ») → ASCII pour synonymes `coeur`, etc. */
 function cleanText(text) {
-  return text.toLowerCase().trim().replace(/[.,!?;:]/g, ' ');
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[.,!?;:]/g, ' ')
+    .replace(/\u0153/g, 'oe')
+    .replace(/\u00e6/g, 'ae');
 }
 
 function findDirectMatch(normalizedText) {
@@ -237,6 +246,14 @@ function extractOrgan(text) {
     return null;
   }
 
+  const vertebraKey = extractVertebraFocusFromPlainText(text);
+  if (vertebraKey) {
+    const safe = sanitizeLlmFocus(vertebraKey);
+    if (safe) {
+      return safe;
+    }
+  }
+
   const normalized = cleanText(text);
 
   const directMatch = findDirectMatch(normalized);
@@ -257,9 +274,10 @@ const MAX_FOCUS_ONLY_MESSAGE_LENGTH = 120;
 
 /** Patterns that indicate the user only wants to focus/zoom on an organ (no explanation). FR + EN. */
 const FOCUS_ONLY_PATTERNS = [
-  // French
+  // French — incl. « me montrer le … » / « de me montrer » (ordre différent de « montre-moi »)
   /\bzoom(e|er)?\s*(sur|sur le|sur la)?\b/i,
   /\bmontre(r)?\s*(moi)?\s*(le|la)?\b/i,
+  /\b(de\s+|pour\s+|qu[e']?\s+)?me\s+montrer\s+(le|la|les)\b/i,
   /\baffiche(r)?\s*(le|la)?\b/i,
   /\bcentre(r)?\s*(sur|sur le|sur la)?\b/i,
   /\bva\s*(au|à la|sur)\b/i,
@@ -708,8 +726,9 @@ app.post('/chat', chatRateLimit, async (req, res) => {
       } else {
         try {
           const { callTool } = await import('./mcp/client.js');
+          /** Une seule requête MCP : findings + riskFlags + clinicalPriority déjà inclus (server.js). */
           const out = await callTool('extract_findings', { reportText: reportTextStr });
-          console.log('[backend] MCP extract_findings OK, cards from MCP server');
+          console.log('[backend] MCP extract_findings OK (bundle)');
           const byOrgan = out?.byOrgan ?? {};
           const entries = Object.entries(byOrgan);
           const capped = entries.length > 8 ? entries.sort((a, b) => b[1].length - a[1].length).slice(0, 8) : entries;
@@ -718,25 +737,17 @@ app.post('/chat', chatRateLimit, async (req, res) => {
             content: (Array.isArray(lines) ? lines : []).map((l) => `- ${l}`).join('\n'),
           }));
 
-          try {
-            const flagsOut = await callTool('risk_flags', { byOrgan });
-            const flags = Array.isArray(flagsOut?.flags) ? flagsOut.flags : [];
-            if (flags.length > 0) {
-              const riskContent = flags.map((f) => `- [${f.level ?? 'risk'}] ${f.text ?? ''}`).join('\n');
-              cards.push({ id: 'card-risks', title: 'Risks', content: riskContent });
-            }
-            
-            try {
-              const priorityOut = await callTool('get_clinical_priority', { byOrgan });
-              if (priorityOut) {
-                if (!responseMeta) responseMeta = {};
-                responseMeta.clinicalPriority = priorityOut;
-              }
-            } catch (prioErr) {
-              console.warn('MCP get_clinical_priority failed:', prioErr?.message ?? prioErr);
-            }
-          } catch (riskErr) {
-            console.warn('MCP risk_flags failed, continuing without risks card:', riskErr?.message ?? riskErr);
+          const flagsBundle = Array.isArray(out?.riskFlags) ? out.riskFlags : [];
+          if (flagsBundle.length > 0) {
+            const riskContent = flagsBundle
+              .map((f) => `- [${f.level ?? 'risk'}] ${f.text ?? ''}`)
+              .join('\n');
+            cards.push({ id: 'card-risks', title: 'Risks', content: riskContent });
+          }
+
+          if (out?.clinicalPriority && typeof out.clinicalPriority === 'object') {
+            if (!responseMeta) responseMeta = {};
+            responseMeta.clinicalPriority = out.clinicalPriority;
           }
         } catch (mcpErr) {
           console.warn('MCP extract_findings failed, using local fallback:', mcpErr?.message ?? mcpErr);
@@ -806,4 +817,12 @@ app.listen(PORT, '0.0.0.0', () => {
     `📡 CORS: ${ALLOWED_ORIGINS ? `Restricted to: ${ALLOWED_ORIGINS.join(', ')}` : '✅ All localhost origins allowed (dev mode)'}`
   );
   console.log(`🤖 OpenAI API: ${openai ? '✅ Configured' : '⚠️ Mock mode (no API key)'}`);
+  void import('./mcp/client.js')
+    .then(({ init }) => init())
+    .then(() => {
+      console.log('✅ MCP subprocess ready (warm)');
+    })
+    .catch((err) => {
+      console.warn('⚠️ MCP warm-up deferred until first /chat with report:', err?.message ?? err);
+    });
 });

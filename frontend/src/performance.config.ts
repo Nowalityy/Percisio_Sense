@@ -5,6 +5,8 @@ export const PERFORMANCE_CONFIG = {
   LOW_END_CPU_CORES: 4,
   // PERF: Throttle interactive updates at 60 FPS.
   FRAME_THROTTLE_MS: 16,
+  /** Abort stuck segment loads and offer recovery (ms). */
+  MODEL_LOAD_TIMEOUT_MS: 120_000,
   // PERF: Debounce filter operations to avoid rapid scene churn.
   FILTER_DEBOUNCE_MS: 150,
   // PERF: Debounce chat input-derived work.

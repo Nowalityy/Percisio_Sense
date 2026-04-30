@@ -93,7 +93,15 @@ const ANOMALY_KEYWORDS_REGEX =
   /\b(nodule pulmonaire|kyste hépatique|adénopathie médiastinale|fracture osseuse|embolie pulmonaire|épanchement pleural|nodule solide|abcès hépatique|lésion suspecte|masse tumorale|verre dépoli|opacité nodulaire|nodule|mass|lesion|lésion|effusion|atelectasis|consolidation|enlarged|dilation|dilatation|fracture|embolism|pneumothorax|thickening|épaississement|opacity|infiltrate|infiltration|edema|oedème|stenosis|sténose|abnormal|anomalie|pathology|pathologie|enlargement|collection|abcès|abces|stercolithe|nodulaire|hémorragie|opacité|atelectasie|abcés|kyste|embolie|adénopathie)\b/gi;
 
 function extractFindingsImpl(reportText) {
-  if (!reportText || typeof reportText !== 'string') return { byOrgan: {}, riskFlags: [], ignoredNegated: [], recommendations: [] };
+  if (!reportText || typeof reportText !== 'string') {
+    return {
+      byOrgan: {},
+      riskFlags: [],
+      ignoredNegated: [],
+      recommendations: [],
+      clinicalPriority: null,
+    };
+  }
   const byOrgan = Object.create(null);
   const ignoredNegated = new Set();
   const recommendations = [];
@@ -141,11 +149,14 @@ function extractFindingsImpl(reportText) {
   // Step 7: Risk Scoring
   const risks = riskFlagsImpl(JSON.stringify(byOrgan));
 
-  return { 
-      byOrgan, 
-      riskFlags: risks.flags,
-      ignoredNegated: Array.from(ignoredNegated), 
-      recommendations 
+  const clinicalPriority = getClinicalPriorityImpl(byOrgan);
+
+  return {
+    byOrgan,
+    riskFlags: risks.flags,
+    ignoredNegated: Array.from(ignoredNegated),
+    recommendations,
+    clinicalPriority,
   };
 }
 
