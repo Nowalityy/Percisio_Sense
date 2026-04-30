@@ -2,7 +2,6 @@ import { lazy, memo, Suspense, useState, useEffect, useCallback, useRef, useLayo
 import { AnimatePresence, motion } from 'framer-motion';
 import { List as VirtualList } from 'react-window';
 import { useSceneStore } from '../store.js';
-import { focusOnOrgan } from '../utils/viewerUtils.js';
 import { cardTitleToFocusKey, getSegmentNamesForFocus } from '../components/Viewer3D/focusUtils.js';
 import { CHAT_URL } from '../config/api.js';
 import { PERFORMANCE_CONFIG } from '../performance.config';
@@ -390,7 +389,6 @@ export default function Chatbot() {
     (focus) => {
       if (focus) {
         setFocus(focus);
-        focusOnOrgan(focus);
       }
     },
     [setFocus]
@@ -421,31 +419,39 @@ export default function Chatbot() {
         return;
       }
 
-      if (keys.length > 0) {
-        setFocus(keys[0]);
-        focusOnOrgan(keys[0]);
+      /** Server sends `FOCUS_ORGAN` for chat zoom (e.g. "show me …" / vertebra). Prefer it over cards. */
+      const focusActions = Array.isArray(uiActions)
+        ? uiActions.filter(
+            (a) =>
+              a?.type === 'FOCUS_ORGAN' &&
+              a.organ &&
+              getSegmentNamesForFocus(a.organ).length > 0
+          )
+        : [];
+      const lastActionOrgan =
+        focusActions.length > 0 ? focusActions[focusActions.length - 1].organ : null;
+      const targetFocus =
+        lastActionOrgan ?? (keys.length > 0 ? keys[0] : null);
+
+      if (targetFocus) {
+        handleFocus(targetFocus);
+        if (keys.length > 0) {
+          const lastFocus = lastActionOrgan ?? keys[0];
+          const idx = keys.indexOf(lastFocus);
+          if (idx >= 0) setCitedOrganIndex(idx);
+          else if (!lastActionOrgan) setCitedOrganIndex(0);
+        }
       } else {
         clearFocus();
       }
-      if (Array.isArray(uiActions)) {
-        for (const action of uiActions) {
-          if (action?.type === 'FOCUS_ORGAN' && action.organ && getSegmentNamesForFocus(action.organ).length > 0) {
-            handleFocus(action.organ);
-          }
-        }
-      }
-      if (keys.length > 0) {
-        const focusActions = (uiActions || []).filter(
-          (a) => a?.type === 'FOCUS_ORGAN' && a.organ && getSegmentNamesForFocus(a.organ).length > 0
-        );
-        const lastFocus = focusActions.length
-          ? focusActions[focusActions.length - 1].organ
-          : keys[0];
-        const idx = keys.indexOf(lastFocus);
-        if (idx >= 0) setCitedOrganIndex(idx);
-      }
     },
-    [setCitedOrgans, setFocus, setCitedOrganIndex, handleFocus, clearFocus]
+    [
+      setCitedOrgans,
+      setFocus,
+      setCitedOrganIndex,
+      handleFocus,
+      clearFocus,
+    ]
   );
 
   const addMessage = useCallback(

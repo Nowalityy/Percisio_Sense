@@ -16,12 +16,11 @@ function disposeMaterial(material: Material | Material[]) {
   for (const mat of mats) {
     const values = Object.values(mat as unknown as Record<string, unknown>);
     for (const value of values) {
-      if (value && typeof value === 'object' && 'dispose' in (value as Record<string, unknown>)) {
-        // PERF: Ensure textures/maps are released from GPU memory.
-        (value as Texture).dispose?.();
+      const tex = value as Texture;
+      if (tex && typeof tex === 'object' && tex.isTexture === true) {
+        tex.dispose();
       }
     }
-    // PERF: Dispose material program to release GPU resources.
     mat.dispose?.();
   }
 }

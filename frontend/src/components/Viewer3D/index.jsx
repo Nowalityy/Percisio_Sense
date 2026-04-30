@@ -1,5 +1,4 @@
 import { useState, useEffect, useLayoutEffect, Component, useRef, useCallback } from 'react';
-import { useThree } from '@react-three/fiber';
 import { Html } from '@react-three/drei';
 import { useSceneStore } from '../../store';
 import { createHistoryState, canNavigateBack, canNavigateForward } from '../../utils/historyManager';
@@ -14,15 +13,17 @@ import {
   ViewerLoadingOverlay,
   ViewerAnalyzingOverlay,
   ViewerStaticOverlays,
+  ViewerLoadFailureOverlay,
 } from './ViewerOverlays';
 import { ViewerCanvas } from './ViewerCanvas';
+import { clearSegmentLoaderCacheForSet } from '../../utils/clearSegmentLoaders';
 
 // -----------------------------------------------------------------------------
 // Constants
 // -----------------------------------------------------------------------------
 
 const DEFAULT_ROTATION = { x: -Math.PI / 2, y: 0, z: 0 };
-const VIEW_MODES = ['Skeleton', 'Organs', 'Vessels', 'Full'];
+const VIEW_MODES = ['Skeleton', 'Organs', 'Vessels', 'Skin', 'Full'];
 
 // -----------------------------------------------------------------------------
 // Subcomponents
@@ -62,16 +63,29 @@ class ModelErrorBoundary extends Component {
     return { hasError: true, error };
   }
 
+  componentDidCatch(error, info) {
+    if (typeof console !== 'undefined' && console.error) {
+      console.error('[Viewer3D] Model error:', error, info?.componentStack);
+    }
+  }
+
   render() {
     if (this.state.hasError) {
-      if (typeof console !== 'undefined' && console.error) {
-        console.error('[Viewer3D] Model error:', this.state.error);
-      }
+      const { onRecover } = this.props;
       return (
         <Html center>
-          <div className="px-4 py-3 rounded-lg bg-red-400/10 border border-red-300/25 text-sm text-red-100 max-w-md shadow-sm">
+          <div className="px-4 py-3 rounded-lg bg-red-400/10 border border-red-300/25 text-sm text-red-100 max-w-md shadow-sm space-y-2">
             <p className="font-semibold">3D Error</p>
             <p className="text-xs text-red-200">Unable to load some segments.</p>
+            {typeof onRecover === 'function' ? (
+              <button
+                type="button"
+                onClick={() => onRecover()}
+                className="w-full mt-1 py-1.5 rounded-lg text-xs font-medium bg-white/20 hover:bg-white/30 border border-white/20"
+              >
+                Retry
+              </button>
+            ) : null}
           </div>
         </Html>
       );
@@ -96,20 +110,6 @@ function CompactButton({ onClick, icon, title, active = false }) {
   );
 }
 
-function CameraZoomController({ zoomLevel }) {
-  const { camera } = useThree();
-
-  useEffect(() => {
-    const nextZoom = 0.8 + (Number(zoomLevel) / 100) * 0.65;
-    // r3f exposes mutable THREE objects by design — direct mutation is expected.
-    // eslint-disable-next-line react-hooks/immutability
-    camera.zoom = nextZoom;
-    camera.updateProjectionMatrix();
-  }, [camera, zoomLevel]);
-
-  return null;
-}
-
 // -----------------------------------------------------------------------------
 // Main component
 // -----------------------------------------------------------------------------
@@ -121,6 +121,8 @@ export default function Viewer3D() {
    */
   const [zoomLevel, setZoomLevel] = useState(38);
   const [viewMode, setViewMode] = useState('Full');
+  const [viewerRecoveryKey, setViewerRecoveryKey] = useState(0);
+  const [loadFailureMessage, setLoadFailureMessage] = useState(null);
   const [loadingProgress, setLoadingProgress] = useState(() => ({
     current: 0,
     total: getSegmentListForSet(useSceneStore.getState().anatomySegmentSet).length,
@@ -155,6 +157,14 @@ export default function Viewer3D() {
     navigator.hardwareConcurrency < PERFORMANCE_CONFIG.LOW_END_CPU_CORES;
   useLeakDetector('Viewer3D.container', containerRef);
 
+  const lastAnatomyForLoaderCacheRef = useRef(null);
+
+  const bumpViewerRecovery = useCallback(() => {
+    clearSegmentLoaderCacheForSet(useSceneStore.getState().anatomySegmentSet);
+    setLoadFailureMessage(null);
+    setViewerRecoveryKey((k) => k + 1);
+  }, []);
+
   const handleProgress = useCallback((current, total) => {
     setLoadingProgress({ current, total });
   }, []);
@@ -185,35 +195,50 @@ export default function Viewer3D() {
     setManySegmentVisibility(buildVisibilityMapForMode(list, viewMode));
   }, [setManySegmentVisibility, viewMode, anatomySegmentSet]);
 
-  const skipAnatomyLoadResetRef = useRef(true);
+  const skipInitialAnatomyLayoutRef = useRef(true);
   /**
-   * Reset the loading bar in `useLayoutEffect` (not `useEffect` + `setTimeout(0)`).
-   * If we zero progress after child `useEffect` runs, Segment `onLoad` has
-   * already fired and will not re-run — progress can stay 0 / total forever
-   * after many fast switches. Layout effect runs before child passive effects
-   * (onLoad) and before paint, so the bar resets before segment hooks run.
+   * On each DICOM/body (= anatomySegmentSet): reset loading bar before Segment onLoad fires,
+   * reset zoom slider to match FocusCamera default, and mirror "Reset view" cam state clears
+   * so the incoming model loads with a neutral camera (spin off, no pending restores).
    */
   useLayoutEffect(() => {
-    if (skipAnatomyLoadResetRef.current) {
-      skipAnatomyLoadResetRef.current = false;
+    if (skipInitialAnatomyLayoutRef.current) {
+      skipInitialAnatomyLayoutRef.current = false;
       return;
     }
+    const store = useSceneStore.getState();
     const total = getSegmentListForSet(anatomySegmentSet).length;
-    // set-state-in-effect: intentional synchronous reset before Segment useEffects; see block comment above.
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- reset must run before child useEffect (onLoad)
+    store.setCameraAutoSpin(false);
+    store.clearCameraFocus();
+    store.setPendingCameraRestore(null);
+    /* Synchronous React resets before Segment onLoad effects (see block comment above). */
+    /* eslint-disable react-hooks/set-state-in-effect -- reset before child Segment useEffects */
+    setZoomLevel(38);
+    setLoadFailureMessage(null);
     setLoadingProgress({ current: 0, total });
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, [anatomySegmentSet]);
 
-  /** Keep zoom slider aligned with FocusCamera when the DICOM / segment set changes. */
-  const skipAnatomyZoomResetRef = useRef(true);
   useLayoutEffect(() => {
-    if (skipAnatomyZoomResetRef.current) {
-      skipAnatomyZoomResetRef.current = false;
-      return;
+    const prev = lastAnatomyForLoaderCacheRef.current;
+    if (prev != null && prev !== anatomySegmentSet) {
+      clearSegmentLoaderCacheForSet(prev);
     }
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- sync with FocusCamera default when dataset changes
-    setZoomLevel(38);
+    lastAnatomyForLoaderCacheRef.current = anatomySegmentSet;
   }, [anatomySegmentSet]);
+
+  useEffect(() => {
+    if (segmentExpected === 0 || isModelReady) {
+      return undefined;
+    }
+    const ms = PERFORMANCE_CONFIG.MODEL_LOAD_TIMEOUT_MS;
+    const id = window.setTimeout(() => {
+      setLoadFailureMessage(
+        `Loading timed out after ${Math.round(ms / 1000)}s. Check your network and try again.`
+      );
+    }, ms);
+    return () => window.clearTimeout(id);
+  }, [anatomySegmentSet, segmentExpected, isModelReady]);
 
   const handleHistoryNavigation = useCallback((direction) => {
     const store = useSceneStore.getState();
@@ -298,12 +323,15 @@ export default function Viewer3D() {
     saveToHistory();
   }, [historyPushRequest, historyIndex, saveToHistory]);
 
-  useEffect(() => {
-    return () => {
-      // PERF: Release renderer resources on viewer unmount.
+  useEffect(
+    () => () => {
       disposeRenderer(rendererRef.current);
-    };
-  }, []);
+      const store = useSceneStore.getState();
+      store.setModelGroup(null);
+      store.setPendingCameraRestore(null);
+    },
+    []
+  );
 
   return (
     <div ref={containerRef} className="w-full h-full overflow-hidden relative group">
@@ -316,9 +344,12 @@ export default function Viewer3D() {
         aria-hidden
       />
       <div className="absolute inset-0 pointer-events-none rounded-[16px] border border-[var(--border-brand)]/40 opacity-0 group-hover:opacity-100 transition-opacity z-20 shadow-[var(--shadow-md)]" /> {/* BRAND: #62C5EF */}
-      {!isModelReady && (
+      {!isModelReady && !loadFailureMessage && (
         <ViewerLoadingOverlay current={loadingProgress.current} total={loadingProgress.total} />
       )}
+      {loadFailureMessage ? (
+        <ViewerLoadFailureOverlay message={loadFailureMessage} onRetry={bumpViewerRecovery} />
+      ) : null}
 
       <ViewerAnalyzingOverlay isAnalyzing={isAnalyzing} />
       <div
@@ -388,9 +419,10 @@ export default function Viewer3D() {
         isAutoSpinning={false}
         onProgress={handleProgress}
         anatomySegmentSet={anatomySegmentSet}
-      >
-        <CameraZoomController zoomLevel={zoomLevel} />
-      </ViewerCanvas>
+        zoomLevel={zoomLevel}
+        recoveryKey={viewerRecoveryKey}
+        onRecoverModel={bumpViewerRecovery}
+      />
 
       <div className="absolute right-4 top-1/2 -translate-y-1/2 z-40 glass-card px-2 py-3 flex flex-col items-center gap-2">
         <button type="button" className="text-text-secondary text-xs" onClick={() => setZoomLevel((v) => Math.min(100, v + 6))}>+</button>

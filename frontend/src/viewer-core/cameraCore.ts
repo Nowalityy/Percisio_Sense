@@ -1,4 +1,14 @@
-import { Box3, Sphere, Vector3, Mesh, Object3D, PerspectiveCamera } from 'three';
+import {
+  Box3,
+  MathUtils as THREEMathUtils,
+  Sphere,
+  Vector3,
+  Mesh,
+  Object3D,
+  PerspectiveCamera,
+} from 'three';
+
+import { withSubtreeForcedVisible } from './modelCore';
 
 export function easeInOutCubic(t: number): number {
   return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -72,12 +82,14 @@ export interface FitCameraResult {
  * @param camera    - Perspective camera (uses `fov`, `aspect`)
  * @param padding   - Extra room around the model (1 = tight, 1.2 = 20% margin)
  * @param elevation - Vertical offset (in radii) for the slightly-elevated view
+ * @param verticalMidpointBiasY - Added to 0.5 when picking Y from mesh min..max (fraction of height).
  */
 export function fitCameraToBoundingBox(
   box: Box3,
   camera: PerspectiveCamera,
   padding: number = 1.15,
-  elevation: number = 0.1
+  elevation: number = 0.1,
+  verticalMidpointBiasY: number = 0
 ): FitCameraResult | null {
   if (box.isEmpty()) return null;
 
@@ -85,10 +97,26 @@ export function fitCameraToBoundingBox(
   const radius = sphere.radius;
   if (!Number.isFinite(radius) || radius <= 0) return null;
 
-  const center = box.getCenter(new Vector3());
+  // Look-at point from mesh world min/max per axis — not arbitrary coords; midpoint of AABB edges.
+  // Optional fractional bias on Y (see CAMERA.FIT_VERTICAL_TARGET_BIAS): shifts aim within mesh height.
+  const extentX = Math.max(box.max.x - box.min.x, 0);
+  const extentY = Math.max(box.max.y - box.min.y, 1e-12);
+  const extentZ = Math.max(box.max.z - box.min.z, 0);
+  const vy = THREEMathUtils.clamp(0.5 + verticalMidpointBiasY, 0, 1);
+  const center = new Vector3(
+    box.min.x + extentX * 0.5,
+    box.min.y + extentY * vy,
+    box.min.z + extentZ * 0.5
+  );
 
   // Distance to fit the bounding sphere in the *narrower* of vertical/horizontal FOV.
-  const fovRad = ((camera.fov ?? 50) * Math.PI) / 180;
+  // PerspectiveCamera.zoom scales the projected view; use effective FOV or distance is wrong,
+  // which mis-centres framing after swaps / slider zoom residue.
+  const fovEffDeg =
+    typeof camera.getEffectiveFOV === 'function'
+      ? camera.getEffectiveFOV()
+      : (camera.fov ?? 50);
+  const fovRad = (fovEffDeg * Math.PI) / 180;
   const aspect = camera.aspect && camera.aspect > 0 ? camera.aspect : 1;
   const verticalDistance = radius / Math.sin(fovRad / 2);
   const horizontalFovRad = 2 * Math.atan(Math.tan(fovRad / 2) * aspect);
@@ -111,13 +139,12 @@ export function fitCameraToBoundingBox(
 }
 
 /**
- * World-space bounding box of an object (and all its descendants), recomputed
- * from current matrices. Wrapper around `Box3.setFromObject` that returns null
- * if the box is empty (no visible geometry).
+ * World-space bounding box of an object (and all descendants), including meshes
+ * with `visible=false` (Skeleton / filter modes). Matches `centerModelInGroup` logic
+ * so camera fit/target stay centered when switching DICOMs with a mode other than Full.
  */
 export function getWorldBoundingBox(obj: Object3D | null | undefined): Box3 | null {
   if (!obj) return null;
-  const box = new Box3().setFromObject(obj);
-  if (box.isEmpty()) return null;
-  return box;
+  const box = withSubtreeForcedVisible(obj, () => new Box3().setFromObject(obj));
+  return box.isEmpty() ? null : box;
 }

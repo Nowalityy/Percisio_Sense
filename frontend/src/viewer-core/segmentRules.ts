@@ -3,6 +3,8 @@ const MODE_MATCHERS: Record<string, RegExp> = {
   Organs:
     /(heart|liver|lung|stomach|pancreas|spleen|thyroid|kidney|colon|duodenum|gallbladder|esophagus|trachea)/,
   Vessels: /(aorta|artery|vein|vena|brachiocephalic|carotid|subclavian|portal|pulmonary)/,
+  /** Envelope meshes (`skinpercisio`, etc.) — see `isSkinSegment` in `medicalColors.js`. */
+  Skin: /skin/,
 };
 
 const THORACIC_VERTEBRA_KEYWORDS = Array.from(
@@ -276,7 +278,18 @@ export function buildVisibilityMapForMode(
 export function normalizeFocusKey(key: string | null | undefined): string | null | undefined {
   if (!key || typeof key !== 'string') return key;
   const normalized = key.toLowerCase().trim();
-  return FOCUS_KEY_SYNONYMS[normalized] ?? normalized;
+  if (FOCUS_KEY_SYNONYMS[normalized]) return FOCUS_KEY_SYNONYMS[normalized];
+  const vertebraBare = /^([ctls])(\d{1,2})$/.exec(normalized);
+  if (vertebraBare) {
+    const letter = vertebraBare[1];
+    const num = parseInt(vertebraBare[2], 10);
+    const max =
+      letter === 'c' ? 7 : letter === 't' ? 12 : letter === 'l' ? 5 : letter === 's' ? 5 : 0;
+    if (num >= 1 && num <= max) {
+      return `${letter}${num} vertebra`;
+    }
+  }
+  return normalized;
 }
 
 function normalizeCardTitle(title: string): string {

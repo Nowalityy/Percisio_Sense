@@ -17,12 +17,18 @@ export function ViewerCanvas({
   isAutoSpinning,
   onProgress,
   anatomySegmentSet,
+  /** Vue 3D : 0–100, même formule que l’ancien `CameraZoomController` (évite double écriture sur `camera.zoom`). */
+  zoomLevel = 38,
+  /** Increment to remount Canvas + WebGL after load/render failures. */
+  recoveryKey = 0,
+  onRecoverModel,
   children,
 }) {
   const modelGroupY = getModelRootWorldY(anatomySegmentSet);
 
   return (
     <Canvas
+      key={`viewer-canvas-${recoveryKey}`}
       shadows={false}
       frameloop="demand"
       dpr={[1, maxDpr]}
@@ -46,7 +52,7 @@ export function ViewerCanvas({
       <SceneLights />
       {/* Base Y lift + optional per-segment-set offset (see dicomStudies.js). */}
       <group position={[0, modelGroupY, 0]}>
-        <ModelErrorBoundary>
+        <ModelErrorBoundary onRecover={onRecoverModel}>
           <Suspense
             fallback={
               <CanvasLoader current={loadingProgress.current} total={loadingProgress.total} />
@@ -61,7 +67,7 @@ export function ViewerCanvas({
           </Suspense>
         </ModelErrorBoundary>
       </group>
-      <FocusCamera />
+      <FocusCamera zoomLevel={zoomLevel} />
       {children}
     </Canvas>
   );

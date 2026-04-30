@@ -109,6 +109,62 @@ function normalizeFocusToken(s) {
     .trim();
 }
 
+const VERT_LETTER_MAX = { c: 7, t: 12, l: 5, s: 5 };
+
+/**
+ * Parse "c7", "t12 vertebra", "vertèbre 7" → canonical `c7 vertebra` keys used by mesh names.
+ * @param {string} lower - lowercased, whitespace-normalized text
+ * @returns {string | null}
+ */
+function tryParseVertebraLower(lower) {
+  let m = lower.match(/\b([ctls])\s*-?\s*(\d{1,2})\s*(?:vertebra|vertebre|vertèbre)?\b/);
+  if (m) {
+    const letter = m[1].toLowerCase();
+    const num = parseInt(m[2], 10);
+    const max = VERT_LETTER_MAX[letter];
+    if (!max || num < 1 || num > max) return null;
+    return `${letter}${num} vertebra`;
+  }
+
+  m = lower.match(/\b(?:vert[eè]bre|vertebra)s?\s+(?:n[o°]?\s*)?(\d{1,2})\b/);
+  if (m) {
+    const num = parseInt(m[1], 10);
+    // "vertèbre 7" / "vertebra 7" — par défaut cervicales C1–C7 (cas le plus demandé en chat)
+    if (num >= 1 && num <= 7) return `c${num} vertebra`;
+    return null;
+  }
+
+  m = lower.match(/\b(\d{1,2})\s*(?:ère|ere|er|e)?\s*(?:vert[eè]bre|vertebra)\b/);
+  if (m) {
+    const num = parseInt(m[1], 10);
+    if (num >= 1 && num <= 7) return `c${num} vertebra`;
+    return null;
+  }
+
+  if (/^[ctls]\d+\s+vertebra$/.test(lower)) {
+    m = lower.match(/^([ctls])(\d+)\s+vertebra$/);
+    if (m) {
+      const letter = m[1].toLowerCase();
+      const num = parseInt(m[2], 10);
+      const max = VERT_LETTER_MAX[letter];
+      if (max && num >= 1 && num <= max) return `${letter}${num} vertebra`;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Extract a canonical vertebra focus key from free text (English/French).
+ * @param {string} rawText
+ * @returns {string | null}
+ */
+export function extractVertebraFocusFromPlainText(rawText) {
+  if (!rawText || typeof rawText !== 'string') return null;
+  const lower = normalizeFocusToken(rawText);
+  return tryParseVertebraLower(lower);
+}
+
 /**
  * Maps LLM `focus` output to an allowed key, or null.
  * @param {unknown} focus
@@ -120,6 +176,12 @@ export function sanitizeLlmFocus(focus) {
   const trimmed = focus.trim();
   if (!trimmed) return null;
   const lower = normalizeFocusToken(trimmed);
+  const vertebra = tryParseVertebraLower(lower);
+  if (vertebra) return vertebra;
+  if (/^[ctls]\d{1,2}$/.test(lower)) {
+    const expanded = tryParseVertebraLower(`${lower} vertebra`);
+    if (expanded) return expanded;
+  }
   if (FOCUS_KEYS_SET.has(lower)) return lower;
   if (Object.prototype.hasOwnProperty.call(LEGACY_LLM_FOCUS_MAP, lower)) {
     const mapped = LEGACY_LLM_FOCUS_MAP[lower];

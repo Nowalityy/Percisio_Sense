@@ -35,6 +35,8 @@ const RENDER_ORDER = {
   SKIN: 200,
 };
 
+const _emissiveScratch = new THREE.Color();
+
 const MATERIAL_CONFIG = {
   DEFAULT: {
     roughness: 0.6,
@@ -119,6 +121,7 @@ function createMaterial(segmentName, color, skinOpacity) {
 
 function configureMesh(mesh, segmentName, color, orderIndex, skinOpacity) {
   mesh.name = segmentName;
+  mesh.userData.segmentId = segmentName;
   mesh.visible = true;
   mesh.renderOrder = getRenderOrder(segmentName, orderIndex);
   mesh.material = createMaterial(segmentName, color, skinOpacity);
@@ -132,11 +135,25 @@ function applyFocusStateToMesh(mesh, segmentName, isDimmed, skinOpacity) {
     mat.opacity = DIMMED_OPACITY;
     mat.transparent = true;
     mat.depthWrite = false;
+    if (mat.emissive) {
+      mat.emissive.set(0x000000);
+      mat.emissiveIntensity = 0;
+    }
   } else {
     mat.color.set(getSegmentColor(segmentName));
     mat.opacity = getDefaultOpacity(segmentName, skinOpacity);
     mat.transparent = getDefaultTransparent(segmentName);
     mat.depthWrite = !isSkinSegment(segmentName);
+    if (mat.emissive) {
+      if (isBone(segmentName)) {
+        mat.emissive.set('#ffffff');
+        mat.emissiveIntensity = 0.1;
+      } else {
+        _emissiveScratch.set(getSegmentColor(segmentName)).multiplyScalar(0.2);
+        mat.emissive.copy(_emissiveScratch);
+        mat.emissiveIntensity = 0.3;
+      }
+    }
   }
 }
 
@@ -210,6 +227,7 @@ export function Segment({ name, orderIndex = -1, onLoad }) {
     invalidate();
   }, [segmentObject, name, isDimmed, skinOpacity, invalidate]);
 
-  if (!isUserVisible) return null;
+  // Stay mounted even when filtered off so `centerModelInGroup` can measure the full body
+  // (`Box3` ignores invisible meshes unless we temporarily force-visible there).
   return <primitive object={segmentObject} />;
 }

@@ -25,6 +25,10 @@ export const useSceneStore = create(
         selectedDicom: null,
         setSelectedDicom: (dicomId) =>
           set({ selectedDicom: dicomId ?? null }),
+        /** Which scan report `.txt` is loaded for the chat (`public/reports/<id>.txt`). Independent from DICOM unless synced on study change. */
+        selectedReportId: null,
+        setSelectedReportId: (reportId) =>
+          set({ selectedReportId: reportId ?? null }),
 
         /**
          * Subfolder under `public/models/segments/<id>/` (and CDN) for OBJ/MTL.
@@ -264,6 +268,7 @@ export const useSceneStore = create(
             lastCards: [],
             lastMeta: null,
             selectedDicom: null,
+            selectedReportId: null,
             anatomySegmentSet: getDefaultAnatomySetId(),
             segmentVisibility: new Map(),
             skinOpacity: 0.15,
