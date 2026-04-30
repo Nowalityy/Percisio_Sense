@@ -40,7 +40,6 @@ const ERROR_FOCUS_STRUCTURE_UNAVAILABLE = (label) =>
   `**${label}** is not available in the current 3D model. This export may not include that organ or bone — try another structure or switch the study if your dataset supports it.`;
 const GREETING =
   "Percisio AI is ready.\nUpload a report or request a targeted analysis.";
-const QUICK_ACTION_CHIPS = ['Summarize findings', 'Flag anomalies', 'Generate report'];
 const STREAMING_TYPING_DELAY_MS = 200;
 
 const SEVERITY_PATTERNS = [
@@ -998,18 +997,6 @@ export default function Chatbot() {
               onSubmit={sendMessage}
               className="shrink-0 border-t border-white/10 px-3 pt-2.5 pb-[max(0.55rem,env(safe-area-inset-bottom,0))]"
             >
-              <div className="mb-2.5 flex flex-wrap gap-1.5">
-                {QUICK_ACTION_CHIPS.map((label) => (
-                  <button
-                    key={label}
-                    type="button"
-                    className="glass-btn rounded-full px-2.5 py-1 text-[11px]"
-                    onClick={() => setInput(label)}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
               <div className="flex items-end gap-2">
                 <label htmlFor="chat-input" className="sr-only">
                   Message
