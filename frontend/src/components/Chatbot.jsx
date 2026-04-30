@@ -2,7 +2,12 @@ import { lazy, memo, Suspense, useState, useEffect, useCallback, useRef, useLayo
 import { AnimatePresence, motion } from 'framer-motion';
 import { List as VirtualList } from 'react-window';
 import { useSceneStore } from '../store.js';
-import { cardTitleToFocusKey, getSegmentNamesForFocus } from '../components/Viewer3D/focusUtils.js';
+import {
+  cardTitleToFocusKey,
+  getSegmentNamesForFocus,
+  isFocusKeyAvailableInCurrentModel,
+} from '../components/Viewer3D/focusUtils.js';
+import { extractVertebraFocusFromPlainText, ZOOM_OR_VIEW_INTENT } from '../viewer-core/vertebraIntent';
 import { CHAT_URL } from '../config/api.js';
 import { PERFORMANCE_CONFIG } from '../performance.config';
 import { useLeakDetector } from '../hooks/useLeakDetector';
@@ -11,9 +16,18 @@ import { SkeletonPanel } from './SkeletonPanel.jsx';
 const ToolsTab = lazy(() => import('./Chatbot/ToolsTab.jsx'));
 
 const AUTO_SUMMARY_PROMPT_PREFIX =
-  '[SYSTEM]: A new medical document has been uploaded. Provide a professional clinical summary. Focus on significant findings and provide a clinical impression. Use headers: Findings, Impression, Recommendations.\n\n[DOCUMENT CONTENT]:\n';
+  '[SYSTEM]: A new imaging report has been uploaded to the workspace.\n\n' +
+  'Your task:\n' +
+  '- Produce a concise, professional clinical summary using these headings: **Findings**, **Impression**, **Recommendations**.\n' +
+  '- Open with exactly one short sentence that frames the answer as a quick review of the scan report. ' +
+  'Example: "Following a focused review of the imaging report, here is a structured summary." ' +
+  'Write the opening line and the **entire** summary in **English**, even if the source document is in another language.\n' +
+  '- Summarize and interpret only; do not paste or reproduce lengthy verbatim excerpts of the source.\n\n' +
+  '[DOCUMENT CONTENT]:\n';
 const CONTEXT_PROMPT_TEMPLATE =
-  '[CONTEXT - ANALYZED DOCUMENT]:\n{report}\n\n---\n\n[USER INQUIRY]:\n{question}';
+  '[CONTEXT - ANALYZED DOCUMENT]:\n{report}\n\n---\n\n' +
+  'Instructions: Answer using this document as the source. **Reply in English.** Do not repeat or paste the full report; use synthesis and short structured sections as appropriate.\n\n' +
+  '[USER INQUIRY]:\n{question}';
 
 const FALLBACK_REPLY_SUMMARY = "I received the document, but I cannot summarize it.";
 const FALLBACK_REPLY_EMPTY = '(no response)';
@@ -21,6 +35,9 @@ const ERROR_REPORT_ANALYSIS =
   'Automatic document analysis failed. You can still ask questions about the report—your questions will include the report as context. Try again below if the backend is available.';
 const ERROR_CONNECTION =
   "Could not reach the assistant. Check that the backend is running (e.g. http://localhost:4000) and try again.";
+/** Shown when the model tries to focus a structure that this scan / segment set does not include. */
+const ERROR_FOCUS_STRUCTURE_UNAVAILABLE = (label) =>
+  `**${label}** is not available in the current 3D model. This export may not include that organ or bone — try another structure or switch the study if your dataset supports it.`;
 const GREETING =
   "Percisio AI is ready.\nUpload a report or request a targeted analysis.";
 const QUICK_ACTION_CHIPS = ['Summarize findings', 'Flag anomalies', 'Generate report'];
@@ -256,26 +273,39 @@ function createMessage(from, text) {
   };
 }
 
+const MAX_LLM_TURNS = 24;
+
+function trimLlmTurns(ref) {
+  if (ref.current.length > MAX_LLM_TURNS) {
+    ref.current = ref.current.slice(-MAX_LLM_TURNS);
+  }
+}
+
 async function sendChatRequest(
   message,
   reportText = null,
-  { signal, onStreamChunk } = {}
+  { signal, onStreamChunk, history } = {}
 ) {
   const body = {
     message,
     // PERF: Request streaming responses when backend supports it.
     stream: true,
   };
+  if (Array.isArray(history) && history.length > 0) {
+    body.history = history;
+  }
   const raw = reportText != null && typeof reportText === 'string' ? reportText.trim() : '';
   if (raw.length > 0) {
     body.reportText = raw;
   }
 
-  const cacheKey = hashPrompt(`${message}::${raw}`);
-  const cacheHit = responseCache.get(cacheKey);
-  if (cacheHit && Date.now() - cacheHit.timestamp < PERFORMANCE_CONFIG.API_CACHE_TTL_MS) {
-    // PERF: Deduplicate repeated prompts within TTL.
-    return { ...cacheHit.payload, _fromCache: true };
+  const useClientCache = !history?.length;
+  const cacheKey = useClientCache ? hashPrompt(`${message}::${raw}`) : null;
+  if (useClientCache && cacheKey != null) {
+    const cacheHit = responseCache.get(cacheKey);
+    if (cacheHit && Date.now() - cacheHit.timestamp < PERFORMANCE_CONFIG.API_CACHE_TTL_MS) {
+      return { ...cacheHit.payload, _fromCache: true };
+    }
   }
 
   const response = await fetch(CHAT_URL, {
@@ -293,7 +323,6 @@ async function sendChatRequest(
   let payload = null;
 
   if (response.body && !contentType.includes('application/json')) {
-    // PERF: Stream non-JSON responses to improve perceived latency.
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let streamedText = '';
@@ -309,8 +338,10 @@ async function sendChatRequest(
     payload = await response.json();
   }
 
-  responseCache.set(cacheKey, { timestamp: Date.now(), payload });
-  pruneResponseCache();
+  if (useClientCache && cacheKey != null) {
+    responseCache.set(cacheKey, { timestamp: Date.now(), payload });
+    pruneResponseCache();
+  }
   return payload;
 }
 
@@ -357,6 +388,8 @@ export default function Chatbot() {
   const [reportAnalyzeTick, setReportAnalyzeTick] = useState(0);
   const chatScrollRef = useRef(null);
   const lastReportKeyRef = useRef(null);
+  const llmTurnsRef = useRef([]);
+  const reportExtractDoneFpRef = useRef(null);
   const requestQueueRef = useRef(Promise.resolve());
   const activeAbortRef = useRef(null);
   const typingTimerRef = useRef(null);
@@ -365,6 +398,7 @@ export default function Chatbot() {
 
   const setFocus = useSceneStore((s) => s.setFocus);
   const clearFocus = useSceneStore((s) => s.clearFocus);
+  const clearCameraFocus = useSceneStore((s) => s.clearCameraFocus);
   const setCitedOrgans = useSceneStore((s) => s.setCitedOrgans);
   const setCitedOrganIndex = useSceneStore((s) => s.setCitedOrganIndex);
   const setLastReply = useSceneStore((s) => s.setLastReply);
@@ -403,7 +437,7 @@ export default function Chatbot() {
    * the camera — the user sees the full model and can zoom manually.
    */
   const applyCardsAndFocus = useCallback(
-    (cards, uiActions, { autoFocus = true } = {}) => {
+    (cards, uiActions, { autoFocus = true, skipCardFocusFallback = false } = {}) => {
       const organCards = (cards || []).filter((c) => c?.id !== 'card-risks');
       const rawKeys = [
         ...new Set(
@@ -420,18 +454,28 @@ export default function Chatbot() {
       }
 
       /** Server sends `FOCUS_ORGAN` for chat zoom (e.g. "show me …" / vertebra). Prefer it over cards. */
-      const focusActions = Array.isArray(uiActions)
+      const rawFocusOrgans = Array.isArray(uiActions)
         ? uiActions.filter(
-            (a) =>
-              a?.type === 'FOCUS_ORGAN' &&
-              a.organ &&
-              getSegmentNamesForFocus(a.organ).length > 0
+            (a) => a?.type === 'FOCUS_ORGAN' && typeof a?.organ === 'string' && a.organ.trim()
           )
         : [];
+      const focusActions = rawFocusOrgans.filter((a) =>
+        isFocusKeyAvailableInCurrentModel(a.organ.trim())
+      );
+      const explicitFocusRequestedButNoneMapped =
+        rawFocusOrgans.length > 0 && focusActions.length === 0;
+      const blockCardFocusFallback =
+        explicitFocusRequestedButNoneMapped || skipCardFocusFallback;
+
       const lastActionOrgan =
-        focusActions.length > 0 ? focusActions[focusActions.length - 1].organ : null;
-      const targetFocus =
-        lastActionOrgan ?? (keys.length > 0 ? keys[0] : null);
+        focusActions.length > 0 ? focusActions[focusActions.length - 1].organ.trim() : null;
+      const targetFocus = lastActionOrgan
+        ? lastActionOrgan
+        : blockCardFocusFallback
+          ? null
+          : keys.length > 0
+            ? keys[0]
+            : null;
 
       if (targetFocus) {
         handleFocus(targetFocus);
@@ -441,16 +485,19 @@ export default function Chatbot() {
           if (idx >= 0) setCitedOrganIndex(idx);
           else if (!lastActionOrgan) setCitedOrganIndex(0);
         }
+      } else if (blockCardFocusFallback && keys.length > 0) {
+        /** Requested structure missing (e.g. C7) but cards mention other organs — keep list, do not zoom. */
+        clearCameraFocus();
       } else {
         clearFocus();
       }
     },
     [
       setCitedOrgans,
-      setFocus,
       setCitedOrganIndex,
       handleFocus,
       clearFocus,
+      clearCameraFocus,
     ]
   );
 
@@ -548,10 +595,21 @@ export default function Chatbot() {
         const answer = data?.answer ?? data?.reply ?? FALLBACK_REPLY_SUMMARY;
         addMessage('assistant', answer);
         setLastReply(answer);
-        setLastCards(Array.isArray(data?.cards) ? data.cards : []);
+        const cardsFromApi = Array.isArray(data?.cards) ? data.cards : [];
+        setLastCards(cardsFromApi);
         setLastMeta(data?._meta ?? null);
         setLastResponseFromCache(Boolean(data?._fromCache));
-        applyCardsAndFocus(data?.cards ?? [], data?.uiActions ?? [], { autoFocus: false });
+        applyCardsAndFocus(cardsFromApi, data?.uiActions ?? [], { autoFocus: false });
+
+        const fp = analyzedReport?.trim() ? hashPrompt(analyzedReport.trim()) : null;
+        if (fp && reportPayload) {
+          reportExtractDoneFpRef.current = fp;
+        }
+        if (llmTurnsRef.current.length === 0) {
+          llmTurnsRef.current.push({ role: 'user', content: prompt });
+          llmTurnsRef.current.push({ role: 'assistant', content: answer });
+          trimLlmTurns(llmTurnsRef);
+        }
       } catch (err) {
         if (err?.name === 'AbortError') return;
         console.error(err);
@@ -596,14 +654,23 @@ export default function Chatbot() {
 
     // Do not clear focus on send — keeps camera stable; user can use "Reset view" in 3D to recenter
 
-    const messageToSend = buildMessageWithContext(finalPrompt, analyzedReport);
-
     setLastError(null);
     try {
       const reportPayload =
         typeof analyzedReport === 'string' && analyzedReport.trim().length > 0
           ? analyzedReport.trim()
           : null;
+      const reportFp = reportPayload ? hashPrompt(reportPayload) : null;
+      const shouldAttachReportExtract = Boolean(
+        reportFp && reportExtractDoneFpRef.current !== reportFp
+      );
+
+      const priorForApi = llmTurnsRef.current.map((t) => ({ role: t.role, content: t.content }));
+      const messageForApi =
+        priorForApi.length === 0 && analyzedReport?.trim()
+          ? buildMessageWithContext(finalPrompt, analyzedReport)
+          : finalPrompt;
+
       activeAbortRef.current?.abort();
       const controller = new AbortController();
       activeAbortRef.current = controller;
@@ -612,12 +679,13 @@ export default function Chatbot() {
         setIsStreaming(true);
       }, STREAMING_TYPING_DELAY_MS);
       const data = await enqueueChatRequest(() =>
-        sendChatRequest(messageToSend, reportPayload, {
+        sendChatRequest(messageForApi, shouldAttachReportExtract ? reportPayload : null, {
           signal: controller.signal,
           onStreamChunk: (chunk) => {
             setIsStreaming(true);
             setStreamingText(chunk);
           },
+          history: priorForApi.length > 0 ? priorForApi : undefined,
         })
       );
       if (typingTimerRef.current) {
@@ -627,18 +695,63 @@ export default function Chatbot() {
 
 
       const answer = data?.answer ?? data?.reply ?? FALLBACK_REPLY_EMPTY;
+      const isEmptyReply = typeof answer === 'string' && !answer.trim();
+
+      const rawFocusOrgans = Array.isArray(data?.uiActions)
+        ? data.uiActions.filter(
+            (a) => a?.type === 'FOCUS_ORGAN' && typeof a.organ === 'string' && a.organ.trim()
+          )
+        : [];
+      const firstUnavailableFocus = rawFocusOrgans.find(
+        (a) => !isFocusKeyAvailableInCurrentModel(a.organ.trim())
+      );
+
+      const userVertebraIntent = extractVertebraFocusFromPlainText(finalPrompt);
+      const userAskedViewNavigation = ZOOM_OR_VIEW_INTENT.test(finalPrompt);
+      const clientOnlyUnavailableFocus =
+        !firstUnavailableFocus &&
+        userAskedViewNavigation &&
+        userVertebraIntent &&
+        !isFocusKeyAvailableInCurrentModel(userVertebraIntent);
+
       const hasFocusOnlyAction =
         Array.isArray(data?.uiActions) &&
         data.uiActions.some((a) => a?.type === 'FOCUS_ORGAN' && a.organ);
-      const isEmptyReply = typeof answer === 'string' && !answer.trim();
       if (!(hasFocusOnlyAction && isEmptyReply)) {
         addMessage('assistant', answer);
       }
+      if (firstUnavailableFocus) {
+        addMessage(
+          'assistant',
+          ERROR_FOCUS_STRUCTURE_UNAVAILABLE(firstUnavailableFocus.organ.trim())
+        );
+      } else if (clientOnlyUnavailableFocus) {
+        addMessage('assistant', ERROR_FOCUS_STRUCTURE_UNAVAILABLE(userVertebraIntent));
+      }
+
+      if (shouldAttachReportExtract && reportFp) {
+        reportExtractDoneFpRef.current = reportFp;
+      }
+
+      let assistantForHistory = answer;
+      if (!(assistantForHistory && assistantForHistory.trim()) && hasFocusOnlyAction) {
+        assistantForHistory = '[View: camera focus updated in the 3D viewer.]';
+      }
+      llmTurnsRef.current.push({ role: 'user', content: messageForApi });
+      llmTurnsRef.current.push({ role: 'assistant', content: assistantForHistory });
+      trimLlmTurns(llmTurnsRef);
+
       setLastReply(answer);
-      setLastCards(Array.isArray(data?.cards) ? data.cards : []);
+      const cardsFromApi = Array.isArray(data?.cards) ? data.cards : null;
+      if (cardsFromApi) {
+        setLastCards(cardsFromApi);
+      }
+      const cardsForApply = cardsFromApi ?? useSceneStore.getState().lastCards ?? [];
       setLastMeta(data?._meta ?? null);
       setLastResponseFromCache(Boolean(data?._fromCache));
-      applyCardsAndFocus(data?.cards ?? [], data?.uiActions ?? []);
+      applyCardsAndFocus(cardsForApply, data?.uiActions ?? [], {
+        skipCardFocusFallback: clientOnlyUnavailableFocus,
+      });
     } catch (err) {
       if (err?.name === 'AbortError') return;
       console.error(err);
@@ -690,6 +803,8 @@ export default function Chatbot() {
     }
     if (lastReportKeyRef.current === key) return;
     lastReportKeyRef.current = key;
+    llmTurnsRef.current = [];
+    reportExtractDoneFpRef.current = null;
     if (key.length > 0) {
       setMessages([createMessage('assistant', GREETING)]);
     }

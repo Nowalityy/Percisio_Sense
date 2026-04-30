@@ -9,8 +9,8 @@ export function getSegmentSetIds() {
 
 export function getDefaultAnatomySetId() {
   const keys = getSegmentSetIds();
-  if (keys.includes('frednonopti')) return 'frednonopti';
-  return keys[0] ?? 'frednonopti';
+  if (keys.includes('percisio_export')) return 'percisio_export';
+  return keys[0] ?? 'percisio_export';
 }
 
 export function normalizeAnatomySetId(id) {

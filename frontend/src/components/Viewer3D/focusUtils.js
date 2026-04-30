@@ -22,6 +22,12 @@ export function getSegmentNamesForFocus(focusKey) {
   return getSegmentNamesForFocusInList(focusKey, activeSegmentList());
 }
 
+/** True if `focusKey` maps to at least one segment in the current 3D export (`anatomySegmentSet`). */
+export function isFocusKeyAvailableInCurrentModel(focusKey) {
+  if (!focusKey || typeof focusKey !== 'string') return false;
+  return getSegmentNamesForFocus(focusKey.trim()).length > 0;
+}
+
 export function getFocusSegmentSet(focusKey) {
   return buildFocusSegmentSet(focusKey, activeSegmentList());
 }

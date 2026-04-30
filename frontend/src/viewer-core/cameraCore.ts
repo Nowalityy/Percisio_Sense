@@ -27,6 +27,48 @@ export function getVisibleMeshesBoundingBox(meshes: Mesh[] | null | undefined): 
   return maxDim < 1e-6 ? null : box;
 }
 
+/**
+ * Camera distance (along view axis) so a world-space sphere of `radius` fits in the viewport,
+ * accounting for `PerspectiveCamera` FOV, aspect, and optical zoom (`getEffectiveFOV`).
+ */
+export function getCameraDistanceForSphereRadius(
+  radius: number,
+  camera: PerspectiveCamera,
+  padding: number
+): number {
+  if (!Number.isFinite(radius) || radius <= 0) return NaN;
+  const fovEffDeg =
+    typeof camera.getEffectiveFOV === 'function'
+      ? camera.getEffectiveFOV()
+      : (camera.fov ?? 50);
+  const fovRad = (fovEffDeg * Math.PI) / 180;
+  const aspect = camera.aspect && camera.aspect > 0 ? camera.aspect : 1;
+  const verticalDistance = radius / Math.sin(fovRad / 2);
+  const horizontalFovRad = 2 * Math.atan(Math.tan(fovRad / 2) * aspect);
+  const horizontalDistance = radius / Math.sin(horizontalFovRad / 2);
+  return Math.max(verticalDistance, horizontalDistance) * padding;
+}
+
+export type ComputeOrganFocusOptions = {
+  /** When set, distance matches viewport framing (same idea as `fitCameraToBoundingBox`). */
+  framingCamera?: PerspectiveCamera | null;
+  framingPadding?: number;
+  /** Vertical lift as a fraction of organ bounding-sphere radius (anterior view). */
+  framingElevation?: number;
+  /** Clamp camera–target distance to OrbitControls limits (full-model sphere). */
+  orbitDistanceClamp?: { min: number; max: number } | null;
+  /** Applied after FOV distance (e.g. &gt;1 to zoom out). */
+  distanceMultiplier?: number;
+  /** min distance = this × rawRadius (default 1.04). */
+  minDistanceFactor?: number;
+  /** Full-model bounding sphere radius (world); enables tiny-segment distance floor. */
+  bodySphereRadius?: number | null;
+  /** If organ radius &lt; this × bodySphereRadius, apply tiny-mesh floor (defaults from caller). */
+  tinyMeshMaxRelToBody?: number;
+  /** Min camera distance = this × bodySphereRadius when tiny rule applies. */
+  tinyMeshMinRhoFrac?: number;
+};
+
 export function computeFocusTarget(
   organCenter: Vector3 | null | undefined,
   organSize: Vector3 | null | undefined,
@@ -37,9 +79,74 @@ export function computeFocusTarget(
     FOCUS_DISTANCE_MIN: number;
     ZOOM_DISTANCE_MAX: number;
     FOCUS_FRONT_SIGN: number;
-  }
+  },
+  options?: ComputeOrganFocusOptions | null
 ): { cameraPosition: Vector3; target: Vector3 } | null {
   if (!organCenter) return null;
+
+  const framingCamera = options?.framingCamera;
+  if (framingCamera && organSize) {
+    const dx = organSize.x;
+    const dy = organSize.y;
+    const dz = organSize.z;
+    /** Circumscribed sphere at box center (uses real mesh extent — no artificial floor). */
+    const rawRadius = 0.5 * Math.sqrt(dx * dx + dy * dy + dz * dz);
+    if (rawRadius > 1e-6 && Number.isFinite(rawRadius)) {
+      const padding = options.framingPadding ?? 1.15;
+      const elevation = options.framingElevation ?? 0.07;
+      let distance = getCameraDistanceForSphereRadius(rawRadius, framingCamera, padding);
+      if (Number.isFinite(distance) && distance > 0) {
+        const mult = options?.distanceMultiplier;
+        if (typeof mult === 'number' && Number.isFinite(mult) && mult > 0) {
+          distance *= mult;
+        }
+        const slack =
+          typeof options?.minDistanceFactor === 'number' &&
+          Number.isFinite(options.minDistanceFactor) &&
+          options.minDistanceFactor >= 1
+            ? options.minDistanceFactor
+            : 1.04;
+        distance = Math.max(distance, rawRadius * slack);
+        distance = Math.min(cameraConfig.ZOOM_DISTANCE_MAX, distance);
+
+        const bodyR = options?.bodySphereRadius;
+        const relMax = options?.tinyMeshMaxRelToBody;
+        const minRhoFrac = options?.tinyMeshMinRhoFrac;
+        if (
+          typeof bodyR === 'number' &&
+          Number.isFinite(bodyR) &&
+          bodyR > 0 &&
+          typeof relMax === 'number' &&
+          relMax > 0 &&
+          typeof minRhoFrac === 'number' &&
+          minRhoFrac > 0 &&
+          rawRadius < bodyR * relMax
+        ) {
+          distance = Math.max(distance, bodyR * minRhoFrac);
+        }
+
+        const clampRho = options?.orbitDistanceClamp;
+        if (
+          clampRho &&
+          Number.isFinite(clampRho.min) &&
+          Number.isFinite(clampRho.max) &&
+          clampRho.max > 0
+        ) {
+          const lo = Math.max(0, clampRho.min);
+          const hi = Math.max(lo, clampRho.max);
+          distance = Math.min(hi, Math.max(lo, distance));
+        }
+        return {
+          cameraPosition: new Vector3(
+            organCenter.x,
+            organCenter.y + rawRadius * elevation,
+            organCenter.z + cameraConfig.FOCUS_FRONT_SIGN * distance
+          ),
+          target: organCenter.clone(),
+        };
+      }
+    }
+  }
 
   let distance = clampZoomDistance(zoomLevel);
   if (organSize) {
@@ -112,16 +219,7 @@ export function fitCameraToBoundingBox(
   // Distance to fit the bounding sphere in the *narrower* of vertical/horizontal FOV.
   // PerspectiveCamera.zoom scales the projected view; use effective FOV or distance is wrong,
   // which mis-centres framing after swaps / slider zoom residue.
-  const fovEffDeg =
-    typeof camera.getEffectiveFOV === 'function'
-      ? camera.getEffectiveFOV()
-      : (camera.fov ?? 50);
-  const fovRad = (fovEffDeg * Math.PI) / 180;
-  const aspect = camera.aspect && camera.aspect > 0 ? camera.aspect : 1;
-  const verticalDistance = radius / Math.sin(fovRad / 2);
-  const horizontalFovRad = 2 * Math.atan(Math.tan(fovRad / 2) * aspect);
-  const horizontalDistance = radius / Math.sin(horizontalFovRad / 2);
-  const distance = Math.max(verticalDistance, horizontalDistance) * padding;
+  const distance = getCameraDistanceForSphereRadius(radius, camera, padding);
 
   // Anterior view convention: camera in front of patient on +Z, slightly above.
   const position = new Vector3(

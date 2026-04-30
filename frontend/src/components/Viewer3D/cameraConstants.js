@@ -8,23 +8,39 @@ export const CAMERA = {
   ZOOM_DISTANCE_MAX: 20,
   /** Keep focus zooms on a consistent frontal axis (+Z). */
   FOCUS_FRONT_SIGN: 1,
-  /** World-units: organs smaller than this get a proportionally closer camera (fixes tiny meshes). */
+  /** World-units: organs smaller than this scale the legacy fallback distance (max dimension). */
   FOCUS_REFERENCE_MAX_DIM: 1.25,
   /** Floor for focus distance — allows framing very small segments (e.g. auriculette). */
   FOCUS_DISTANCE_MIN: 0.42,
   /**
    * Niveau 0–1 pour le zoom « organe » (clampZoomDistance) : 1 = le plus proche, &lt;1 = un peu plus loin.
-   * Ajuster finement si le cadrage semble trop serré.
+   * Sert surtout au chemin legacy sans cadrage FOV — garder modéré : le gros du cadrage vient du padding FOV ci‑dessous.
    */
-  FOCUS_ORGAN_ZOOM_LEVEL: 0.94,
+  FOCUS_ORGAN_ZOOM_LEVEL: 0.88,
+  /**
+   * Cadrage FOV (poumon, foie, cœur, …) : marge autour de la sphère englobante du maillage.
+   * Plus bas = zoom plus serré. Les vertèbres / très petits volumes : voir FOCUS_TINY_MESH_*.
+   */
+  FOCUS_ORGAN_FRAMING_PADDING: 1.24,
+  /** Recul après distance FOV (multiplicatif). */
+  FOCUS_ORGAN_DISTANCE_MULTIPLIER: 1.1,
+  /** Distance mini ≥ ce facteur × rayon sphère du segment ciblé. */
+  FOCUS_ORGAN_MIN_DISTANCE_FACTOR: 1.14,
+  /**
+   * Si rayon sphère organe &lt; ce facteur × rayon sphère du corps → plancher de distance
+   * `FOCUS_TINY_MESH_MIN_RHO_FRAC` × rayon corps (ex. une vertèbre seule, moins de zoom extrême).
+   */
+  FOCUS_TINY_MESH_MAX_REL_TO_BODY: 0.25,
+  /** Distance caméra–cible mini pour ces petits maillages (fraction du rayon du corps). */
+  FOCUS_TINY_MESH_MIN_RHO_FRAC: 1.12,
   /**
    * Orbit dolly limits are derived from the full model bounding sphere (see `getOrbitDistanceLimits`).
    * When the model is not ready, these fallbacks apply.
    */
   ORBIT_FALLBACK_MIN: 0.75,
   ORBIT_FALLBACK_MAX: 28,
-  /** With an organ focus: allow dollying close to small structures (does not use body radius). */
-  ORBIT_MIN_WITH_FOCUS: 0.38,
+  /** With an organ focus: OrbitControls dolly minimum (world units). Keep plausible for small-mesh floor (see FOCUS_TINY_MESH_*). */
+  ORBIT_MIN_WITH_FOCUS: 0.52,
   /**
    * Overview (no organ focus), target ≈ body centre: stay outside the hull.
    * Distance min = max(radius × this, ORBIT_MIN_ABS_FLOOR).

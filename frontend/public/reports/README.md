@@ -8,7 +8,6 @@ public/reports/<id>.txt
 
 **Exemples :**
 
-- `scan-tap-2025-09-08.txt` → id `scan-tap-2025-09-08`
 - `alan-dicom.txt` → id `alan-dicom`
 
 **Ajouter un nouveau scan :**

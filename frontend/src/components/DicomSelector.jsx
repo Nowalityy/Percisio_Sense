@@ -4,7 +4,6 @@ import { getDefaultAnatomySetId } from '../segmentList.js';
 import {
   DICOM_STUDIES,
   SCAN_REPORT_OPTIONS,
-  DICOM_STUDY_TO_DEFAULT_REPORT_ID,
   fetchReportContent,
   getDicomStudyById,
   getScanReportOptionById,
@@ -38,9 +37,6 @@ export default function DicomSelector() {
     [selectedReportId]
   );
 
-  const reportMismatch =
-    Boolean(selectedDicom && selectedReportId && selectedDicom !== selectedReportId);
-
   const loadReportText = useCallback(
     async (reportId, signal) => {
       if (!reportId) {
@@ -56,7 +52,7 @@ export default function DicomSelector() {
         }
         const opt = getScanReportOptionById(reportId);
         const hint = opt ? `public/reports/${opt.fileName}` : reportId;
-        setAnalyzedReport(`Le rapport n’a pas pu être chargé (fichier attendu : ${hint}).`);
+        setAnalyzedReport(`The report could not be loaded (expected file: ${hint}).`);
       }
     },
     [setAnalyzedReport]
@@ -82,7 +78,7 @@ export default function DicomSelector() {
   );
 
   const handleDicomChange = useCallback(
-    async (e) => {
+    (e) => {
       const value = e.target.value;
       reportFetchAbortRef.current?.abort();
 
@@ -103,23 +99,17 @@ export default function DicomSelector() {
       }
 
       setSelectedDicom(value);
-      const defaultReportId =
-        DICOM_STUDY_TO_DEFAULT_REPORT_ID[value] ?? 'report-1';
-      setSelectedReportId(defaultReportId);
       if (study.segmentSetId) {
         setAnatomySegmentSet(study.segmentSetId);
       }
-
-      const ac = new AbortController();
-      reportFetchAbortRef.current = ac;
-      await loadReportText(defaultReportId, ac.signal);
+      setSelectedReportId(null);
+      setAnalyzedReport(null);
     },
     [
       setSelectedDicom,
       setSelectedReportId,
       setAnatomySegmentSet,
       setAnalyzedReport,
-      loadReportText,
     ]
   );
 
@@ -230,13 +220,6 @@ export default function DicomSelector() {
           <path d="M6 9l6 6 6-6" />
         </svg>
       </div>
-
-      {reportMismatch && (
-        <p className="mt-2 text-[9px] leading-snug text-amber-700/90 dark:text-amber-200/80" role="status">
-          Report differs from the selected DICOM study — the chat uses the report above; the 3D view matches
-          the study.
-        </p>
-      )}
 
       <div className="flex items-center gap-1.5 my-2" aria-hidden>
         <div className="flex-1 h-px bg-[var(--border-default)]" />

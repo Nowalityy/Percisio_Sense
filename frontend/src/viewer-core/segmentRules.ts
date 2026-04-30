@@ -321,6 +321,12 @@ export function getSegmentNamesForFocusInList(
   if (!focusKey || typeof focusKey !== 'string') return [];
   const key = normalizeFocusKey(focusKey);
   const normalizedKey = normalizeSegmentName(String(key));
+
+  // C7 vertebra, T12 vertebra, … : exact match only (normalised) — avoids `.includes` false positives on "vertebra".
+  if (/^[ctls]\d{1,2} vertebra$/.test(normalizedKey)) {
+    return segments.filter((segmentName) => normalizeSegmentName(segmentName) === normalizedKey);
+  }
+
   return segments.filter((segmentName) => {
     const normalizedSegment = normalizeSegmentName(segmentName);
     if (normalizedSegment === normalizedKey) return true;
