@@ -220,26 +220,6 @@ export default function DicomSelector() {
           <path d="M6 9l6 6 6-6" />
         </svg>
       </div>
-
-      <div className="flex items-center gap-1.5 my-2" aria-hidden>
-        <div className="flex-1 h-px bg-[var(--border-default)]" />
-        <span className="text-[9px] uppercase tracking-wider text-text-secondary">— or —</span>
-        <div className="flex-1 h-px bg-[var(--border-default)]" />
-      </div>
-
-      <button
-        type="button"
-        disabled
-        aria-disabled="true"
-        title="Coming soon"
-        className="glass-btn w-full py-1.5 text-[11px] font-medium rounded-lg inline-flex items-center justify-center gap-1.5"
-      >
-        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
-          <path d="M7 16l5-5 5 5M12 11V3" />
-          <path d="M4 17v2h16v-2" />
-        </svg>
-        Upload your data
-      </button>
     </div>
   );
 }
