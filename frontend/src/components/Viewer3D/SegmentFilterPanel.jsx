@@ -11,7 +11,7 @@ function SegmentItem({ segmentName, isVisible, onToggle }) {
 
   return (
     <div
-      className={`flex items-center gap-2 px-2 py-1.5 rounded-lg cursor-pointer transition-all duration-200 hover:bg-white/10 focus-within:bg-white/5 ${
+      className={`flex items-center gap-2 px-2 py-1.5 rounded-md cursor-pointer transition-colors hover:bg-white/10 ${
         !isVisible ? 'opacity-50' : ''
       }`}
       onClick={() => onToggle(segmentName)}
@@ -20,7 +20,7 @@ function SegmentItem({ segmentName, isVisible, onToggle }) {
         type="checkbox"
         checked={isVisible}
         onChange={() => onToggle(segmentName)}
-        className="w-4 h-4 rounded border-slate-300/30 text-[var(--brand-primary)] bg-transparent focus:ring-[var(--brand-primary)] cursor-pointer" // BRAND: #62C5EF
+        className="w-4 h-4 rounded border-slate-300/30 text-[#00D4FF] bg-transparent focus:ring-[#00D4FF] cursor-pointer"
         onClick={(e) => e.stopPropagation()}
       />
       <div
@@ -43,7 +43,7 @@ function QuickFilterButton({ label, onClick, active }) {
       onClick={onClick}
       className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
         active
-          ? 'bg-[var(--brand-primary)] text-[var(--text-on-brand)]'
+          ? 'bg-[#00D4FF] text-[#00222B]'
           : 'glass-btn text-text-secondary'
       }`}
     >
@@ -139,7 +139,7 @@ export function SegmentFilterPanel() {
     return (
       <button
         onClick={() => setIsOpen(true)}
-        className="glass-btn px-3 py-2 rounded-xl flex items-center gap-1.5 text-xs font-medium"
+        className="av-chip"
         title="Filter segments"
         aria-label="Filter segments"
       >
@@ -223,7 +223,7 @@ export function SegmentFilterPanel() {
             value={skinOpacity}
             onChange={(e) => setSkinOpacity(parseFloat(e.target.value))}
             disabled={!isSkinVisible}
-            className="w-full accent-[var(--brand-primary)] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
+            className="w-full accent-[#00D4FF] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed"
             aria-label="Skin opacity"
           />
           {!isSkinVisible && (
@@ -252,7 +252,7 @@ export function SegmentFilterPanel() {
         <div className="flex gap-2">
           <button
             onClick={handleShowAll}
-            className="text-xs text-[var(--brand-primary-dark)] hover:opacity-80 font-medium" // BRAND: #62C5EF
+            className="text-xs text-[#00D4FF] hover:opacity-80 font-medium"
           >
             Show All
           </button>

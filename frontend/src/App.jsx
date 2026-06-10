@@ -1,10 +1,15 @@
 import { useState, lazy, Suspense } from 'react';
-import { motion } from 'framer-motion';
-import { colors, radii, shadows, blur } from './design-tokens';
 import { SkeletonPanel } from './components/SkeletonPanel.jsx';
 import DicomSelector from './components/DicomSelector.jsx';
+import RadiologyReport from './components/RadiologyReport.jsx';
+import { Icon, BrandMark } from './components/psUI.jsx';
 import { useSceneStore } from './store.js';
-import { getDicomStudyClinicalDescription } from './config/dicomStudies.js';
+import {
+  getDicomStudyById,
+  getScanReportOptionById,
+  reportAssetUrl,
+} from './config/dicomStudies.js';
+import { parseCaseMeta } from './utils/caseMeta.js';
 
 // Lazy-load heavy chunks (Three.js + R3F + viewer, Chatbot) for better LCP and TTI
 const Viewer3D = lazy(() => import('./components/Viewer3D.jsx'));
@@ -12,201 +17,186 @@ const Chatbot = lazy(() => import('./components/Chatbot.jsx'));
 
 function LockedViewerPlaceholder() {
   return (
-    <div
-      className="absolute inset-0 flex items-center justify-center px-6 text-center"
-      role="status"
-      aria-live="polite"
-    >
-      <div className="max-w-[22rem]">
-        <div
-          className="mx-auto mb-4 size-14 rounded-2xl border border-[var(--border-default)] bg-[var(--surface-card)] grid place-items-center text-text-secondary"
-          aria-hidden
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7">
-            <rect x="5" y="11" width="14" height="9" rx="2" />
-            <path d="M8 11V8a4 4 0 1 1 8 0v3" />
-          </svg>
+    <div className="av" style={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', padding: 24, textAlign: 'center' }} role="status" aria-live="polite">
+      <div style={{ maxWidth: 300 }}>
+        <div style={{ width: 56, height: 56, margin: '0 auto 16px', borderRadius: 14, border: '1px solid rgba(255,255,255,0.12)', background: 'rgba(255,255,255,0.04)', display: 'grid', placeItems: 'center', color: '#cbd5e1' }} aria-hidden>
+          <Icon name="lock" size={24} />
         </div>
-        <h3 className="text-base font-semibold text-text">3D viewer locked</h3>
-        <p className="mt-1 text-sm text-text-secondary">
-          Select a DICOM study from the panel in the top-right corner to load the viewer.
-        </p>
+        <h3 style={{ fontSize: 15, fontWeight: 600, color: '#e8edf2' }}>3D viewer locked</h3>
+        <p style={{ marginTop: 4, fontSize: 13, color: '#8ea0b4' }}>Select a DICOM study to load the volume.</p>
       </div>
     </div>
   );
 }
 
-function ViewerFallback() {
+function PaneFallback({ lines }) {
   return (
-    <div className="flex-1 flex items-center justify-center min-h-0 bg-panel" aria-hidden="true">
-      <SkeletonPanel lines={4} className="w-[min(84%,34rem)]" />
+    <div className="grow" style={{ display: 'grid', placeItems: 'center', minHeight: 0 }} aria-hidden="true">
+      <SkeletonPanel lines={lines} className="w-[min(84%,30rem)]" />
     </div>
   );
 }
 
-function ChatbotFallback() {
+/** One labelled column in the patient header strip. */
+function StripField({ label, value, mono }) {
+  if (!value) return null;
   return (
-    <div className="flex-1 flex items-center justify-center min-h-0 bg-panel" aria-hidden="true">
-      <SkeletonPanel lines={3} className="w-[min(84%,24rem)]" />
+    <div className="col gap6" style={{ minWidth: 0 }}>
+      <span className="over">{label}</span>
+      <span className={mono ? 'wl-mono' : undefined} style={mono ? { color: 'var(--text)' } : { fontSize: 13, fontWeight: 600 }}>
+        {value}
+      </span>
     </div>
   );
 }
 
-function App() {
-  const [mobilePanel, setMobilePanel] = useState('viewer');
-  const selectedDicom = useSceneStore((s) => s.selectedDicom);
-  const viewerUnlocked = Boolean(selectedDicom);
+function PatientStrip({ study, meta }) {
+  const selectedReportId = useSceneStore((s) => s.selectedReportId);
+  const analyzedReport = useSceneStore((s) => s.analyzedReport);
 
-  const motionProps = {
-    initial: { opacity: 0, y: 12 },
-    animate: { opacity: 1, y: 0 },
-    transition: { duration: 0.36, ease: 'easeOut' },
+  const handlePrint = () => window.print();
+  const handleExport = () => {
+    const opt = getScanReportOptionById(selectedReportId);
+    if (opt) window.open(reportAssetUrl(opt.fileName), '_blank', 'noopener,noreferrer');
+  };
+  const handleShare = async () => {
+    try {
+      await navigator.clipboard?.writeText(window.location.href);
+    } catch {
+      /* clipboard unavailable */
+    }
   };
 
+  const demographic = [meta.age ? `${meta.age}Y` : null, meta.sexShort].filter(Boolean).join(' ');
+
   return (
-    <div
-      className="h-dvh overflow-hidden bg-background text-text"
-      style={{
-        '--bg-deep': colors.background.deep,
-        '--bg-slate': colors.background.slate,
-        '--bg-canvas': colors.background.viewerCanvas,
-        '--glass': colors.glass.panel,
-        '--glass-strong': colors.glass.panelStrong,
-        '--glass-border': colors.glass.border,
-        '--glass-border-strong': colors.glass.borderStrong,
-        '--text-primary': colors.text.primary,
-        '--text-secondary': colors.text.secondary,
-        '--status-success': colors.status.success,
-        '--status-warning': colors.status.warning,
-        '--status-critical': colors.status.critical,
-        '--radius-panel': radii.panel,
-        '--radius-card': radii.card,
-        '--radius-btn': radii.button,
-        '--shadow-panel': shadows.panel,
-        '--shadow-card': shadows.card,
-        '--shadow-glow': shadows.glowBlue,
-        '--accent-blue': colors.accent.primaryFrom,
-        '--accent-blue-2': colors.accent.primaryTo,
-        '--accent-cyan': colors.accent.secondary,
-        backdropFilter: blur.panel,
-      }}
-    >
-      <header className="glass-panel mx-3 mt-3 px-4 py-3 md:px-5 md:py-3.5">
-        <div className="flex items-center gap-3 md:gap-4">
-          <div className="flex items-center gap-2 min-w-0">
-            <span
-              className="size-8 rounded-xl border border-[var(--brand-primary)]/40 flex items-center justify-center text-[var(--brand-primary)]"
-              aria-hidden
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path d="M3 12h5l2-6 4 12 2-6h5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-              </svg>
-            </span>
-            <div className="flex flex-col">
-              <h1 className="text-lg md:text-xl tracking-tight">
-                <span className="font-semibold text-text">Percisio</span>{' '}
-                <span className="font-medium text-[var(--brand-primary)]">Sense</span>
-              </h1>
-              <p className="text-[11px] text-[var(--text-muted)]">AI-Powered 3D Clinical Imaging Platform</p> {/* BRAND: #62C5EF */}
-            </div>
-          </div>
+    <div className="clinic-strip">
+      <div className="row gap12">
+        <div className="wl-mod" style={{ width: 40, height: 40 }}>
+          <Icon name="user" size={20} />
+        </div>
+        <div className="col">
+          <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.3px' }}>{meta.caseLabel || 'No case selected'}</span>
+          <span className="wl-mono">Synthetic{demographic ? ` · ${demographic}` : ''}</span>
+        </div>
+      </div>
 
-          <div className="hidden md:flex flex-1 justify-center min-w-0 px-2">
-            <div
-              className="rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-xs text-text-secondary truncate max-w-full"
-              title={selectedDicom ? getDicomStudyClinicalDescription(selectedDicom) ?? undefined : undefined}
-            >
-              {selectedDicom
-                ? getDicomStudyClinicalDescription(selectedDicom) ?? 'Study loaded'
-                : 'No study loaded'}
-            </div>
-          </div>
+      <div className="ps-top-sep" />
 
-          <div className="ml-auto flex items-center gap-2.5">
-            <button
-              type="button"
-              className="size-8 rounded-full border border-[var(--brand-primary)]/30 bg-[var(--brand-primary-light)] overflow-hidden p-0 flex items-center justify-center"
-              aria-label="User menu"
-            >
-              <img
-                src="/favicon/apple-touch-icon.png"
-                alt="Percisio"
-                width={32}
-                height={32}
-                className="size-full object-cover"
-              />
-            </button>
+      <StripField label="Study" value={meta.exam} />
+      <StripField label="Referrer" value={study?.referrer} />
+      <StripField label="Acquired" value={study?.acquired ? `${study.acquired}${study.dose ? ` · ${study.dose}` : ''}` : ''} mono />
+
+      <div className="row gap8" style={{ marginLeft: 'auto' }}>
+        <button className="ps-btn ps-ghost sm" onClick={handleExport} disabled={!analyzedReport} title="Open the source report">
+          <Icon name="download" size={14} /> Export
+        </button>
+        <button className="ps-btn ps-secondary sm" onClick={handleShare} title="Copy a link to this case">
+          <Icon name="share" size={14} /> Share
+        </button>
+        <button className="ps-btn ps-primary sm" onClick={handlePrint} title="Print report">
+          <Icon name="printer" size={14} /> Print report
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Report-medical card header, matching the design's CardHd. */
+function CardHd({ icon, title, right }) {
+  return (
+    <div className="ps-panel-hd">
+      {icon && <Icon name={icon} size={16} color="var(--accent)" />}
+      <span style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: '-0.2px' }}>{title}</span>
+      {right}
+    </div>
+  );
+}
+
+const MOBILE_PANES = [
+  { id: 'viewer', label: 'Viewer' },
+  { id: 'report', label: 'Report' },
+  { id: 'assistant', label: 'Assistant' },
+];
+
+function App() {
+  const [mobilePane, setMobilePane] = useState('report');
+  const selectedDicom = useSceneStore((s) => s.selectedDicom);
+  const viewerUnlocked = Boolean(selectedDicom);
+  const study = getDicomStudyById(selectedDicom);
+  const meta = parseCaseMeta(study);
+  const reportBy = 'Percisio AI · Radiology';
+
+  const paneCls = (id) => `clinic-pane ${mobilePane === id ? 'active' : ''}`;
+
+  return (
+    <div className="ps ps-light ps-app">
+      {/* ============ TOP BAR ============ */}
+      <header className="ps-top">
+        <div className="ps-brand">
+          <div className="ps-logo"><BrandMark /></div>
+          <div className="ps-brand-tt">
+            <span className="ps-brand-name">Percisio <b>Sense</b></span>
+            <span className="ps-brand-sub">AI Clinical Imaging Platform</span>
           </div>
+        </div>
+        <div className="ps-top-actions">
+          <DicomSelector />
+          <button className="ps-btn icon sm" title="Notifications" aria-label="Notifications">
+            <Icon name="bell" size={17} />
+          </button>
+          <div className="ps-avatar">PS</div>
         </div>
       </header>
 
-      <main className="h-[calc(100dvh-92px)] md:h-[calc(100dvh-104px)] p-3 pt-2 md:p-4 md:pt-3">
-        <div className="md:hidden mb-2">
-          <div className="grid grid-cols-2 gap-2 rounded-full border border-[var(--border-default)] bg-[var(--surface-card)] p-1" role="tablist" aria-label="Mobile panel switcher">
-            <button
-              type="button"
-              onClick={() => setMobilePanel('viewer')}
-              role="tab"
-              aria-selected={mobilePanel === 'viewer'}
-              aria-pressed={mobilePanel === 'viewer'}
-              className={`rounded-full py-1.5 text-xs ${mobilePanel === 'viewer' ? 'bg-[var(--brand-primary)] text-[var(--text-on-brand)]' : 'text-text-secondary'}`}
-            >
-              Viewer
-            </button>
-            <button
-              type="button"
-              onClick={() => setMobilePanel('chat')}
-              role="tab"
-              aria-selected={mobilePanel === 'chat'}
-              aria-pressed={mobilePanel === 'chat'}
-              className={`rounded-full py-1.5 text-xs ${mobilePanel === 'chat' ? 'bg-[var(--brand-primary)] text-[var(--text-on-brand)]' : 'text-text-secondary'}`}
-            >
-              Assistant
-            </button>
+      {/* ============ PATIENT STRIP ============ */}
+      <PatientStrip study={study} meta={meta} />
+
+      {/* ============ MOBILE SWITCHER ============ */}
+      <div className="clinic-mobile-tabs">
+        {MOBILE_PANES.map((p) => (
+          <button
+            key={p.id}
+            type="button"
+            className={`clinic-mtab ${mobilePane === p.id ? 'on' : ''}`}
+            onClick={() => setMobilePane(p.id)}
+          >
+            {p.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ============ WORKSPACE ============ */}
+      <div className="clinic-grid">
+        {/* viewer */}
+        <div className={`${paneCls('viewer')} ps-card av ps-viewport`} style={{ padding: 0, overflow: 'hidden', position: 'relative' }} aria-label="3D clinical viewer">
+          {viewerUnlocked ? (
+            <Suspense fallback={<PaneFallback lines={4} />}>
+              <Viewer3D />
+            </Suspense>
+          ) : (
+            <LockedViewerPlaceholder />
+          )}
+        </div>
+
+        {/* radiology report (centrepiece) */}
+        <div className={`${paneCls('report')} ps-card col`} style={{ minHeight: 0, overflow: 'hidden' }} aria-label="Radiology report">
+          <CardHd icon="report-medical" title="Radiology Report" right={<span style={{ marginLeft: 'auto' }} className="wl-mono">{reportBy}</span>} />
+          <div className="ps-divider" />
+          <div className="scroll-y grow" style={{ minHeight: 0 }}>
+            <RadiologyReport />
           </div>
         </div>
-        <div className="h-full flex flex-col md:flex-row gap-3 md:gap-4">
-          <motion.section
-            {...motionProps}
-            transition={{ ...motionProps.transition, delay: 0.06 }}
-            className={`glass-panel relative min-h-0 overflow-hidden flex-col md:basis-[65%] md:max-w-[65%] ${
-              mobilePanel === 'viewer' ? 'flex' : 'hidden md:flex'
-            }`}
-            aria-label="3D clinical viewer"
-          >
-            <div className="flex-1 min-h-0 relative">
-              {viewerUnlocked ? (
-                <Suspense fallback={<ViewerFallback />}>
-                  <Viewer3D />
-                </Suspense>
-              ) : (
-                <LockedViewerPlaceholder />
-              )}
-            </div>
-          </motion.section>
 
-          <div className="hidden md:block w-px bg-[var(--brand-primary)]/35 shadow-[0_0_12px_rgba(98,197,239,0.45)]" />
-
-          <motion.section
-            {...motionProps}
-            transition={{ ...motionProps.transition, delay: 0.12 }}
-            className={`min-h-0 min-w-0 flex-col md:basis-[35%] md:max-w-[35%] gap-2 md:gap-2.5 ${
-              mobilePanel === 'chat' ? 'flex' : 'hidden md:flex'
-            }`}
-            aria-label="Clinical AI assistant"
-          >
-            <DicomSelector />
-            <div className="glass-panel min-h-0 flex-1 overflow-hidden flex flex-col">
-              <Suspense fallback={<ChatbotFallback />}>
-                <Chatbot />
-              </Suspense>
-            </div>
-          </motion.section>
+        {/* clinical assistant */}
+        <div className={`${paneCls('assistant')} ps-card col`} style={{ minHeight: 0, overflow: 'hidden' }} aria-label="Clinical AI assistant">
+          <Suspense fallback={<PaneFallback lines={3} />}>
+            <Chatbot />
+          </Suspense>
         </div>
-      </main>
+      </div>
     </div>
   );
 }
 
 export default App;
-

@@ -1,9 +1,22 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+// Anatomy OBJ/MTL live on the R2 bucket (proxied by Vercel in prod — see
+// vercel.json). Mirror that rewrite for local dev/preview so `/models/segments/*`
+// loads through the dev server (same-origin), avoiding the bucket's missing CORS.
+const MODELS_PROXY = {
+  '/models/segments': {
+    target: 'https://pub-4cafc161d51047b8b22ca1a006be74b3.r2.dev',
+    changeOrigin: true,
+    secure: true,
+  },
+};
+
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
+  server: { proxy: MODELS_PROXY },
+  preview: { proxy: MODELS_PROXY },
   build: {
     target: 'esnext',
     minify: 'esbuild',

@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, useEffect } from 'react';
+import { Icon } from './psUI.jsx';
 import { useSceneStore } from '../store.js';
 import { getDefaultAnatomySetId } from '../segmentList.js';
 import {
@@ -123,126 +124,48 @@ export default function DicomSelector() {
     ]
   );
 
+  const shortStudy = selectedDicomLabel ? selectedDicomLabel.split('—')[0].trim() : '';
+  const shortReport = selectedReportLabel ? selectedReportLabel.split('—')[0].trim() : '';
+
   return (
-    <div
-      className="glass-panel shrink-0 p-2.5 shadow-[var(--shadow-sm)]"
-      role="region"
-      aria-label="DICOM study and report selectors"
-    >
-      <div
-        className="mb-2.5 flex items-center justify-between gap-2 rounded-lg border border-[var(--status-warning)]/35 bg-[var(--status-warning)]/10 px-2 py-1.5"
-        role="note"
-        aria-label="Demonstration data notice"
-      >
-        <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--status-warning)]">
-          Demo data
-        </span>
-        <span className="text-[9px] text-text-secondary text-right leading-tight">
-          Synthetic cases — not real patients
-        </span>
-      </div>
-
+    <div className="row gap8" role="region" aria-label="DICOM study and report selectors" style={{ marginRight: 4 }}>
       {/* DICOM → 3D */}
-      <div className="flex items-center gap-1.5 mb-1.5">
-        <span
-          className="size-4 rounded-md border border-[var(--border-brand)] bg-[var(--brand-primary-light)] grid place-items-center text-[var(--brand-primary-dark)] shrink-0"
-          aria-hidden
-        >
-          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2">
-            <rect x="3" y="4" width="18" height="14" rx="2" />
-            <path d="M3 10h18M8 4v4" />
-          </svg>
-        </span>
-        <label
-          htmlFor="dicom-study-select"
-          className="text-[10px] font-semibold uppercase tracking-wide text-text-secondary truncate min-w-0"
-        >
-          Select a DICOM study
-        </label>
-      </div>
-
-      <div className="relative z-20 mb-3">
+      <label className="ps-select" style={{ width: 'auto', padding: '7px 11px', position: 'relative' }} title={selectedDicomLabel || 'Select a DICOM study'}>
+        <Icon name="database" size={14} color="var(--accent)" />
+        <span className="mono" style={{ fontSize: 12 }}>{shortStudy || 'Study'}</span>
+        <Icon name="chevron-down" size={14} className="chev" />
         <select
           id="dicom-study-select"
           value={selectedDicom ?? PLACEHOLDER_VALUE}
           onChange={handleDicomChange}
-          className="glass-input w-full min-w-0 max-w-full appearance-none pr-7 pl-2.5 py-1.5 text-[11px] cursor-pointer"
           aria-label="DICOM study (3D model)"
-          title={selectedDicomLabel || 'Select a DICOM study'}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}
         >
-          <option value={PLACEHOLDER_VALUE} disabled>
-            — Choose a study —
-          </option>
+          <option value={PLACEHOLDER_VALUE} disabled>— Study —</option>
           {DICOM_STUDIES.map((study) => (
-            <option key={study.id} value={study.id}>
-              {study.label}
-            </option>
+            <option key={study.id} value={study.id}>{study.label}</option>
           ))}
         </select>
-        <svg
-          className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-[var(--text-muted)]"
-          width="10"
-          height="10"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.4"
-          aria-hidden
-        >
-          <path d="M6 9l6 6 6-6" />
-        </svg>
-      </div>
+      </label>
 
-      {/* Report → chat context */}
-      <div className="flex items-center gap-1.5 mb-1.5">
-        <span
-          className="size-4 rounded-md border border-[var(--border-brand)] bg-[var(--brand-primary-light)] grid place-items-center text-[var(--brand-primary-dark)] shrink-0"
-          aria-hidden
-        >
-          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-            <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
-          </svg>
-        </span>
-        <label
-          htmlFor="scan-report-select"
-          className="text-[10px] font-semibold uppercase tracking-wide text-text-secondary truncate min-w-0"
-        >
-          Select a report
-        </label>
-      </div>
-
-      <div className="relative z-10">
+      {/* Report → chat + report context */}
+      <label className="ps-select" style={{ width: 'auto', padding: '7px 11px', position: 'relative' }} title={selectedReportLabel || 'Select a scan report'}>
+        <Icon name="file-text" size={14} color="var(--accent)" />
+        <span style={{ fontSize: 12 }}>{shortReport || 'Report'}</span>
+        <Icon name="chevron-down" size={14} className="chev" />
         <select
           id="scan-report-select"
           value={selectedReportId ?? PLACEHOLDER_VALUE}
           onChange={handleReportChange}
-          className="glass-input w-full min-w-0 max-w-full appearance-none pr-7 pl-2.5 py-1.5 text-[11px] cursor-pointer"
-          aria-label="Scan report text for chat"
-          title={selectedReportLabel || 'Select a scan report'}
+          aria-label="Scan report"
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}
         >
-          <option value={PLACEHOLDER_VALUE} disabled>
-            — Choose a report —
-          </option>
+          <option value={PLACEHOLDER_VALUE} disabled>— Report —</option>
           {SCAN_REPORT_OPTIONS.map((r) => (
-            <option key={r.id} value={r.id}>
-              {r.label}
-            </option>
+            <option key={r.id} value={r.id}>{r.label}</option>
           ))}
         </select>
-        <svg
-          className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-[var(--text-muted)]"
-          width="10"
-          height="10"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.4"
-          aria-hidden
-        >
-          <path d="M6 9l6 6 6-6" />
-        </svg>
-      </div>
+      </label>
     </div>
   );
 }

@@ -1,14 +1,18 @@
 export function SkeletonPanel({ lines = 3, className = '' }) {
   return (
-    <div className={`glass-card p-4 animate-pulse ${className}`}>
-      <div className="h-4 w-32 rounded bg-[var(--brand-primary-light)] mb-3" />
-      <div className="space-y-2">
+    <div
+      className={`animate-pulse ${className}`}
+      style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--r-lg)', padding: 16 }}
+    >
+      <div style={{ height: 14, width: 128, borderRadius: 4, background: 'var(--elevated)', marginBottom: 12 }} />
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {Array.from({ length: lines }).map((_, index) => (
           <div
             key={index}
-            className="h-3 rounded"
             style={{
-              background: 'var(--brand-primary-light)', // BRAND: #62C5EF
+              height: 11,
+              borderRadius: 4,
+              background: 'var(--elevated)',
               width: `${60 + ((index * 13) % 30)}%`,
             }}
           />
