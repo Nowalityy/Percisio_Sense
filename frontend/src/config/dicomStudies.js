@@ -14,22 +14,26 @@ export const DEFAULT_SCAN_REPORT_ID = 'report-2';
 export const DICOM_STUDIES = [
   {
     id: 'alan-dicom',
-    label: 'Alan DICOM (percisio_export)',
+    label: 'Case A — Thoracic CT, Male 52',
+    clinicalDescription: 'Thoracic CT — Case A, Male 52 y/o, pulmonary nodule follow-up',
     segmentSetId: 'percisio_export',
   },
   {
     id: 'sandra5-dicom',
-    label: 'Sandra DICOM (percisio_export_sandra5)',
+    label: 'Case B — Thoraco-abdomino-pelvic CT, Female 61',
+    clinicalDescription: 'Thoraco-abdomino-pelvic CT — Case B, Female 61 y/o, staging workup',
     segmentSetId: 'percisio_export_sandra5',
   },
   {
     id: 'paul2-dicom',
-    label: 'Paul DICOM (percisio_export_paul2)',
+    label: 'Case C — Abdomino-pelvic CT (uro), Male 64',
+    clinicalDescription: 'Abdomino-pelvic CT — Case C, Male 64 y/o, urology, low-dose protocol',
     segmentSetId: 'percisio_export_paul2',
   },
   {
     id: 'fred-dicom',
-    label: 'Fred DICOM (percisio_export_fred)',
+    label: 'Case D — Abdomino-pelvic CT, Male 58',
+    clinicalDescription: 'Abdomino-pelvic CT — Case D, Male 58 y/o, abdominal pain workup',
     segmentSetId: 'percisio_export_fred',
   },
 ];
@@ -193,4 +197,11 @@ export function getModelRootWorldY(segmentSetId) {
 /** @param {string} id */
 export function getDicomStudyById(id) {
   return DICOM_STUDIES.find((d) => d.id === id) ?? null;
+}
+
+/** Clinical description for the header pill once a study is loaded. */
+export function getDicomStudyClinicalDescription(id) {
+  const study = getDicomStudyById(id);
+  if (!study) return null;
+  return study.clinicalDescription ?? study.label ?? null;
 }

@@ -4,7 +4,7 @@ import { colors, radii, shadows, blur } from './design-tokens';
 import { SkeletonPanel } from './components/SkeletonPanel.jsx';
 import DicomSelector from './components/DicomSelector.jsx';
 import { useSceneStore } from './store.js';
-import { getDicomStudyById } from './config/dicomStudies.js';
+import { getDicomStudyClinicalDescription } from './config/dicomStudies.js';
 
 // Lazy-load heavy chunks (Three.js + R3F + viewer, Chatbot) for better LCP and TTI
 const Viewer3D = lazy(() => import('./components/Viewer3D.jsx'));
@@ -111,10 +111,13 @@ function App() {
             </div>
           </div>
 
-          <div className="hidden md:flex flex-1 justify-center min-w-0">
-            <div className="rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-xs text-text-secondary truncate">
+          <div className="hidden md:flex flex-1 justify-center min-w-0 px-2">
+            <div
+              className="rounded-full border border-white/10 bg-white/5 px-3.5 py-1.5 text-xs text-text-secondary truncate max-w-full"
+              title={selectedDicom ? getDicomStudyClinicalDescription(selectedDicom) ?? undefined : undefined}
+            >
               {selectedDicom
-                ? getDicomStudyById(selectedDicom)?.label ?? 'Study loaded'
+                ? getDicomStudyClinicalDescription(selectedDicom) ?? 'Study loaded'
                 : 'No study loaded'}
             </div>
           </div>
