@@ -5,13 +5,13 @@ Centre d’Imagerie Médicale
 75005 PARIS 
 Résultats : imagerie-idf.fr 
 Téléphone : 01.43.00.00.00 
-Nom : BENSAID 
-Prénom : Karim 
-Date de naissance : 27/05/1978 
+
+Patient : Case C 
 Sexe : M 
+Âge : 48 ans 
+Données de démonstration — identifiant fictif 
  
 Paris, le 20/04/2026 
-Dr Élodie MOREAU 
 Médecin radiologue 
  
 SCANNER ABDOMINO-PELVIEN 

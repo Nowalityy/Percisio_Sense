@@ -8,82 +8,87 @@
 /** Loaded on first visit and after "new session". */
 export const DEFAULT_DICOM_STUDY_ID = 'fred-dicom';
 
-/** Camille DURAND — Thoraco-abdomino-pelvic CT (`sandra5-dicom.txt`). */
+/** Case B — Thoraco-abdomino-pelvic CT (`sandra5-dicom.txt`). */
 export const DEFAULT_SCAN_REPORT_ID = 'report-2';
 
 export const DICOM_STUDIES = [
   {
     id: 'alan-dicom',
-    label: 'Alan DICOM (percisio_export)',
+    label: 'Case A — Thoracic CT, Female 38',
+    clinicalDescription: 'Thoracic CT — Case A, Female 38 y/o, pulmonary nodule follow-up',
     segmentSetId: 'percisio_export',
   },
   {
     id: 'sandra5-dicom',
-    label: 'Sandra DICOM (percisio_export_sandra5)',
+    label: 'Case B — Thoraco-abdomino-pelvic CT, Female 34',
+    clinicalDescription: 'Thoraco-abdomino-pelvic CT — Case B, Female 34 y/o, staging workup',
     segmentSetId: 'percisio_export_sandra5',
   },
   {
     id: 'paul2-dicom',
-    label: 'Paul DICOM (percisio_export_paul2)',
+    label: 'Case C — Abdomino-pelvic CT (uro, low-dose), Male 48',
+    clinicalDescription: 'Abdomino-pelvic CT — Case C, Male 48 y/o, urology, low-dose protocol',
     segmentSetId: 'percisio_export_paul2',
   },
   {
     id: 'fred-dicom',
-    label: 'Fred DICOM (percisio_export_fred)',
+    label: 'Case D — Abdomino-pelvic CT, Male 50',
+    clinicalDescription: 'Abdomino-pelvic CT — Case D, Male 50 y/o, abdominal pain workup',
     segmentSetId: 'percisio_export_fred',
   },
 ];
 
 /**
- * Reports in `public/reports/`. Dropdown labels: patient + exam for `.txt`; for PDFs, clinical
- * descriptors only (no file-format suffix). Edit `label` when patient metadata is known.
+ * Reports in `public/reports/`. Dropdown labels: anonymized case id + exam for `.txt`; for PDFs,
+ * clinical descriptors only (no file-format suffix).
  */
+/** Dropdown label: `Case X — <exam>, <sex> <age>` (anonymized demo cases). */
 export const SCAN_REPORT_OPTIONS = [
   {
     id: 'report-1',
-    label: 'Laura SCHMIDT — Thoracic CT',
+    label: 'Case A — Thoracic CT, Female 38',
     fileName: 'alan-dicom.txt',
     format: 'text',
   },
   {
     id: 'report-2',
-    label: 'Camille DURAND — Thoraco-abdomino-pelvic CT',
+    label: 'Case B — Thoraco-abdomino-pelvic CT, Female 34',
     fileName: 'sandra5-dicom.txt',
     format: 'text',
   },
   {
     id: 'report-3',
-    label: 'Karim BENSAID — Abdomino-pelvic CT — uro, low-dose',
+    label: 'Case C — Abdomino-pelvic CT (uro, low-dose), Male 48',
     fileName: 'paul2-dicom.txt',
     format: 'text',
   },
   {
     id: 'report-4',
-    label: 'Julien MARTIN — Abdomino-pelvic CT',
+    label: 'Case D — Abdomino-pelvic CT, Male 50',
     fileName: 'fred-dicom.txt',
     format: 'text',
   },
   {
     id: 'report-5',
-    label: 'Abdomino-pelvic imaging — case 5',
+    label: 'Case E — Abdomino-pelvic CT, Female 45',
     fileName: 'rapport_5_AP.pdf',
     format: 'pdf',
   },
   {
     id: 'report-6',
-    label: 'TAP / whole-body imaging — case 6',
+    label: 'Case F — Thoraco-abdomino-pelvic CT, Male 62',
     fileName: 'rapport_6_TAP.pdf',
     format: 'pdf',
   },
   {
     id: 'report-7',
-    label: 'TAP / whole-body imaging — case 7',
+    label: 'Case G — Thoraco-abdomino-pelvic CT, Female 55',
     fileName: 'rapport_7_TAP.pdf',
     format: 'pdf',
   },
   {
     id: 'report-8',
-    label: 'Abdomino-pelvic imaging — case 8',
+    label: 'Case H — Abdomino-pelvic CT, Male 47',
     fileName: 'rapport_8_AP.pdf',
     format: 'pdf',
   },
