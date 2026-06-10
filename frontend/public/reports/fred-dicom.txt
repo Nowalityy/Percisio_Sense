@@ -6,13 +6,12 @@ Centre d’Imagerie Médicale
 Résultats : imagerie-valdeloire.fr 
 Téléphone : 02.47.00.00.00 
  
-Nom : MARTIN 
-Prénom : Julien 
-Date de naissance : 03/11/1975 
+Patient : Case D 
 Sexe : M 
+Âge : 50 ans 
+Données de démonstration — identifiant fictif 
  
 Tours, le 15/03/2026 
-Dr Claire ROBERT 
 Médecin radiologue 
  
  
