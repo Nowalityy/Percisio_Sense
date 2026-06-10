@@ -119,6 +119,19 @@ export default function DicomSelector() {
       role="region"
       aria-label="DICOM study and report selectors"
     >
+      <div
+        className="mb-2.5 flex items-center justify-between gap-2 rounded-lg border border-[var(--status-warning)]/35 bg-[var(--status-warning)]/10 px-2 py-1.5"
+        role="note"
+        aria-label="Demonstration data notice"
+      >
+        <span className="text-[9px] font-bold uppercase tracking-wider text-[var(--status-warning)]">
+          Demo data
+        </span>
+        <span className="text-[9px] text-text-secondary text-right leading-tight">
+          Synthetic cases — not real patients
+        </span>
+      </div>
+
       {/* DICOM → 3D */}
       <div className="flex items-center gap-1.5 mb-1.5">
         <span
