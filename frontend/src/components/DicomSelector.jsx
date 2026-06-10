@@ -14,6 +14,7 @@ const PLACEHOLDER_VALUE = '';
 export default function DicomSelector() {
   const selectedDicom = useSceneStore((s) => s.selectedDicom);
   const selectedReportId = useSceneStore((s) => s.selectedReportId);
+  const analyzedReport = useSceneStore((s) => s.analyzedReport);
   const setSelectedDicom = useSceneStore((s) => s.setSelectedDicom);
   const setSelectedReportId = useSceneStore((s) => s.setSelectedReportId);
   const setAnalyzedReport = useSceneStore((s) => s.setAnalyzedReport);
@@ -57,6 +58,15 @@ export default function DicomSelector() {
     },
     [setAnalyzedReport]
   );
+
+  /** Load default (or restored) report text on mount and after session reset. */
+  useEffect(() => {
+    if (!selectedReportId || analyzedReport) return undefined;
+    const ac = new AbortController();
+    reportFetchAbortRef.current = ac;
+    void loadReportText(selectedReportId, ac.signal);
+    return () => ac.abort();
+  }, [selectedReportId, analyzedReport, loadReportText]);
 
   const handleReportChange = useCallback(
     async (e) => {

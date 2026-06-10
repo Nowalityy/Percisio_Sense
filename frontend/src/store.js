@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { subscribeWithSelector, persist } from 'zustand/middleware';
 import { MAX_HISTORY_SIZE } from './utils/historyManager';
+import { DEFAULT_DICOM_STUDY_ID, DEFAULT_SCAN_REPORT_ID } from './config/dicomStudies';
 import { getDefaultAnatomySetId, normalizeAnatomySetId } from './segmentList';
 
 /**
@@ -22,11 +23,11 @@ export const useSceneStore = create(
         lastCards: [],
         lastMeta: null,
         /** Currently-selected DICOM study id; null means viewer is locked. */
-        selectedDicom: null,
+        selectedDicom: DEFAULT_DICOM_STUDY_ID,
         setSelectedDicom: (dicomId) =>
           set({ selectedDicom: dicomId ?? null }),
         /** Which scan report `.txt` is loaded for the chat (`public/reports/<id>.txt`). Independent from DICOM unless synced on study change. */
-        selectedReportId: null,
+        selectedReportId: DEFAULT_SCAN_REPORT_ID,
         setSelectedReportId: (reportId) =>
           set({ selectedReportId: reportId ?? null }),
 
@@ -267,8 +268,8 @@ export const useSceneStore = create(
             currentFocus: null,
             lastCards: [],
             lastMeta: null,
-            selectedDicom: null,
-            selectedReportId: null,
+            selectedDicom: DEFAULT_DICOM_STUDY_ID,
+            selectedReportId: DEFAULT_SCAN_REPORT_ID,
             anatomySegmentSet: getDefaultAnatomySetId(),
             segmentVisibility: new Map(),
             skinOpacity: 0.15,
@@ -282,8 +283,7 @@ export const useSceneStore = create(
         name: 'percisio-sense-storage',
         /**
          * Do not persist DICOM selection, report, findings, or chat messages.
-         * Each new session (refresh or "new session" button) must start fresh
-         * — user re-selects a DICOM to unlock the viewer and load the report.
+         * Each visit resets to {@link DEFAULT_DICOM_STUDY_ID} + {@link DEFAULT_SCAN_REPORT_ID}.
          */
         partialize: () => ({}),
         merge: (_persistedState, currentState) => ({

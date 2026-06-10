@@ -5,6 +5,12 @@
  * Text reports in the chat dropdown use patient-centered labels (see {@link SCAN_REPORT_OPTIONS}).
  */
 
+/** Loaded on first visit and after "new session". */
+export const DEFAULT_DICOM_STUDY_ID = 'fred-dicom';
+
+/** Camille DURAND — Thoraco-abdomino-pelvic CT (`sandra5-dicom.txt`). */
+export const DEFAULT_SCAN_REPORT_ID = 'report-2';
+
 export const DICOM_STUDIES = [
   {
     id: 'alan-dicom',
