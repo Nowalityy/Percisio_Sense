@@ -6,13 +6,12 @@ Centre d’Imagerie Médicale
 Résultats : imagerie-occitanie.fr 
 Téléphone : 04.67.00.00.00 
  
-Nom : DURAND 
-Prénom : Camille 
-Date de naissance : 14/02/1992 
+Patient : Case B 
 Sexe : F 
+Âge : 34 ans 
+Données de démonstration — identifiant fictif 
  
 Montpellier, le 10/04/2026 
-Dr Sophie LACOSTE 
 Médecin radiologue 
  
 SCANNER THORACO-ABDOMINO-PELVIEN 

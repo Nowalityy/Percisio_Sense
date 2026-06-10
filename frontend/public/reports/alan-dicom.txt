@@ -6,13 +6,12 @@ Centre d’Imagerie Médicale
 Résultats : imagerie-alsace.fr 
 Téléphone : 03.88.00.00.00 
  
-Nom : SCHMIDT 
-Prénom : Laura 
-Date de naissance : 22/07/1988 
+Patient : Case A 
 Sexe : F 
+Âge : 38 ans 
+Données de démonstration — identifiant fictif 
  
 Strasbourg, le 02/04/2026 
-Dr Marc WEISS 
 Médecin radiologue 
  
 SCANNER THORACIQUE 
