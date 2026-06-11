@@ -1,5 +1,7 @@
 import { canNavigateBack, canNavigateForward } from '../../utils/historyManager';
+import { Icon } from '../psUI.jsx';
 
+/** Design: .av-toptools with two .av-nav arrow buttons. */
 export function ViewerHistoryControls({
   historyIndex,
   navigationHistoryLength,
@@ -18,9 +20,7 @@ export function ViewerHistoryControls({
         title="Previous (Ctrl+Z)"
         aria-label="Previous view"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <path d="M19 12H5" /><path d="M12 19l-7-7 7-7" />
-        </svg>
+        <Icon name="arrow-left" size={16} />
       </button>
       <button
         type="button"
@@ -31,9 +31,7 @@ export function ViewerHistoryControls({
         title="Next (Ctrl+Shift+Z)"
         aria-label="Next view"
       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-          <path d="M5 12h14" /><path d="M12 5l7 7-7 7" />
-        </svg>
+        <Icon name="arrow-right" size={16} />
       </button>
     </div>
   );

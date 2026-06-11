@@ -21,13 +21,18 @@ export function Badge({ cls = 'gray', dot = false, fill = false, children, style
   );
 }
 
-/** Cyan reticle / crosshair-on-target — the Percisio brand mark. */
+/** Cyan reticle / crosshair-on-target — inlined `assets/percisio-mark.svg`
+    from the design handoff (stroke #00D4FF hardcoded in the asset, so the
+    mark stays cyan in both themes, exactly like the design). */
 export function BrandMark({ size = 21 }) {
   return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden style={{ display: 'block' }}>
-      <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.6" />
-      <circle cx="12" cy="12" r="3.4" stroke="currentColor" strokeWidth="1.4" strokeDasharray="2.2 1.8" />
-      <path d="M12 1.5v3M12 19.5v3M1.5 12h3M19.5 12h3" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    <svg width={size} height={size} viewBox="0 0 18 18" fill="none" aria-hidden style={{ display: 'block' }}>
+      <circle cx="9" cy="9" r="7" stroke="#00D4FF" strokeWidth="1" />
+      <circle cx="9" cy="9" r="3.5" stroke="#00D4FF" strokeWidth="0.8" strokeDasharray="2 1.5" />
+      <line x1="2" y1="9" x2="5" y2="9" stroke="#00D4FF" strokeWidth="1" />
+      <line x1="13" y1="9" x2="16" y2="9" stroke="#00D4FF" strokeWidth="1" />
+      <line x1="9" y1="2" x2="9" y2="5" stroke="#00D4FF" strokeWidth="1" />
+      <line x1="9" y1="13" x2="9" y2="16" stroke="#00D4FF" strokeWidth="1" />
     </svg>
   );
 }

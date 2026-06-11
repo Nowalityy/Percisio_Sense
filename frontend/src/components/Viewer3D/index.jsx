@@ -72,14 +72,14 @@ class ModelErrorBoundary extends Component {
       const { onRecover } = this.props;
       return (
         <Html center>
-          <div className="px-4 py-3 rounded-lg bg-red-400/10 border border-red-300/25 text-sm text-red-100 max-w-md shadow-sm space-y-2">
-            <p className="font-semibold">3D Error</p>
-            <p className="text-xs text-red-200">Unable to load some segments.</p>
+          <div style={{ padding: '12px 16px', borderRadius: 8, background: 'rgba(255,90,90,0.10)', border: '1px solid rgba(255,90,90,0.25)', fontSize: 13, color: '#ffd9d9', maxWidth: 384, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <p style={{ fontWeight: 600 }}>3D Error</p>
+            <p style={{ fontSize: 11, color: '#ffb3b3' }}>Unable to load some segments.</p>
             {typeof onRecover === 'function' ? (
               <button
                 type="button"
                 onClick={() => onRecover()}
-                className="w-full mt-1 py-1.5 rounded-lg text-xs font-medium bg-white/20 hover:bg-white/30 border border-white/20"
+                style={{ width: '100%', marginTop: 4, padding: '6px 0', borderRadius: 8, fontSize: 11, fontWeight: 500, background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}
               >
                 Retry
               </button>
@@ -128,7 +128,6 @@ export default function Viewer3D() {
   const prevStateRef = useRef({ focus: currentFocus, visibility: segmentVisibility });
   const containerRef = useRef(null);
   const rendererRef = useRef(null);
-  const lastZoomUpdateRef = useRef(0);
   const isLowEndDevice =
     typeof navigator !== 'undefined' &&
     navigator.hardwareConcurrency > 0 &&
@@ -156,16 +155,6 @@ export default function Viewer3D() {
       store.setPendingCameraRestore(defaultCameraState);
     }
     setZoomLevel(38);
-  }, []);
-
-  const handleZoomChange = useCallback((nextValue) => {
-    const now = performance.now();
-    // PERF: Throttle zoom updates to 60 FPS to avoid control spam.
-    if (now - lastZoomUpdateRef.current < PERFORMANCE_CONFIG.FRAME_THROTTLE_MS) {
-      return;
-    }
-    lastZoomUpdateRef.current = now;
-    setZoomLevel(nextValue);
   }, []);
 
   useEffect(() => {
@@ -313,6 +302,7 @@ export default function Viewer3D() {
 
   return (
     <div ref={containerRef} className="w-full h-full overflow-hidden relative">
+      <div className="av-grid" aria-hidden />
       <div className="av-vignette" aria-hidden />
       {!isModelReady && !loadFailureMessage && (
         <ViewerLoadingOverlay current={loadingProgress.current} total={loadingProgress.total} />
@@ -344,9 +334,7 @@ export default function Viewer3D() {
             aria-label="Reset camera view and clear organ focus"
             title="Reset view"
           >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
+            <Icon name="x" size={13} />
             Reset view
           </button>
         </div>
@@ -370,11 +358,15 @@ export default function Viewer3D() {
 
       {/* Zoom control — design: .av-zoom */}
       <div className="av-zoom">
-        <button type="button" onClick={() => setZoomLevel((v) => Math.min(100, v + 6))} title="Zoom in" aria-label="Zoom in">+</button>
+        <button type="button" onClick={() => setZoomLevel((v) => Math.min(100, v + 6))} title="Zoom in" aria-label="Zoom in">
+          <Icon name="plus" size={15} />
+        </button>
         <div className="track" aria-label={`Zoom: ${zoomLevel}%`} role="presentation">
           <div className="knob" style={{ bottom: `calc(${zoomLevel / 100} * (120px - 11px))` }} />
         </div>
-        <button type="button" onClick={() => setZoomLevel((v) => Math.max(0, v - 6))} title="Zoom out" aria-label="Zoom out">−</button>
+        <button type="button" onClick={() => setZoomLevel((v) => Math.max(0, v - 6))} title="Zoom out" aria-label="Zoom out">
+          <Icon name="minus" size={15} />
+        </button>
       </div>
 
       <ViewerStaticOverlays />
@@ -382,7 +374,7 @@ export default function Viewer3D() {
       {/* DICOM-style readout (design: .av-readout) */}
       <div className="av-readout" aria-hidden>
         <div>CT · Volume Rendered</div>
-        <div className="dim">Layer: {viewMode} · 512 × 512</div>
+        <div className="dim">Layer: {viewMode.toLowerCase()} · 512 × 512 × 318</div>
       </div>
 
       <button type="button" className="av-home" onClick={handleReset} title="Reset view" aria-label="Reset view">

@@ -1,10 +1,10 @@
-import { useState, lazy, Suspense } from 'react';
+import { useState, useEffect, lazy, Suspense } from 'react';
 import { SkeletonPanel } from './components/SkeletonPanel.jsx';
-import DicomSelector from './components/DicomSelector.jsx';
 import RadiologyReport from './components/RadiologyReport.jsx';
 import { Icon, BrandMark } from './components/psUI.jsx';
 import { useSceneStore } from './store.js';
 import {
+  fetchReportContent,
   getDicomStudyById,
   getScanReportOptionById,
   reportAssetUrl,
@@ -35,6 +35,31 @@ function PaneFallback({ lines }) {
       <SkeletonPanel lines={lines} className="w-[min(84%,30rem)]" />
     </div>
   );
+}
+
+/** Loads the default case's report text on startup and after a session reset
+    (previously lived in the removed report picker). */
+function useDefaultReportLoader() {
+  const selectedReportId = useSceneStore((s) => s.selectedReportId);
+  const analyzedReport = useSceneStore((s) => s.analyzedReport);
+  const setAnalyzedReport = useSceneStore((s) => s.setAnalyzedReport);
+
+  useEffect(() => {
+    if (!selectedReportId || analyzedReport) return undefined;
+    const ac = new AbortController();
+    (async () => {
+      try {
+        const text = await fetchReportContent(selectedReportId, ac.signal);
+        setAnalyzedReport(text.trim().length > 0 ? text : null);
+      } catch (err) {
+        if (err && typeof err === 'object' && err.name === 'AbortError') return;
+        const opt = getScanReportOptionById(selectedReportId);
+        const hint = opt ? `public/reports/${opt.fileName}` : selectedReportId;
+        setAnalyzedReport(`The report could not be loaded (expected file: ${hint}).`);
+      }
+    })();
+    return () => ac.abort();
+  }, [selectedReportId, analyzedReport, setAnalyzedReport]);
 }
 
 /** One labelled column in the patient header strip. */
@@ -92,7 +117,7 @@ function PatientStrip({ study, meta }) {
           <Icon name="download" size={14} /> Export
         </button>
         <button className="ps-btn ps-secondary sm" onClick={handleShare} title="Copy a link to this case">
-          <Icon name="share" size={14} /> Share
+          <Icon name="share-2" size={14} /> Share
         </button>
         <button className="ps-btn ps-primary sm" onClick={handlePrint} title="Print report">
           <Icon name="printer" size={14} /> Print report
@@ -126,6 +151,7 @@ function App() {
   const study = getDicomStudyById(selectedDicom);
   const meta = parseCaseMeta(study);
   const reportBy = 'Percisio AI · Radiology';
+  useDefaultReportLoader();
 
   const paneCls = (id) => `clinic-pane ${mobilePane === id ? 'active' : ''}`;
 
@@ -141,7 +167,6 @@ function App() {
           </div>
         </div>
         <div className="ps-top-actions">
-          <DicomSelector />
           <button className="ps-btn icon sm" title="Notifications" aria-label="Notifications">
             <Icon name="bell" size={17} />
           </button>
@@ -168,7 +193,7 @@ function App() {
 
       {/* ============ WORKSPACE ============ */}
       <div className="clinic-grid">
-        {/* viewer */}
+        {/* viewer — full-height left column */}
         <div className={`${paneCls('viewer')} ps-card av ps-viewport`} style={{ padding: 0, overflow: 'hidden', position: 'relative' }} aria-label="3D clinical viewer">
           {viewerUnlocked ? (
             <Suspense fallback={<PaneFallback lines={4} />}>

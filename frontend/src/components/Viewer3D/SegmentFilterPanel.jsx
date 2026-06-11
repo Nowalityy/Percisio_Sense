@@ -4,6 +4,7 @@ import { getSegmentListForSet } from '../../segmentList';
 import { getSegmentColor, isSkinSegment } from './medicalColors';
 import { PERFORMANCE_CONFIG } from '../../performance.config';
 import { SEGMENT_CATEGORIES, getSegmentCategory } from '../../viewer-core/segmentRules';
+import { Icon } from '../psUI.jsx';
 
 function SegmentItem({ segmentName, isVisible, onToggle }) {
   const color = getSegmentColor(segmentName);
@@ -40,12 +41,15 @@ function SegmentItem({ segmentName, isVisible, onToggle }) {
 function QuickFilterButton({ label, onClick, active }) {
   return (
     <button
+      type="button"
       onClick={onClick}
-      className={`px-3 py-1.5 text-xs font-medium rounded-full transition-colors ${
-        active
-          ? 'bg-[#00D4FF] text-[#00222B]'
-          : 'glass-btn text-text-secondary'
-      }`}
+      style={{
+        padding: '6px 12px', fontSize: 12, fontWeight: 500, borderRadius: 999,
+        transition: 'all .12s ease', cursor: 'pointer', fontFamily: 'inherit',
+        background: active ? '#00D4FF' : 'rgba(14,19,26,0.82)',
+        color: active ? '#00222B' : '#b6c2d0',
+        border: active ? '1px solid transparent' : '1px solid rgba(255,255,255,0.12)',
+      }}
     >
       {label}
     </button>
@@ -136,26 +140,16 @@ export function SegmentFilterPanel() {
   };
 
   if (!isOpen) {
+    /* design: <span class="av-chip"><Icon adjustments/> Filters</span> */
     return (
       <button
+        type="button"
         onClick={() => setIsOpen(true)}
         className="av-chip"
         title="Filter segments"
         aria-label="Filter segments"
       >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="14"
-          height="14"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-        </svg>
+        <Icon name="adjustments" size={14} />
         Filters
       </button>
     );
@@ -166,23 +160,12 @@ export function SegmentFilterPanel() {
       <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
         <h3 className="text-sm font-semibold text-text">Segment Filtering</h3>
         <button
+          type="button"
           onClick={() => setIsOpen(false)}
-          className="text-slate-400 hover:text-slate-100 transition-colors"
+          aria-label="Close filters"
+          style={{ color: '#8ea0b4', cursor: 'pointer', display: 'grid', placeItems: 'center' }}
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <line x1="18" y1="6" x2="6" y2="18" />
-            <line x1="6" y1="6" x2="18" y2="18" />
-          </svg>
+          <Icon name="x" size={18} />
         </button>
       </div>
 
@@ -251,15 +234,17 @@ export function SegmentFilterPanel() {
         </span>
         <div className="flex gap-2">
           <button
+            type="button"
             onClick={handleShowAll}
-            className="text-xs text-[#00D4FF] hover:opacity-80 font-medium"
+            style={{ fontSize: 12, color: '#00D4FF', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
           >
             Show All
           </button>
           <span className="text-slate-500">|</span>
           <button
+            type="button"
             onClick={handleHideAll}
-            className="text-xs text-text-secondary hover:text-text font-medium"
+            style={{ fontSize: 12, color: '#b6c2d0', fontWeight: 500, cursor: 'pointer', fontFamily: 'inherit' }}
           >
             Hide All
           </button>
