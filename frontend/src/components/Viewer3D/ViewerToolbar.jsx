@@ -1,28 +1,37 @@
 import { SegmentFilterPanel } from './SegmentFilterPanel';
+import { Icon } from '../psUI.jsx';
+
+/** Map the app's view modes to the design's layer tabs + Tabler icons. */
+const LAYER_ICONS = {
+  Skeleton: 'bone',
+  Organs: 'lungs',
+  Vessels: 'activity',
+  Skin: 'body-scan',
+  Full: 'stack-2',
+};
 
 export function ViewerToolbar({ viewMode, viewModes, onModeChange }) {
   return (
-    <div className="absolute top-3 left-3 right-3 z-40 flex items-start justify-end gap-2 flex-wrap">
-      <div className="flex items-center gap-2 min-w-0">
-        <SegmentFilterPanel />
-        <div className="glass-card p-1.5 flex items-center gap-1">
-          {viewModes.map((mode) => (
-            <button
-              key={mode}
-              type="button"
-              onClick={() => onModeChange(mode)}
-              className={`h-8 px-2.5 rounded-md text-[11px] ${
-                viewMode === mode
-                  ? 'bg-[var(--brand-primary)] text-[var(--text-on-brand)]'
-                  : 'text-text-secondary hover:text-text'
-              }`} // BRAND: #62C5EF
-              aria-pressed={viewMode === mode}
-            >
-              {mode}
-            </button>
-          ))}
-        </div>
+    <>
+      {/* centered layer tabs (design: .av-tabs) */}
+      <div className="av-tabs">
+        {viewModes.map((mode) => (
+          <button
+            key={mode}
+            type="button"
+            onClick={() => onModeChange(mode)}
+            className={`av-tab ${viewMode === mode ? 'on' : ''}`}
+            aria-pressed={viewMode === mode}
+          >
+            <Icon name={LAYER_ICONS[mode] || 'stack-2'} size={14} /> {mode}
+          </button>
+        ))}
       </div>
-    </div>
+
+      {/* filters chip + panel (design: .av-filters) */}
+      <div className="av-filters">
+        <SegmentFilterPanel />
+      </div>
+    </>
   );
 }

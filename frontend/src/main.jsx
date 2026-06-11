@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { preloadCriticalAssets } from './preloadCriticalAssets.js';
 import './styles/tokens.css';
 import './index.css';
+import './styles/percisio-sense.css';
 import App from './App.jsx';
 
 preloadCriticalAssets();

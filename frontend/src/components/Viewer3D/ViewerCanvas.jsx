@@ -43,7 +43,8 @@ export function ViewerCanvas({
         preserveDrawingBuffer: false,
       }}
       onCreated={({ scene, gl }) => {
-        scene.background = new THREE.Color('#f1f5f9');
+        // Always-dark imaging viewport (medical convention) — see .ps-viewport.
+        scene.background = new THREE.Color('#0a0e12');
         gl.shadowMap.enabled = false;
         gl.setPixelRatio(Math.min(window.devicePixelRatio || 1, maxDpr));
         rendererRef.current = gl;

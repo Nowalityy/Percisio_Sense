@@ -1,6 +1,6 @@
-import { lazy, memo, Suspense, useState, useEffect, useCallback, useRef, useLayoutEffect, useMemo } from 'react';
-import { AnimatePresence, motion } from 'framer-motion';
-import { List as VirtualList } from 'react-window';
+import { memo, useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
+import { motion } from 'framer-motion';
+import { Icon, Badge, BrandMark } from './psUI.jsx';
 import { useSceneStore } from '../store.js';
 import {
   cardTitleToFocusKey,
@@ -11,9 +11,13 @@ import { extractVertebraFocusFromPlainText, ZOOM_OR_VIEW_INTENT } from '../viewe
 import { CHAT_URL } from '../config/api.js';
 import { PERFORMANCE_CONFIG } from '../performance.config';
 import { useLeakDetector } from '../hooks/useLeakDetector';
-import { SkeletonPanel } from './SkeletonPanel.jsx';
 
-const ToolsTab = lazy(() => import('./Chatbot/ToolsTab.jsx'));
+/** Grounded prompt suggestions shown above the composer. */
+const SUGGESTIONS = [
+  'Summarise for the patient',
+  'Explain the key findings',
+  'What are the recommended next steps?',
+];
 
 const AUTO_SUMMARY_PROMPT_PREFIX =
   '[SYSTEM]: A new imaging report has been uploaded to the workspace.\n\n' +
@@ -41,13 +45,6 @@ const ERROR_FOCUS_STRUCTURE_UNAVAILABLE = (label) =>
 const GREETING =
   "Percisio AI is ready.\nUpload a report or request a targeted analysis.";
 const STREAMING_TYPING_DELAY_MS = 200;
-
-const SEVERITY_PATTERNS = [
-  { level: 'critical', test: /(critical|urgent|severe|life-threatening)/i, color: 'bg-red-400/20 text-red-200 border-red-300/35 critical-pulse' },
-  { level: 'moderate', test: /(moderate|concerning|attention)/i, color: 'bg-amber-400/20 text-amber-100 border-amber-300/35' },
-  { level: 'mild', test: /(mild|minor|low)/i, color: 'bg-[var(--brand-primary-light)] text-[var(--brand-primary-dark)] border-[var(--border-brand)]' }, // BRAND: #62C5EF
-  { level: 'normal', test: /(normal|stable|unremarkable)/i, color: 'bg-emerald-400/15 text-emerald-100 border-emerald-300/30' },
-];
 
 const anatomyRegex = /\b(heart|liver|lungs?|aorta|vessels?|thyroid|pancreas|spleen|stomach|esophagus|trachea|kidneys?)\b/gi;
 
@@ -88,7 +85,8 @@ const SimpleMarkdown = memo(function SimpleMarkdown({ text }) {
         parts.push(
           <code
             key={`${keyPrefix}-${key++}`}
-            className="text-[13px] bg-black/[0.06] px-1.5 py-0.5 rounded-md font-mono text-[#1c1c1e]"
+            className="mono"
+            style={{ fontSize: 12, background: 'var(--elevated)', padding: '1px 6px', borderRadius: 4, border: '1px solid var(--border)' }}
           >
             {m[0].slice(1, -1)}
           </code>
@@ -111,7 +109,7 @@ const SimpleMarkdown = memo(function SimpleMarkdown({ text }) {
         return (
           <span
             key={`${idx}-${i}`}
-            className="rounded-md bg-[var(--brand-primary-light)] px-1 py-0.5 text-[var(--brand-primary-dark)] border border-[var(--border-brand)]" // BRAND: #62C5EF
+            style={{ borderRadius: 4, background: 'var(--accent-dim)', padding: '1px 4px', color: 'var(--accent)', border: '1px solid color-mix(in srgb, var(--accent) 25%, transparent)' }}
           >
             {chunk}
           </span>
@@ -123,7 +121,7 @@ const SimpleMarkdown = memo(function SimpleMarkdown({ text }) {
   };
 
   return (
-    <div className="[&_p]:my-1 [&_ul]:my-2 [&_ol]:my-2 [&_li]:my-0.5 [&_strong]:font-semibold text-sm leading-relaxed">
+    <div className="[&_p+p]:mt-2 [&_ul]:mt-2 [&_ol]:mt-2 [&_li]:my-0.5 [&_strong]:font-semibold">
       {text.split('\n').map((line, i) => (
         <p key={i}>
           {parseLine(line, i).map((token, idx) =>
@@ -141,123 +139,57 @@ const MessageBubble = memo(function MessageBubble({ from, text, isGreeting }) {
   const isUser = from === 'user';
   if (isGreeting) {
     return (
-      <div className="h-full min-h-[260px] flex items-center justify-center px-4" role="listitem">
+      <div style={{ minHeight: 240, display: 'grid', placeItems: 'center', padding: '0 8px' }} role="listitem">
         <motion.div
           initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
-          className="text-center max-w-[19rem]"
+          style={{ textAlign: 'center', maxWidth: '19rem' }}
         >
-          <div className="mx-auto size-14 rounded-2xl border border-[var(--border-brand)] bg-[var(--brand-primary-light)] grid place-items-center mb-4 animate-pulse"> {/* BRAND: #62C5EF */}
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" className="text-[var(--brand-primary-dark)]"> {/* BRAND: #62C5EF */}
-              <path d="M3 12h5l2-6 4 12 2-6h5" strokeWidth="1.7" strokeLinecap="round" />
-              <circle cx="12" cy="12" r="9" strokeWidth="1.4" opacity="0.4" />
-            </svg>
+          <div style={{ width: 52, height: 52, margin: '0 auto 14px', borderRadius: 12, border: '1px solid color-mix(in srgb, var(--accent) 35%, transparent)', background: 'var(--accent-dim)', display: 'grid', placeItems: 'center', color: 'var(--accent)' }}>
+            <Icon name="sparkles" size={24} />
           </div>
-          <h3 className="text-base font-semibold text-text">Percisio AI Ready</h3>
-          <p className="mt-1 text-sm text-text-secondary">Upload a report or request a targeted analysis</p>
+          <h3 style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>Clinical Assistant ready</h3>
+          <p style={{ marginTop: 4, fontSize: 13, lineHeight: 1.55, color: 'var(--muted)' }}>
+            Grounded in the loaded report — ask about findings, anatomy, or next steps.
+          </p>
         </motion.div>
       </div>
     );
   }
 
   return (
-    <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} px-1`} role="listitem">
-      <div
-        className={`max-w-[83%] rounded-2xl px-3.5 py-2.5 text-sm leading-[1.45] tracking-[-0.005em] border ${
-          isUser
-            ? 'bg-[var(--brand-primary)] text-[var(--text-on-brand)] border-[var(--border-brand)]'
-            : 'bg-white/5 text-text border-white/10'
-        }`}
-      >
-        {isUser ? (
-          text.split('\n').map((line, idx) => (
-            <p key={idx} className={idx > 0 ? 'mt-1.5' : ''}>
-              {line}
-            </p>
-          ))
-        ) : (
-          <SimpleMarkdown text={text} />
-        )}
-      </div>
-    </div>
-  );
-});
-
-const CardItem = memo(function CardItem({ card, isRisk = false, forceCollapsed = false }) {
-  const title = card?.title ?? '';
-  const content = card?.content ?? card?.text ?? '';
-  const [open, setOpen] = useState(false);
-  const lines = content ? content.trim().split(/\r?\n/) : [];
-  const bulletLines = lines.filter((l) => l.startsWith('- '));
-  const isBulletList = bulletLines.length > 0 && bulletLines.length >= lines.length * 0.5;
-  const severity = useMemo(() => {
-    const probe = `${title} ${content}`;
-    return SEVERITY_PATTERNS.find((entry) => entry.test.test(probe)) ?? { level: isRisk ? 'moderate' : 'normal', color: isRisk ? 'bg-amber-400/20 text-amber-100 border-amber-300/35' : 'bg-emerald-400/15 text-emerald-100 border-emerald-300/30' };
-  }, [title, content, isRisk]);
-
-  return (
-    <li className={`rounded-xl border ${isRisk ? 'border-amber-200/25' : 'border-white/10'} bg-white/[0.03]`}>
-      <button
-        type="button"
-        onClick={() => {
-          if (forceCollapsed) return;
-          setOpen((o) => !o);
-        }}
-        className="text-left w-full flex items-center justify-between gap-3 py-3 px-4 min-h-[44px] text-sm font-medium text-text focus:outline-none"
-        title={content || undefined}
-      >
-        <span className="truncate flex items-center gap-2 min-w-0">
-          <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wide border ${severity.color}`}>
-            {severity.level}
-          </span>
-          <span className="truncate">{title}</span>
-        </span>
-        <span className="text-slate-400 text-lg font-extralight leading-none shrink-0 w-6 text-center" aria-hidden>
-          {forceCollapsed ? '•' : open ? '−' : '›'}
-        </span>
-      </button>
-      {open && content && !forceCollapsed && (
-        <div className="px-4 pb-3 pt-0 text-[13px] text-text-secondary leading-relaxed border-t border-white/10">
-          {isBulletList ? (
-            <ul className="list-disc list-inside space-y-0.5 pl-0.5">
-              {bulletLines.map((line, i) => (
-                <li key={i} className="leading-relaxed">
-                  {line.slice(2).trim() || line}
-                </li>
-              ))}
-            </ul>
+    <div className={`ca-msg ${isUser ? 'doc' : 'ai'}`} role="listitem">
+      <div className={`ca-ava ${isUser ? 'doc' : 'ai'}`}>{isUser ? 'ME' : <BrandMark size={16} />}</div>
+      <div className="grow">
+        <div className="ca-bubble">
+          {isUser ? (
+            text.split('\n').map((line, idx) => (
+              <p key={idx} style={idx > 0 ? { marginTop: 6 } : undefined}>{line}</p>
+            ))
           ) : (
-            <pre className="whitespace-pre-wrap break-words font-sans leading-relaxed">
-              {content}
-            </pre>
+            <SimpleMarkdown text={text} />
           )}
         </div>
-      )}
-    </li>
+      </div>
+    </div>
   );
 });
 
 const LoadingIndicator = memo(function LoadingIndicator() {
   return (
-    <div className="flex justify-start px-1" aria-live="polite" aria-busy="true">
-      <div className="inline-flex items-center gap-1.5 rounded-2xl bg-[var(--brand-primary-light)] border border-[var(--border-brand)] px-4 py-3"> {/* BRAND: #62C5EF */}
-        {[0, 0.15, 0.3].map((delay, idx) => (
-          <span
-            key={idx}
-            className="h-1.5 w-1.5 rounded-full bg-[var(--brand-primary)] animate-bounce" // BRAND: #62C5EF
-            style={{ animationDelay: `${delay}s` }}
-          />
-        ))}
+    <div className="ca-msg ai" aria-live="polite" aria-busy="true">
+      <div className="ca-ava ai"><BrandMark size={16} /></div>
+      <div className="grow">
+        <div className="ca-bubble" style={{ display: 'inline-flex', gap: 5, alignItems: 'center', padding: '6px 2px' }}>
+          {[0, 0.15, 0.3].map((delay, idx) => (
+            <span
+              key={idx}
+              className="animate-bounce"
+              style={{ height: 6, width: 6, borderRadius: 999, background: 'var(--accent)', animationDelay: `${delay}s` }}
+            />
+          ))}
+        </div>
       </div>
-    </div>
-  );
-});
-
-const FindingsRow = memo(function FindingsRow({ index, style, cards }) {
-  const card = cards[index];
-  return (
-    <div style={style} className="px-1 py-1">
-      <CardItem card={card} isRisk={card?.id === 'card-risks'} forceCollapsed />
     </div>
   );
 });
@@ -354,22 +286,6 @@ function buildMessageWithContext(userMessage, analyzedReport) {
   return CONTEXT_PROMPT_TEMPLATE.replace('{report}', analyzedReport).replace('{question}', userMessage);
 }
 
-const PANEL_CHAT = 'chat';
-const PANEL_TOOLS = 'tools';
-const panelVariants = {
-  initial: { opacity: 0, y: 6 },
-  animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -6 },
-};
-
-function mainPanelTabClass(active) {
-  return `relative flex-1 min-w-0 py-1.5 px-2 rounded-full text-xs font-medium transition-all duration-200 border-b-2 ${
-    active
-      ? 'text-[var(--text-on-brand)] bg-[var(--brand-primary)] border-[var(--brand-primary)] shadow-[var(--shadow-md)]' // BRAND: #62C5EF
-      : 'text-text-secondary hover:text-text border-transparent'
-  }`;
-}
-
 export default function Chatbot() {
   const [messages, setMessages] = useState(() => {
     const hist = useSceneStore.getState().conversationHistory;
@@ -383,7 +299,6 @@ export default function Chatbot() {
   const [queuedRequests, setQueuedRequests] = useState(0);
   const [lastResponseFromCache, setLastResponseFromCache] = useState(false);
   const [lastError, setLastError] = useState(null);
-  const [panelTab, setPanelTab] = useState(PANEL_CHAT);
   const [reportAnalyzeTick, setReportAnalyzeTick] = useState(0);
   const chatScrollRef = useRef(null);
   const lastReportKeyRef = useRef(null);
@@ -407,15 +322,7 @@ export default function Chatbot() {
   const resetStore = useSceneStore((s) => s.resetStore);
   const lastCards = useSceneStore((s) => s.lastCards);
   const setLastCards = useSceneStore((s) => s.setLastCards);
-  const lastMeta = useSceneStore((s) => s.lastMeta);
   const setLastMeta = useSceneStore((s) => s.setLastMeta);
-  const citedOrgans = useSceneStore((s) => s.citedOrgans);
-  const citedOrganIndex = useSceneStore((s) => s.citedOrganIndex);
-  const goToNextCitedOrgan = useSceneStore((s) => s.goToNextCitedOrgan);
-  const goToPrevCitedOrgan = useSceneStore((s) => s.goToPrevCitedOrgan);
-
-
-
 
 
   const handleFocus = useCallback(
@@ -635,16 +542,17 @@ export default function Chatbot() {
   ]);
 
 
-  const sendMessage = async (e) => {
+  const sendMessage = async (e, presetText) => {
     e?.preventDefault();
-    const trimmed = input.trim();
+    const source = typeof presetText === 'string' ? presetText : input;
+    const trimmed = source.trim();
     const finalPrompt = trimmed;
 
     if (!finalPrompt || isLoading) {
       return;
     }
 
-    addMessage('user', input);
+    addMessage('user', source);
     setInput('');
     const requestId = startRequestLoading();
     setLastResponseFromCache(false);
@@ -777,7 +685,6 @@ export default function Chatbot() {
     setIsStreaming(false);
     setStreamingText('');
     setLastError(null);
-    setPanelTab(PANEL_CHAT);
   }, [resetStore]);
 
   const handleNewSessionClick = useCallback(() => {
@@ -810,11 +717,10 @@ export default function Chatbot() {
   }, [analyzedReport]);
 
   useLayoutEffect(() => {
-    if (panelTab !== PANEL_CHAT) return;
     const el = chatScrollRef.current;
     if (!el) return;
     el.scrollTop = el.scrollHeight;
-  }, [messages, lastCards, isLoading, lastError, panelTab, isStreaming, streamingText]);
+  }, [messages, lastCards, isLoading, lastError, isStreaming, streamingText]);
 
 
 
@@ -827,229 +733,96 @@ export default function Chatbot() {
 
 
 
+  const composerDisabled = isLoading;
+
   return (
-    <div className={`assistant-panel relative flex flex-col h-full min-h-0 ${isLoading ? 'overflow-hidden' : ''}`}>
-      {isLoading && (
-        <div className="pointer-events-none absolute inset-0 rounded-[16px] p-[1px] [background:linear-gradient(120deg,rgba(59,130,246,0.45),rgba(6,182,212,0.12),rgba(59,130,246,0.45))] [background-size:200%_100%] animate-[shimmer_2.2s_linear_infinite] z-10" />
-      )}
-      <header
-        className="shrink-0 border-b border-white/10 px-3 py-2.5 flex items-center gap-2 min-h-0"
-        role="presentation"
-      >
-        <h2 className="text-sm font-semibold text-text tracking-tight shrink-0 pl-0.5">Clinical Assistant</h2>
-        <div
-          className="flex-1 min-w-0 flex p-1 rounded-full bg-white/5 border border-white/10 gap-1"
-          role="tablist"
-          aria-label="Assistant panels"
-        >
-          <button
-            type="button"
-            role="tab"
-            aria-selected={panelTab === PANEL_CHAT}
-            onClick={() => setPanelTab(PANEL_CHAT)}
-            className={mainPanelTabClass(panelTab === PANEL_CHAT)}
-          >
-            Chat
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={panelTab === PANEL_TOOLS}
-            onClick={() => setPanelTab(PANEL_TOOLS)}
-            className={mainPanelTabClass(panelTab === PANEL_TOOLS)}
-          >
-            Tools
-          </button>
-        </div>
+    <div className="col gap14" style={{ height: '100%', padding: 16, minHeight: 0 }}>
+      {/* header */}
+      <div className="row gap12" style={{ flex: 'none' }}>
+        <Icon name="sparkles" size={17} color="var(--accent)" />
+        <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: '-0.2px' }}>Clinical Assistant</span>
+        <span style={{ marginLeft: 'auto' }}><Badge cls="green" dot>Grounded</Badge></span>
         <button
           type="button"
           onClick={handleNewSessionClick}
-          className="shrink-0 flex h-8 w-8 items-center justify-center rounded-full text-[var(--brand-primary-dark)] hover:bg-[var(--brand-primary-light)] active:opacity-70" // BRAND: #62C5EF
-          title="Sync / reset session"
+          className="ps-btn icon sm"
+          title="New conversation — clears messages and report"
           aria-label="New conversation — clears messages and report"
         >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="17"
-            height="17"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            aria-hidden
-          >
-            <path d="M21 12a9 9 0 1 1-9-9c2.52 0 4.93 1 6.74 2.74L21 8" />
-            <path d="M21 3v5h-5" />
-          </svg>
+          <Icon name="refresh" size={15} />
         </button>
-      </header>
+      </div>
+
       {(queuedRequests > PERFORMANCE_CONFIG.API_MAX_INFLIGHT || lastResponseFromCache) && (
-        <div className="px-3 py-1.5 border-b border-white/10 bg-white/[0.02] text-[11px] text-text-secondary flex items-center justify-between">
-          <span>
-            {/* PERF: Surface queue pressure to set user expectation. */}
-            Queue: {Math.max(0, queuedRequests - PERFORMANCE_CONFIG.API_MAX_INFLIGHT)}
-          </span>
-          {lastResponseFromCache && <span className="text-[var(--brand-primary-dark)]">From cache</span>} {/* BRAND: #62C5EF */}
+        <div className="row" style={{ flex: 'none', justifyContent: 'space-between', fontSize: 11, color: 'var(--muted)' }}>
+          {/* PERF: Surface queue pressure to set user expectation. */}
+          <span>Queue: {Math.max(0, queuedRequests - PERFORMANCE_CONFIG.API_MAX_INFLIGHT)}</span>
+          {lastResponseFromCache && <span style={{ color: 'var(--accent)' }}>From cache</span>}
         </div>
       )}
 
-      <AnimatePresence mode="wait">
-        {panelTab === PANEL_CHAT && (
-          <motion.div
-            key={PANEL_CHAT}
-            variants={panelVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            transition={{ duration: 0.2 }}
-            className="flex flex-col flex-1 min-h-0"
-          >
-            <div
-              ref={chatScrollRef}
-              className="flex-1 min-h-0 overflow-y-auto px-3 py-3 space-y-3 app-scrollbar"
-              role="log"
-              aria-live="polite"
-            >
-              {lastError === 'connection' && (
-                <div className="rounded-xl bg-red-400/10 px-4 py-3 border border-red-300/20">
-                  <p className="text-sm text-red-100 leading-snug">
-                    Could not reach the assistant. Check that the backend is running.
-                  </p>
-                  <button type="button" onClick={() => setLastError(null)} className="mt-2 text-sm text-[var(--brand-primary-dark)]"> {/* BRAND: #62C5EF */}
-                    Dismiss
-                  </button>
-                </div>
-              )}
-              {lastError === 'report' && analyzedReport && (
-                <div className="rounded-xl bg-amber-400/10 px-4 py-3 border border-amber-300/20">
-                  <p className="text-sm text-amber-100 leading-snug mb-2">
-                    Report analysis failed. Retry or keep chatting with the report in context.
-                  </p>
-                  <button type="button" onClick={retryReportAnalysis} className="text-sm text-[var(--brand-primary-dark)]"> {/* BRAND: #62C5EF */}
-                    Retry
-                  </button>
-                </div>
-              )}
-              {messages.map((m) => (
-                <MessageBubble
-                  key={m.id}
-                  from={m.from}
-                  text={m.text}
-                  isGreeting={m.id === messages[0]?.id && m.from === 'assistant'}
-                />
-              ))}
-              {isStreaming && streamingText && (
-                <MessageBubble from="assistant" text={streamingText} isGreeting={false} />
-              )}
-
-              {lastCards.length > 0 && (
-                <div className="pt-1">
-                  <div className="flex items-center justify-between gap-2 mb-2 px-0.5">
-                    <span className="text-xs font-semibold text-text-secondary">Findings</span>
-                    {lastMeta?.cardsFrom === 'fallback' && (
-                      <span className="text-[10px] text-text-secondary font-medium" title="Cards were generated locally.">
-                        Local
-                      </span>
-                    )}
-                  </div>
-                  {citedOrgans.length > 1 && (
-                    <div className="flex items-center justify-center gap-2 py-1.5 mb-2 rounded-xl bg-white/5 border border-white/10" role="group" aria-label="Navigate organs from report">
-                      <button type="button" onClick={goToPrevCitedOrgan} className="glass-btn p-1.5 rounded-full" title="Previous organ" aria-label="Previous organ">‹</button>
-                      <span className="text-xs font-medium text-text-secondary tabular-nums min-w-[2.75rem] text-center">
-                        {citedOrganIndex + 1} / {citedOrgans.length}
-                      </span>
-                      <button type="button" onClick={goToNextCitedOrgan} className="glass-btn p-1.5 rounded-full" title="Next organ" aria-label="Next organ">›</button>
-                    </div>
-                  )}
-                  {lastCards.length > 20 ? (
-                    <div className="rounded-xl border border-white/10 bg-white/[0.02]">
-                      {/* PERF: Virtualize long findings lists to keep DOM light. */}
-                      <VirtualList
-                        height={Math.min(420, lastCards.length * 68)}
-                        rowCount={lastCards.length}
-                        rowHeight={68}
-                        rowComponent={FindingsRow}
-                        rowProps={{ cards: lastCards }}
-                        style={{ width: '100%' }}
-                      />
-                    </div>
-                  ) : (
-                    <ul className="space-y-2">
-                      {lastCards.map((c) => (
-                        <CardItem key={c.id ?? c.title ?? c.content} card={c} isRisk={c.id === 'card-risks'} />
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              )}
-              {!analyzedReport && lastCards.length === 0 && !isLoading && (
-                <p className="text-xs text-text-secondary text-center px-2 py-2">
-                  Select a DICOM study to load the scan report, or ask a question below.
-                </p>
-              )}
-              {isLoading && <LoadingIndicator />}
-              <div className="h-1 shrink-0" aria-hidden />
-            </div>
-
-            <form
-              onSubmit={sendMessage}
-              className="shrink-0 border-t border-white/10 px-3 pt-2.5 pb-[max(0.55rem,env(safe-area-inset-bottom,0))]"
-            >
-              <div className="flex items-end gap-2">
-                <label htmlFor="chat-input" className="sr-only">
-                  Message
-                </label>
-                <input
-                  id="chat-input"
-                  className="glass-input flex-1 min-w-0 rounded-2xl px-4 py-2.5 text-sm placeholder:text-text-secondary border"
-                  placeholder="Ask about findings, anatomy, or request analysis..."
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  disabled={isLoading}
-                  aria-describedby={lastError ? 'chat-error' : undefined}
-                />
-                <button
-                  type="submit"
-                  disabled={isLoading || !input.trim()}
-                  className="shrink-0 flex h-9 w-9 items-center justify-center rounded-full bg-[var(--brand-primary)] text-[var(--text-on-brand)] disabled:opacity-35 disabled:cursor-not-allowed shadow-[var(--shadow-md)]" // BRAND: #62C5EF
-                  aria-label="Send"
-                >
-                  {isLoading ? (
-                    <span className="text-lg leading-none opacity-80">…</span>
-                  ) : (
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden className="ml-0.5">
-                      <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
-                    </svg>
-                  )}
-                </button>
-              </div>
-            </form>
-          </motion.div>
+      {/* messages */}
+      <div
+        ref={chatScrollRef}
+        className="grow col scroll-y"
+        style={{ minHeight: 0, overflowY: 'auto', overflowX: 'hidden' }}
+        role="log"
+        aria-live="polite"
+      >
+        {lastError === 'connection' && (
+          <div style={{ borderRadius: 6, background: 'var(--red-dim)', border: '1px solid color-mix(in srgb, var(--red) 25%, transparent)', padding: '11px 13px', marginBottom: 12 }}>
+            <p style={{ fontSize: 13, color: 'var(--red)', lineHeight: 1.4 }}>Could not reach the assistant. Check that the backend is running.</p>
+            <button type="button" onClick={() => setLastError(null)} style={{ marginTop: 8, fontSize: 13, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer' }}>Dismiss</button>
+          </div>
         )}
-
-        {panelTab === PANEL_TOOLS && (
-          <motion.div
-            key={PANEL_TOOLS}
-            variants={panelVariants}
-            initial="initial"
-            animate="animate"
-            exit="exit"
-            transition={{ duration: 0.2 }}
-            className="flex flex-col flex-1 min-h-0 overflow-hidden relative"
-          >
-            <Suspense fallback={<SkeletonPanel lines={5} className="m-3" />}>
-              <ToolsTab onClear={handleNewSessionClick} />
-            </Suspense>
-          </motion.div>
+        {lastError === 'report' && analyzedReport && (
+          <div style={{ borderRadius: 6, background: 'var(--amber-dim)', border: '1px solid color-mix(in srgb, var(--amber) 25%, transparent)', padding: '11px 13px', marginBottom: 12 }}>
+            <p style={{ fontSize: 13, color: 'var(--amber)', lineHeight: 1.4, marginBottom: 6 }}>Report analysis failed. Retry or keep chatting with the report in context.</p>
+            <button type="button" onClick={retryReportAnalysis} style={{ fontSize: 13, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer' }}>Retry</button>
+          </div>
         )}
-      </AnimatePresence>
+        {messages.map((m) => (
+          <MessageBubble
+            key={m.id}
+            from={m.from}
+            text={m.text}
+            isGreeting={m.id === messages[0]?.id && m.from === 'assistant'}
+          />
+        ))}
+        {isStreaming && streamingText && (
+          <MessageBubble from="assistant" text={streamingText} isGreeting={false} />
+        )}
+        {isLoading && <LoadingIndicator />}
+      </div>
+
+      {/* grounded suggestion chips */}
+      <div className="ca-sugs" style={{ flex: 'none' }}>
+        {SUGGESTIONS.map((s) => (
+          <button key={s} type="button" className="ca-sug" onClick={() => sendMessage(null, s)} disabled={composerDisabled}>
+            {s}
+          </button>
+        ))}
+      </div>
+
+      {/* composer */}
+      <form onSubmit={sendMessage} className="ca-input" style={{ flex: 'none' }}>
+        <Icon name="message-circle" size={16} color="var(--faint)" />
+        <label htmlFor="chat-input" className="sr-only">Message</label>
+        <input
+          id="chat-input"
+          placeholder="Ask about findings, anatomy, or request analysis…"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          disabled={composerDisabled}
+          aria-describedby={lastError ? 'chat-error' : undefined}
+        />
+        <button type="submit" className="ca-send" disabled={isLoading || !input.trim()} aria-label="Send">
+          <Icon name={isLoading ? 'dots' : 'arrow-up'} size={16} />
+        </button>
+      </form>
 
       {lastError && (
-        <p id="chat-error" className="sr-only" role="alert">
-          An error occurred. Use Retry to try again.
-        </p>
+        <p id="chat-error" className="sr-only" role="alert">An error occurred. Use Retry to try again.</p>
       )}
     </div>
   );

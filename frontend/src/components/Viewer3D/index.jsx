@@ -1,5 +1,6 @@
 import { useState, useEffect, useLayoutEffect, Component, useRef, useCallback } from 'react';
 import { Html } from '@react-three/drei';
+import { Icon } from '../psUI.jsx';
 import { useSceneStore } from '../../store';
 import { createHistoryState, canNavigateBack, canNavigateForward } from '../../utils/historyManager';
 import { getSegmentListForSet } from '../../segmentList';
@@ -38,14 +39,11 @@ function CanvasLoader({ current, total }) {
       : 0;
   return (
     <Html center>
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-48 h-1.5 bg-slate-700 rounded-full overflow-hidden shadow-inner">
-          <div
-            className="h-full bg-[var(--brand-primary)] transition-all duration-300 ease-out" // BRAND: #62C5EF
-            style={{ width: `${progress}%` }}
-          />
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
+        <div style={{ width: 192, height: 3, background: 'rgba(255,255,255,0.14)', borderRadius: 2, overflow: 'hidden' }}>
+          <div style={{ height: '100%', background: '#00D4FF', width: `${progress}%`, transition: 'width 300ms ease-out' }} />
         </div>
-        <div className="text-[10px] font-bold uppercase tracking-widest text-slate-200 glass-btn px-3 py-1 rounded-full">
+        <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.14em', color: '#c4d2e0', background: 'rgba(12,16,20,0.82)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 20, padding: '4px 12px', fontFamily: 'var(--font-mono)', whiteSpace: 'nowrap' }}>
           Loading {current} / {Number.isFinite(totalNum) ? total : '—'}
         </div>
       </div>
@@ -74,14 +72,14 @@ class ModelErrorBoundary extends Component {
       const { onRecover } = this.props;
       return (
         <Html center>
-          <div className="px-4 py-3 rounded-lg bg-red-400/10 border border-red-300/25 text-sm text-red-100 max-w-md shadow-sm space-y-2">
-            <p className="font-semibold">3D Error</p>
-            <p className="text-xs text-red-200">Unable to load some segments.</p>
+          <div style={{ padding: '12px 16px', borderRadius: 8, background: 'rgba(255,90,90,0.10)', border: '1px solid rgba(255,90,90,0.25)', fontSize: 13, color: '#ffd9d9', maxWidth: 384, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <p style={{ fontWeight: 600 }}>3D Error</p>
+            <p style={{ fontSize: 11, color: '#ffb3b3' }}>Unable to load some segments.</p>
             {typeof onRecover === 'function' ? (
               <button
                 type="button"
                 onClick={() => onRecover()}
-                className="w-full mt-1 py-1.5 rounded-lg text-xs font-medium bg-white/20 hover:bg-white/30 border border-white/20"
+                style={{ width: '100%', marginTop: 4, padding: '6px 0', borderRadius: 8, fontSize: 11, fontWeight: 500, background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.2)', color: '#fff', cursor: 'pointer', fontFamily: 'inherit' }}
               >
                 Retry
               </button>
@@ -92,22 +90,6 @@ class ModelErrorBoundary extends Component {
     }
     return this.props.children;
   }
-}
-
-function CompactButton({ onClick, icon, title, active = false }) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`glass-btn p-2.5 rounded-xl active:scale-95 flex items-center justify-center text-xs ${
-        active ? 'text-[var(--text-on-brand)] bg-[var(--brand-primary)] border-[var(--border-brand)] shadow-[var(--shadow-md)]' : 'text-slate-700'
-      }`}
-      title={title}
-      aria-label={title}
-    >
-      {icon}
-    </button>
-  );
 }
 
 // -----------------------------------------------------------------------------
@@ -129,10 +111,6 @@ export default function Viewer3D() {
   }));
 
   const currentFocus = useSceneStore((s) => s.currentFocus);
-  const citedOrgans = useSceneStore((s) => s.citedOrgans);
-  const citedOrganIndex = useSceneStore((s) => s.citedOrganIndex);
-  const goToNextCitedOrgan = useSceneStore((s) => s.goToNextCitedOrgan);
-  const goToPrevCitedOrgan = useSceneStore((s) => s.goToPrevCitedOrgan);
   const segmentVisibility = useSceneStore((s) => s.segmentVisibility);
   const setManySegmentVisibility = useSceneStore((s) => s.setManySegmentVisibility);
   const navigationHistory = useSceneStore((s) => s.navigationHistory);
@@ -150,7 +128,6 @@ export default function Viewer3D() {
   const prevStateRef = useRef({ focus: currentFocus, visibility: segmentVisibility });
   const containerRef = useRef(null);
   const rendererRef = useRef(null);
-  const lastZoomUpdateRef = useRef(0);
   const isLowEndDevice =
     typeof navigator !== 'undefined' &&
     navigator.hardwareConcurrency > 0 &&
@@ -178,16 +155,6 @@ export default function Viewer3D() {
       store.setPendingCameraRestore(defaultCameraState);
     }
     setZoomLevel(38);
-  }, []);
-
-  const handleZoomChange = useCallback((nextValue) => {
-    const now = performance.now();
-    // PERF: Throttle zoom updates to 60 FPS to avoid control spam.
-    if (now - lastZoomUpdateRef.current < PERFORMANCE_CONFIG.FRAME_THROTTLE_MS) {
-      return;
-    }
-    lastZoomUpdateRef.current = now;
-    setZoomLevel(nextValue);
   }, []);
 
   useEffect(() => {
@@ -334,16 +301,9 @@ export default function Viewer3D() {
   );
 
   return (
-    <div ref={containerRef} className="w-full h-full overflow-hidden relative group">
-      <div
-        className="absolute inset-0 pointer-events-none z-10"
-        style={{
-          background:
-            'radial-gradient(ellipse 80% 70% at 50% 50%, transparent 52%, rgba(226, 232, 240, 0.42) 100%)',
-        }}
-        aria-hidden
-      />
-      <div className="absolute inset-0 pointer-events-none rounded-[16px] border border-[var(--border-brand)]/40 opacity-0 group-hover:opacity-100 transition-opacity z-20 shadow-[var(--shadow-md)]" /> {/* BRAND: #62C5EF */}
+    <div ref={containerRef} className="w-full h-full overflow-hidden relative">
+      <div className="av-grid" aria-hidden />
+      <div className="av-vignette" aria-hidden />
       {!isModelReady && !loadFailureMessage && (
         <ViewerLoadingOverlay current={loadingProgress.current} total={loadingProgress.total} />
       )}
@@ -363,48 +323,20 @@ export default function Viewer3D() {
         onNavigate={handleHistoryNavigation}
       />
 
-      {(currentFocus || citedOrgans.length > 1) && (
-        <div className="absolute top-16 left-4 z-30 flex items-center gap-1.5">
-          {citedOrgans.length > 1 && (
-            <div className="flex items-center gap-1 glass-btn rounded-full px-2 py-1.5 text-[10px] font-medium text-slate-100">
-              <button
-                type="button"
-                onClick={goToPrevCitedOrgan}
-                className="p-1 rounded-full hover:bg-white/15 transition-colors"
-                title="Previous organ"
-                aria-label="Previous organ"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="m15 18-6-6 6-6" />
-                </svg>
-              </button>
-              <span className="min-w-[2.5rem] text-center tabular-nums">
-                {citedOrganIndex + 1}/{citedOrgans.length}
-              </span>
-              <button
-                type="button"
-                onClick={goToNextCitedOrgan}
-                className="p-1 rounded-full hover:bg-white/15 transition-colors"
-                title="Next organ"
-                aria-label="Next organ"
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="m9 18 6-6-6-6" />
-                </svg>
-              </button>
-            </div>
-          )}
-          {currentFocus && (
-            <button
-              type="button"
-              onClick={handleReset}
-              className="px-3 py-1.5 rounded-full bg-red-500/85 hover:bg-red-500 text-white text-[10px] font-bold uppercase tracking-wider border border-red-300/40 active:scale-95 shadow-md"
-              aria-label="Reset camera view and clear organ focus"
-              title="Reset view"
-            >
-              ✕ Reset view
-            </button>
-          )}
+      {/* Findings are navigated by clicking the Radiology Report; the viewer
+          just offers a way back to the full volume once focused. */}
+      {currentFocus && (
+        <div style={{ position: 'absolute', top: 64, left: 16, zIndex: 30 }}>
+          <button
+            type="button"
+            onClick={handleReset}
+            className="av-chip"
+            aria-label="Reset camera view and clear organ focus"
+            title="Reset view"
+          >
+            <Icon name="x" size={13} />
+            Reset view
+          </button>
         </div>
       )}
 
@@ -424,28 +356,30 @@ export default function Viewer3D() {
         onRecoverModel={bumpViewerRecovery}
       />
 
-      <div className="absolute right-4 top-1/2 -translate-y-1/2 z-40 glass-card px-2 py-3 flex flex-col items-center gap-2">
-        <button type="button" className="text-text-secondary text-xs" onClick={() => setZoomLevel((v) => Math.min(100, v + 6))}>+</button>
-        <input
-          aria-label="Zoom level"
-          type="range"
-          min="0"
-          max="100"
-          value={zoomLevel}
-          onChange={(event) => handleZoomChange(Number(event.target.value))}
-          className="[writing-mode:bt-lr] appearance-none h-28 w-1 rounded-full bg-white/20 accent-[var(--brand-primary)]" // BRAND: #62C5EF
-          style={{ writingMode: 'vertical-lr', direction: 'rtl' }}
-        />
-        <button type="button" className="text-text-secondary text-xs" onClick={() => setZoomLevel((v) => Math.max(0, v - 6))}>−</button>
+      {/* Zoom control — design: .av-zoom */}
+      <div className="av-zoom">
+        <button type="button" onClick={() => setZoomLevel((v) => Math.min(100, v + 6))} title="Zoom in" aria-label="Zoom in">
+          <Icon name="plus" size={15} />
+        </button>
+        <div className="track" aria-label={`Zoom: ${zoomLevel}%`} role="presentation">
+          <div className="knob" style={{ bottom: `calc(${zoomLevel / 100} * (120px - 11px))` }} />
+        </div>
+        <button type="button" onClick={() => setZoomLevel((v) => Math.max(0, v - 6))} title="Zoom out" aria-label="Zoom out">
+          <Icon name="minus" size={15} />
+        </button>
       </div>
 
       <ViewerStaticOverlays />
 
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30">
-        <div className="flex items-center gap-1 p-1.5 glass-card rounded-full overflow-hidden">
-          <CompactButton onClick={handleReset} title="Reset" icon="⌂" />
-        </div>
+      {/* DICOM-style readout (design: .av-readout) */}
+      <div className="av-readout" aria-hidden>
+        <div>CT · Volume Rendered</div>
+        <div className="dim">Layer: {viewMode.toLowerCase()} · 512 × 512 × 318</div>
       </div>
+
+      <button type="button" className="av-home" onClick={handleReset} title="Reset view" aria-label="Reset view">
+        <Icon name="home" size={18} />
+      </button>
       </div>
     </div>
   );

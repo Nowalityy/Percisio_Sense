@@ -1,6 +1,11 @@
 @import 'tailwindcss';
+/* Percisio Sense — IBM Plex Sans (UI) + IBM Plex Mono (DICOM data / metadata). */
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
 
 @theme {
+  /* Percisio Sense typography: Plex Sans for UI, Plex Mono for all data. */
+  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
   /* BRAND: #62C5EF */
   --color-background: #f8fafc;
   /* BRAND: #62C5EF */
@@ -37,14 +42,39 @@ body,
 body {
   margin: 0;
   color: var(--text-primary); /* BRAND: #62C5EF */
-  font-family: 'Inter', 'DM Sans', 'Segoe UI', system-ui, sans-serif;
+  font-family: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   background: var(--surface-page); /* BRAND: #62C5EF */
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
 }
 
 * {
   box-sizing: border-box;
+}
+
+/* Always-dark imaging viewport (medical convention). Re-scopes the design
+   tokens to dark values so the Three.js viewer's own Tailwind chrome (zoom,
+   loading overlay, filter panel) reads as dark-glass on the dark viewport. */
+.ps-viewport {
+  --color-text: #e8edf2;
+  --color-text-secondary: #b6c2d0;
+  --text-primary: #e8edf2;
+  --text-secondary: #b6c2d0;
+  --text-muted: #8ea0b4;
+  --surface-card: rgba(14, 19, 26, 0.82);
+  --surface-panel: rgba(10, 14, 18, 0.92);
+  --surface-input: rgba(14, 19, 26, 0.82);
+  --border-default: rgba(255, 255, 255, 0.12);
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.2);
+  --shadow-sm: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.55);
+}
+.ps-viewport .glass-card,
+.ps-viewport .glass-btn,
+.ps-viewport .glass-input {
+  backdrop-filter: blur(8px);
 }
 
 .glass-panel {

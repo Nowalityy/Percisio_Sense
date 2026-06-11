@@ -17,24 +17,37 @@ export const DICOM_STUDIES = [
     label: 'Case A — Thoracic CT, Female 38',
     clinicalDescription: 'Thoracic CT — Case A, Female 38 y/o, pulmonary nodule follow-up',
     segmentSetId: 'percisio_export',
+    // Synthetic demo metadata (no PHI) — populates the patient header strip.
+    referrer: 'Dr. Mensah · Pulmonology',
+    acquired: '2026-05-21',
+    dose: '3.8 mSv',
   },
   {
     id: 'sandra5-dicom',
     label: 'Case B — Thoraco-abdomino-pelvic CT, Female 34',
     clinicalDescription: 'Thoraco-abdomino-pelvic CT — Case B, Female 34 y/o, staging workup',
     segmentSetId: 'percisio_export_sandra5',
+    referrer: 'Dr. Klein · Oncology',
+    acquired: '2026-05-28',
+    dose: '12.4 mSv',
   },
   {
     id: 'paul2-dicom',
     label: 'Case C — Abdomino-pelvic CT (uro, low-dose), Male 48',
     clinicalDescription: 'Abdomino-pelvic CT — Case C, Male 48 y/o, urology, low-dose protocol',
     segmentSetId: 'percisio_export_paul2',
+    referrer: 'Dr. Haddad · Urology',
+    acquired: '2026-06-02',
+    dose: '4.1 mSv',
   },
   {
     id: 'fred-dicom',
     label: 'Case D — Abdomino-pelvic CT, Male 50',
     clinicalDescription: 'Abdomino-pelvic CT — Case D, Male 50 y/o, abdominal pain workup',
     segmentSetId: 'percisio_export_fred',
+    referrer: 'Dr. Lefevre · Gastroenterology',
+    acquired: '2026-06-08',
+    dose: '5.2 mSv',
   },
 ];
 
