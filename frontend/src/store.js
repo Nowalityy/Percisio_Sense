@@ -252,7 +252,8 @@ export const useSceneStore = create(
           }),
         addToConversationHistory: (message) =>
           set((state) => ({
-            conversationHistory: [...state.conversationHistory, message],
+            /* capped so persisted storage cannot grow unbounded */
+            conversationHistory: [...state.conversationHistory, message].slice(-80),
           })),
         clearConversationHistory: () =>
           set({
@@ -281,14 +282,25 @@ export const useSceneStore = create(
       }),
       {
         name: 'percisio-sense-storage',
+        version: 1,
         /**
-         * Do not persist DICOM selection, report, findings, or chat messages.
-         * Each visit resets to {@link DEFAULT_DICOM_STUDY_ID} + {@link DEFAULT_SCAN_REPORT_ID}.
+         * Persist the active case and the conversation so a page refresh
+         * restores the session (report, findings, chat thread). Viewer
+         * runtime state (camera, visibility, model refs) stays ephemeral.
          */
-        partialize: () => ({}),
-        merge: (_persistedState, currentState) => ({
+        partialize: (state) => ({
+          selectedDicom: state.selectedDicom,
+          selectedReportId: state.selectedReportId,
+          anatomySegmentSet: state.anatomySegmentSet,
+          analyzedReport: state.analyzedReport,
+          conversationHistory: state.conversationHistory,
+          lastCards: state.lastCards,
+          lastReply: state.lastReply,
+          lastMeta: state.lastMeta,
+        }),
+        merge: (persistedState, currentState) => ({
           ...currentState,
-          conversationHistory: [],
+          ...(persistedState ?? {}),
         }),
       }
     )

@@ -323,23 +323,8 @@ export default function Viewer3D() {
         onNavigate={handleHistoryNavigation}
       />
 
-      {/* Findings are navigated by clicking the Radiology Report; the viewer
-          just offers a way back to the full volume once focused. */}
-      {currentFocus && (
-        <div style={{ position: 'absolute', top: 64, left: 16, zIndex: 30 }}>
-          <button
-            type="button"
-            onClick={handleReset}
-            className="av-chip"
-            aria-label="Reset camera view and clear organ focus"
-            title="Reset view"
-          >
-            <Icon name="x" size={13} />
-            Reset view
-          </button>
-        </div>
-      )}
-
+      {/* Findings are navigated by clicking the Radiology Report; the av-home
+          button below resets the camera and clears the focus. */}
       <ViewerCanvas
         isLowEndDevice={isLowEndDevice}
         maxDpr={PERFORMANCE_CONFIG.MAX_DPR}
