@@ -133,7 +133,7 @@ const SimpleMarkdown = memo(function SimpleMarkdown({ text }) {
   );
 });
 
-const MessageBubble = memo(function MessageBubble({ from, text, isGreeting }) {
+const MessageBubble = memo(function MessageBubble({ from, text, cites, isGreeting }) {
   const isUser = from === 'user';
   if (isGreeting) {
     return (
@@ -168,6 +168,13 @@ const MessageBubble = memo(function MessageBubble({ from, text, isGreeting }) {
             <SimpleMarkdown text={text} />
           )}
         </div>
+        {Array.isArray(cites) && cites.length > 0 && (
+          <div className="ca-cites">
+            {cites.map((c, i) => (
+              <span className="ca-cite" key={i}><Icon name="link" size={11} /> {c}</span>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -193,13 +200,39 @@ const LoadingIndicator = memo(function LoadingIndicator() {
 });
 
 let messageIdCounter = 0;
-function createMessage(from, text) {
+function createMessage(from, text, cites = null) {
   messageIdCounter += 1;
   return {
     id: messageIdCounter,
     from,
     text,
+    ...(Array.isArray(cites) && cites.length > 0 ? { cites } : {}),
   };
+}
+
+/**
+ * Grounding chips under the intro summary (design: `ca-cites`), derived from
+ * the structured cards — e.g. `Findings · pancreas`, `Risks · adénopathie`.
+ */
+function buildCitesFromCards(cards) {
+  const list = Array.isArray(cards) ? cards : [];
+  const cites = list
+    .filter(
+      (c) =>
+        c?.id !== 'card-risks' &&
+        c?.title &&
+        !/^(other|misc|general)$/i.test(String(c.title).trim())
+    )
+    .slice(0, 2)
+    .map((c) => `Findings · ${String(c.title).toLowerCase()}`);
+  const riskCard = list.find((c) => c?.id === 'card-risks');
+  if (riskCard) {
+    const m = String(riskCard.content ?? riskCard.text ?? '').match(
+      /\[(?:low|medium|high)\]\s*(?:clinical finding:?\s*)?([^[\-;]{3,40})/i
+    );
+    cites.push(`Risks · ${(m ? m[1] : 'flagged findings').trim().toLowerCase()}`);
+  }
+  return cites;
 }
 
 /** After restoring a persisted thread, continue ids past the restored ones. */
@@ -522,12 +555,15 @@ export default function Chatbot() {
 
         autoSummaryDoneFpRef.current = reportFingerprint;
 
-        /* The intro summary lands in the chat AND feeds the Radiology Report
-           panel (impression, findings, recommendations). */
+        /* The intro summary lands in the chat (replacing the greeting hero,
+           like the design's content-first thread) AND feeds the Radiology
+           Report panel. Grounding chips come from the structured cards. */
         const answer = data?.answer ?? data?.reply ?? FALLBACK_REPLY_SUMMARY;
-        addMessage('assistant', answer);
-        setLastReply(answer);
         const cardsFromApi = Array.isArray(data?.cards) ? data.cards : [];
+        const intro = createMessage('assistant', answer, buildCitesFromCards(cardsFromApi));
+        setMessages((prev) => [...prev.filter((m) => m.text !== GREETING), intro]);
+        addToConversationHistory(intro);
+        setLastReply(answer);
         setLastCards(cardsFromApi);
         setLastMeta(data?._meta ?? null);
         setLastResponseFromCache(Boolean(data?._fromCache));
@@ -839,6 +875,7 @@ export default function Chatbot() {
             key={m.id}
             from={m.from}
             text={m.text}
+            cites={m.cites}
             isGreeting={m.from === 'assistant' && m.text === GREETING}
           />
         ))}
