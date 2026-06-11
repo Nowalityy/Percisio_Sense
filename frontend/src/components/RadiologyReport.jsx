@@ -35,15 +35,38 @@ function classifySev(title, content, isRisk) {
   return isRisk ? 'medium' : null;
 }
 
-/** Pull a named **Section** out of the assistant's markdown summary. */
+/**
+ * Pull a named **Section** out of the assistant's markdown summary.
+ * Headers may carry suffixes (`**Impression/Interpretation**`) and the next
+ * section may be a bold or a plain numbered header (`3. Recommendations:`) —
+ * both end the capture, so sections no longer bleed into each other.
+ */
 function extractSection(md, name) {
   if (!md || typeof md !== 'string') return '';
   const re = new RegExp(
-    `\\*\\*\\s*${name}\\s*\\*\\*\\s*:?\\s*([\\s\\S]*?)(?=\\n\\s*\\*\\*[^*]+\\*\\*|$)`,
+    `\\*\\*\\s*${name}[^*\\n]*\\*\\*\\s*:?\\s*([\\s\\S]*?)` +
+      `(?=\\n\\s*(?:\\d+\\.\\s*)?\\*\\*[^*]+\\*\\*|\\n\\s*\\d+\\.\\s+[A-Z]|$)`,
     'i'
   );
   const m = md.match(re);
-  return m ? m[1].replace(/\*\*/g, '').trim() : '';
+  if (m) return m[1].replace(/\*\*/g, '').trim();
+  /* Plain numbered fallback: `2. Impression: …` without bold markers. */
+  const plain = new RegExp(
+    `\\d+\\.\\s*${name}[^:\\n]*:\\s*([\\s\\S]*?)(?=\\n\\s*\\d+\\.\\s+[A-Z]|$)`,
+    'i'
+  );
+  const p = md.match(plain);
+  return p ? p[1].replace(/\*\*/g, '').trim() : '';
+}
+
+/** Normalize extracted text into one clean statement (design-style items). */
+function cleanItemText(s) {
+  return String(s || '')
+    .replace(/^[\s\-–—•:]+/, '')
+    .replace(/\s+-\s+/g, '; ')
+    .replace(/\s+/g, ' ')
+    .replace(/[\s;,–—-]+$/, '')
+    .trim();
 }
 
 /** Split a section's text into clean bullet items. */
@@ -51,9 +74,26 @@ function toItems(sectionText) {
   if (!sectionText) return [];
   return sectionText
     .split(/\r?\n/)
-    .map((l) => l.replace(/^[\s\-•*\d.]+/, '').trim())
+    .map((l) => cleanItemText(l.replace(/^[\s\-•*\d.]+/, '')))
     .filter((l) => l.length > 2)
     .slice(0, 8);
+}
+
+/**
+ * The backend packs every risk into one card as
+ * `- [medium] Clinical finding: … - [low] …`; split them into one
+ * severity-tagged item each, like the design's Risks section.
+ */
+function splitRiskItems(content) {
+  const matches = [
+    ...String(content || '').matchAll(
+      /\[(low|medium|high)\]\s*(?:clinical finding:?\s*)?([^[]+)/gi
+    ),
+  ];
+  if (matches.length === 0) return null;
+  return matches
+    .map((m) => ({ sev: m[1].toLowerCase(), text: cleanItemText(m[2]) }))
+    .filter((it) => it.text.length > 2);
 }
 
 function SevTag({ sev }) {
@@ -80,7 +120,6 @@ const ReportItem = memo(function ReportItem({ index, text, sev, focusKey, active
         {text}
         <SevTag sev={sev} />
       </span>
-      {clickable && <Icon name="focus-2" size={15} className="ti-locate" />}
     </Tag>
   );
 });
@@ -150,15 +189,30 @@ export default function RadiologyReport() {
     const all = Array.isArray(lastCards) ? lastCards : [];
     const decorate = (card, isRisk) => {
       const title = card?.title ?? '';
-      const content = card?.content ?? card?.text ?? '';
-      const text = content && content !== title ? `${title} — ${content}` : title;
+      const content = cleanItemText(card?.content ?? card?.text ?? '');
+      /* Design items are plain statements — no `Title —` prefix; the organ
+         name still drives click-to-focus via the card title. */
+      const text = content && content !== title ? content : title;
       const key = cardTitleToFocusKey(title);
       const focusKey = key && isFocusKeyAvailableInCurrentModel(key) ? key : null;
       return { id: card?.id ?? title, text, focusKey, sev: classifySev(title, content, isRisk) };
     };
+    const riskCards = all.filter((c) => c?.id === 'card-risks');
+    const riskItems = riskCards.flatMap((card, cardIdx) => {
+      const split = splitRiskItems(card?.content ?? card?.text ?? '');
+      if (split) {
+        return split.map((it, i) => ({
+          id: `${card?.id ?? 'risk'}-${cardIdx}-${i}`,
+          text: it.text,
+          focusKey: null,
+          sev: it.sev,
+        }));
+      }
+      return [decorate(card, true)];
+    });
     return {
       findings: all.filter((c) => c?.id !== 'card-risks').map((c) => decorate(c, false)),
-      risks: all.filter((c) => c?.id === 'card-risks').map((c) => decorate(c, true)),
+      risks: riskItems,
     };
   }, [lastCards]);
 
