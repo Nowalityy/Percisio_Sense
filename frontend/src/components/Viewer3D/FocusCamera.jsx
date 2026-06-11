@@ -86,7 +86,16 @@ export function FocusCamera({ zoomLevel = DEFAULT_ZOOM_SLIDER_LEVEL }) {
   const setGetDefaultCameraState = useSceneStore((s) => s.setGetDefaultCameraState);
   const setCameraOrbitFn = useSceneStore((s) => s.setCameraOrbitFn);
   const cameraAutoSpin = useSceneStore((s) => s.cameraAutoSpin);
+  const pendingCameraRestore = useSceneStore((s) => s.pendingCameraRestore);
   const { scene, camera, invalidate, size } = useThree();
+
+  /**
+   * demand-mode: a pending camera restore (Home button, history nav) only
+   * takes effect inside useFrame — force a frame or the request sits idle.
+   */
+  useEffect(() => {
+    if (pendingCameraRestore) invalidate();
+  }, [pendingCameraRestore, invalidate]);
 
   const [zoomAnimation, setZoomAnimation] = useState(null);
   const [isInteracting, setIsInteracting] = useState(false);

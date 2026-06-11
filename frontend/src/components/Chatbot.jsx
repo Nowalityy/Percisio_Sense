@@ -35,8 +35,6 @@ const CONTEXT_PROMPT_TEMPLATE =
 
 const FALLBACK_REPLY_SUMMARY = "I received the document, but I cannot summarize it.";
 const FALLBACK_REPLY_EMPTY = '(no response)';
-const ERROR_REPORT_ANALYSIS =
-  'Automatic document analysis failed. You can still ask questions about the report—your questions will include the report as context. Try again below if the backend is available.';
 const ERROR_CONNECTION =
   "Could not reach the assistant. Check that the backend is running (e.g. http://localhost:4000) and try again.";
 /** Shown when the model tries to focus a structure that this scan / segment set does not include. */
@@ -204,6 +202,15 @@ function createMessage(from, text) {
   };
 }
 
+/** After restoring a persisted thread, continue ids past the restored ones. */
+function syncMessageIdCounter(messages) {
+  for (const m of messages) {
+    if (typeof m?.id === 'number' && m.id > messageIdCounter) {
+      messageIdCounter = m.id;
+    }
+  }
+}
+
 const MAX_LLM_TURNS = 24;
 
 function trimLlmTurns(ref) {
@@ -289,7 +296,11 @@ function buildMessageWithContext(userMessage, analyzedReport) {
 export default function Chatbot() {
   const [messages, setMessages] = useState(() => {
     const hist = useSceneStore.getState().conversationHistory;
-    return hist.length > 0 ? hist : [createMessage('assistant', GREETING)];
+    if (hist.length > 0) {
+      syncMessageIdCounter(hist);
+      return hist;
+    }
+    return [createMessage('assistant', GREETING)];
   });
   const [input, setInput] = useState('');
   const [debouncedInput, setDebouncedInput] = useState('');
@@ -304,6 +315,8 @@ export default function Chatbot() {
   const lastReportKeyRef = useRef(null);
   const llmTurnsRef = useRef([]);
   const reportExtractDoneFpRef = useRef(null);
+  /** Fingerprint of the report whose intro summary was already posted. */
+  const autoSummaryDoneFpRef = useRef(null);
   const requestQueueRef = useRef(Promise.resolve());
   const activeAbortRef = useRef(null);
   const typingTimerRef = useRef(null);
@@ -479,6 +492,16 @@ export default function Chatbot() {
       return;
     }
 
+    /**
+     * Once per report (unless the user hits Retry): a later chat reply can
+     * clobber `lastCards` to [] — without this guard the effect re-fired and
+     * posted a second, near-identical intro summary after the user's message.
+     */
+    const reportFingerprint = hashPrompt(analyzedReport.trim());
+    if (reportAnalyzeTick === 0 && autoSummaryDoneFpRef.current === reportFingerprint) {
+      return;
+    }
+
     const autoSummarize = async () => {
       const requestId = startRequestLoading();
       setLastError(null);
@@ -497,7 +520,10 @@ export default function Chatbot() {
           sendChatRequest(prompt, reportPayload, { signal: controller.signal })
         );
 
+        autoSummaryDoneFpRef.current = reportFingerprint;
 
+        /* The intro summary lands in the chat AND feeds the Radiology Report
+           panel (impression, findings, recommendations). */
         const answer = data?.answer ?? data?.reply ?? FALLBACK_REPLY_SUMMARY;
         addMessage('assistant', answer);
         setLastReply(answer);
@@ -519,8 +545,8 @@ export default function Chatbot() {
       } catch (err) {
         if (err?.name === 'AbortError') return;
         console.error(err);
+        /* The 'report' banner (with Retry) covers the failure — no chat message. */
         setLastError('report');
-        addMessage('assistant', ERROR_REPORT_ANALYSIS);
         setLastCards([]);
         setLastMeta(null);
       } finally {
@@ -679,6 +705,8 @@ export default function Chatbot() {
 
   const handleNewSession = useCallback(() => {
     resetStore();
+    /* The default report reloads with identical text — allow its intro summary again. */
+    autoSummaryDoneFpRef.current = null;
     setMessages([createMessage('assistant', GREETING)]);
     setInput('');
     setDebouncedInput('');
@@ -716,11 +744,36 @@ export default function Chatbot() {
     }
   }, [analyzedReport]);
 
+  /**
+   * When a NEW message appears, anchor the scroll at the TOP of that message
+   * so it is read from the start (long assistant replies were landing the
+   * user at the bottom). While a streamed reply grows, keep the anchor.
+   */
+  const lastAnchorCountRef = useRef(0);
   useLayoutEffect(() => {
     const el = chatScrollRef.current;
     if (!el) return;
-    el.scrollTop = el.scrollHeight;
-  }, [messages, lastCards, isLoading, lastError, isStreaming, streamingText]);
+    const count =
+      messages.length + (isStreaming && streamingText ? 1 : 0) + (isLoading ? 1 : 0);
+    if (count === lastAnchorCountRef.current) return;
+    lastAnchorCountRef.current = count;
+    const items = el.querySelectorAll('.ca-msg');
+    const last = items[items.length - 1];
+    if (!last) {
+      el.scrollTop = 0;
+      return;
+    }
+    const top =
+      last.getBoundingClientRect().top - el.getBoundingClientRect().top + el.scrollTop;
+    el.scrollTop = Math.max(0, top - 6);
+  }, [messages, isLoading, isStreaming, streamingText]);
+
+  /** Error banners render above the thread — bring them into view. */
+  useLayoutEffect(() => {
+    if (lastError && chatScrollRef.current) {
+      chatScrollRef.current.scrollTop = 0;
+    }
+  }, [lastError]);
 
 
 
@@ -786,7 +839,7 @@ export default function Chatbot() {
             key={m.id}
             from={m.from}
             text={m.text}
-            isGreeting={m.id === messages[0]?.id && m.from === 'assistant'}
+            isGreeting={m.from === 'assistant' && m.text === GREETING}
           />
         ))}
         {isStreaming && streamingText && (

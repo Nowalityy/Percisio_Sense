@@ -212,8 +212,11 @@
   padding: 6px 12px; border-radius: 5px; transition: all .12s ease; letter-spacing: -0.1px; }
 .av-tab:hover { color: #d6e2ee; }
 .av-tab.on { background: rgba(0,212,255,0.15); color: #00D4FF; }
-.av-toptools { position: absolute; top: 16px; left: 16px; display: flex; gap: 7px; z-index: 40; }
-.av-filters { position: absolute; top: 16px; right: 16px; z-index: 40; }
+/* App deviation: the Clinic viewer pane is ~466px wide — the design's single
+   top row (arrows · tabs · filters) self-overlaps there. Tabs keep the top
+   row alone; arrows and filters drop to a second row. */
+.av-toptools { position: absolute; top: 62px; left: 16px; display: flex; gap: 7px; z-index: 40; }
+.av-filters { position: absolute; top: 62px; right: 16px; z-index: 40; }
 .av-chip {
   display: inline-flex; align-items: center; gap: 7px; font-size: 12px; font-weight: 600; color: #c4d2e0;
   background: rgba(12,16,20,0.82); backdrop-filter: blur(8px);
@@ -224,8 +227,14 @@ button.av-chip { color: #c4d2e0; background: rgba(12,16,20,0.82);
 .av-nav { display: grid; place-items: center; width: 34px; height: 34px; color: #8ea0b4;
   background: rgba(12,16,20,0.82); border: 1px solid rgba(255,255,255,0.12); border-radius: var(--r-sm); }
 .av-nav:hover { color: #d6e2ee; }
+/* App deviation: functional viewer buttons keep their declared paint — the
+   `.ps button` reset would inherit the light-theme text color onto the dark
+   viewer, leaving tabs/arrows unreadable. */
+button.av-tab { color: #8ea0b4; }
+button.av-nav { color: #8ea0b4; background: rgba(12,16,20,0.82);
+  border: 1px solid rgba(255,255,255,0.12); }
 .av-cube {
-  position: absolute; left: 18px; top: 70px; width: 58px; height: 58px; border-radius: var(--r-sm);
+  position: absolute; left: 18px; top: 112px; width: 58px; height: 58px; border-radius: var(--r-sm);
   background: rgba(12,16,20,0.7); border: 1px solid rgba(255,255,255,0.12);
   display: grid; place-items: center; color: #8ea0b4; font-family: var(--font-mono); font-size: 11px; z-index: 35;
 }
