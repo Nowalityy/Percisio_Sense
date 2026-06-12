@@ -22,8 +22,10 @@ export function ViewerToolbar({ viewMode, viewModes, onModeChange }) {
             onClick={() => onModeChange(mode)}
             className={`av-tab ${viewMode === mode ? 'on' : ''}`}
             aria-pressed={viewMode === mode}
+            title={mode}
           >
-            <Icon name={LAYER_ICONS[mode] || 'stack-2'} size={14} /> {mode}
+            <Icon name={LAYER_ICONS[mode] || 'stack-2'} size={14} />
+            <span className="av-tab-label">{mode}</span>
           </button>
         ))}
       </div>
