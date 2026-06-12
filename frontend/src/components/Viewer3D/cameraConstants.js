@@ -42,12 +42,17 @@ export const CAMERA = {
   /** With an organ focus: OrbitControls dolly minimum (world units). Keep plausible for small-mesh floor (see FOCUS_TINY_MESH_*). */
   ORBIT_MIN_WITH_FOCUS: 0.52,
   /**
-   * Overview (no organ focus), target ≈ body centre: stay outside the hull.
+   * Overview (no organ focus), target ≈ body centre.
    * Distance min = max(radius × this, ORBIT_MIN_ABS_FLOOR).
+   * PER-52: the bounding-sphere radius is dominated by body HEIGHT, so the old
+   * 1.2 × radius stop left the camera ~0.9 × radius away from the torso's
+   * front surface — zoom felt blocked long before the mesh. 0.5 × radius lets
+   * the dolly reach close to the surface while staying out of the volume on
+   * the frontal approach.
    */
-  ORBIT_MIN_OUTSIDE_FACTOR: 1.2,
+  ORBIT_MIN_OUTSIDE_FACTOR: 0.5,
   /** Never below this for overview (avoids degenerate min if radius is tiny). */
-  ORBIT_MIN_ABS_FLOOR: 0.42,
+  ORBIT_MIN_ABS_FLOOR: 0.3,
   /** Max dolly distance ≈ radius × this (model is normalized to ~max dim 2 → r ≈ 1). */
   ORBIT_MAX_FACTOR_OF_RADIUS: 13,
   /** Hard cap so scroll zoom cannot escape to absurd distances. */
