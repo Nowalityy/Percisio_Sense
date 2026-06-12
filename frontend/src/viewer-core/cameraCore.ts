@@ -231,7 +231,12 @@ export function fitCameraToBoundingBox(
   return {
     position,
     target: center,
-    near: Math.max(distance - radius * 2, radius * 0.01, 0.001),
+    // PER-52: near is applied once and never follows the dolly. Deriving it
+    // from the fitted distance (`distance - radius * 2` ≈ 0.7 × radius) culled
+    // every mesh closer than ~0.7 radius as soon as the user zoomed in —
+    // geometry vanished long before the camera reached it. Keep near small
+    // and scale-relative instead; far/near stays ≪ depth-precision limits.
+    near: Math.max(radius * 0.01, 0.001),
     far: distance + radius * 4,
   };
 }
