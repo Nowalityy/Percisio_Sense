@@ -710,8 +710,13 @@ export default function Chatbot() {
       llmTurnsRef.current.push({ role: 'assistant', content: assistantForHistory });
       trimLlmTurns(llmTurnsRef);
 
-      setLastReply(answer);
-      const cardsFromApi = Array.isArray(data?.cards) ? data.cards : null;
+      /* PER-48: the Radiology Report panel (Impression / Recommendations) is
+         driven by the structured analysis in `lastReply` — ordinary chat
+         replies must not clobber it, or the Impression section vanishes after
+         the first question. Cards likewise only update when the reply
+         actually carries some (an empty array would wipe the findings). */
+      const cardsFromApi =
+        Array.isArray(data?.cards) && data.cards.length > 0 ? data.cards : null;
       if (cardsFromApi) {
         setLastCards(cardsFromApi);
       }
@@ -726,7 +731,8 @@ export default function Chatbot() {
       console.error(err);
       setLastError('connection');
       addMessage('assistant', ERROR_CONNECTION);
-      setLastCards([]);
+      /* PER-48: a failed chat turn must not wipe the report panel
+         (findings stay; only the meta of this attempt is dropped). */
       setLastMeta(null);
     } finally {
       if (typingTimerRef.current) {
