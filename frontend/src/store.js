@@ -22,6 +22,9 @@ export const useSceneStore = create(
         analyzedReport: null,
         lastCards: [],
         lastMeta: null,
+        /** Structured analysis fields from the backend (preferred over regex parsing of lastReply). */
+        lastImpression: '',
+        lastRecommendations: [],
         /** Currently-selected DICOM study id; null means viewer is locked. */
         selectedDicom: DEFAULT_DICOM_STUDY_ID,
         setSelectedDicom: (dicomId) =>
@@ -177,6 +180,8 @@ export const useSceneStore = create(
                 ? {
                     lastCards: [],
                     lastMeta: null,
+                    lastImpression: '',
+                    lastRecommendations: [],
                     citedOrgans: [],
                     citedOrganIndex: 0,
                     currentFocus: null,
@@ -188,6 +193,9 @@ export const useSceneStore = create(
           }),
         setLastCards: (cards) => set({ lastCards: Array.isArray(cards) ? cards : [] }),
         setLastMeta: (meta) => set({ lastMeta: meta }),
+        setLastImpression: (text) => set({ lastImpression: typeof text === 'string' ? text : '' }),
+        setLastRecommendations: (items) =>
+          set({ lastRecommendations: Array.isArray(items) ? items : [] }),
         setSegmentVisibility: (segmentName, visible) =>
           set((state) => {
             const newMap = new Map(state.segmentVisibility);
@@ -269,6 +277,8 @@ export const useSceneStore = create(
             currentFocus: null,
             lastCards: [],
             lastMeta: null,
+            lastImpression: '',
+            lastRecommendations: [],
             selectedDicom: DEFAULT_DICOM_STUDY_ID,
             selectedReportId: DEFAULT_SCAN_REPORT_ID,
             anatomySegmentSet: getDefaultAnatomySetId(),
@@ -282,7 +292,27 @@ export const useSceneStore = create(
       }),
       {
         name: 'percisio-sense-storage',
-        version: 1,
+        /**
+         * Bump when the persisted analysis format/content changes so stale
+         * cached sessions are dropped and re-analysed fresh:
+         *  v2 — moved to LLM-backed English output (regex-era cache was often
+         *       in the report's source language).
+         *  v3 — chat intro is now a short plain-language orientation (the old
+         *       cached intro re-dumped the full structured report).
+         */
+        version: 3,
+        migrate: (persistedState, fromVersion) => {
+          if (!persistedState || fromVersion >= 3) return persistedState;
+          return {
+            ...persistedState,
+            lastReply: '',
+            lastCards: [],
+            lastMeta: null,
+            lastImpression: '',
+            lastRecommendations: [],
+            conversationHistory: [],
+          };
+        },
         /**
          * Persist the active case and the conversation so a page refresh
          * restores the session (report, findings, chat thread). Viewer
@@ -297,6 +327,8 @@ export const useSceneStore = create(
           lastCards: state.lastCards,
           lastReply: state.lastReply,
           lastMeta: state.lastMeta,
+          lastImpression: state.lastImpression,
+          lastRecommendations: state.lastRecommendations,
         }),
         merge: (persistedState, currentState) => ({
           ...currentState,

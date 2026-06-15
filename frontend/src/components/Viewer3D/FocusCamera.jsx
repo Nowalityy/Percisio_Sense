@@ -67,7 +67,7 @@ export function FocusCamera({ zoomLevel = DEFAULT_ZOOM_SLIDER_LEVEL }) {
   const controlsRef = useRef(null);
   const defaultStateSavedRef = useRef(false);
   const rafThrottleRef = useRef(null);
-  /** Dernier `modelGroup` pour lequel on a appliqué le cadrage par défaut. */
+  /** Last `modelGroup` for which the default framing was applied. */
   const lastFramedModelRef = useRef(null);
   /** Bounding-sphere radius of `modelGroup` (world) — drives OrbitControls min/max dolly distance. */
   const [modelSphereRadius, setModelSphereRadius] = useState(null);
@@ -99,7 +99,7 @@ export function FocusCamera({ zoomLevel = DEFAULT_ZOOM_SLIDER_LEVEL }) {
 
   const [zoomAnimation, setZoomAnimation] = useState(null);
   const [isInteracting, setIsInteracting] = useState(false);
-  /** Pour distinguer 1er montage vs changement de segment (cf. dépendances layout). */
+  /** Distinguishes first mount vs segment change (see layout-effect deps). */
   const prevSegmentSetRef = useRef(null);
   /** Snapshots for demand-mode: detect OrbitControls damping deltas after `update()`. */
   const preControlsPos = useRef(new THREE.Vector3());
@@ -119,18 +119,18 @@ export function FocusCamera({ zoomLevel = DEFAULT_ZOOM_SLIDER_LEVEL }) {
    * next time `modelGroup` is published (after segments finish loading) we
    * re-frame the camera even if the new group instance is reused.
    *
-   * On enlève aussi la pose caméra/orbite du corps précédent sinon OrbitControls
-   * et le clamp de distance réappliquent une correction sur une cible obsolète.
+   * We also clear the previous body's camera/orbit pose, otherwise OrbitControls
+   * and the distance clamp re-apply a correction against a stale target.
    *
-   * `OrbitControls` (drei) tient une instance `THREE.OrbitControls` stable par caméra ;
-   * avec l’amortissement, sphériques + pan résiduels survivent aux changements de DICOM
-   * et le prochain `controls.update()` réécrit la pose — d’où la dérive au 2e passage.
-   * On remonte les contrôles via `key={anatomySegmentSet}` et on remet la pose ici en
-   * `useLayoutEffect` pour qu’elle soit en place avant le 1er `update()` du frame.
+   * `OrbitControls` (drei) keeps a stable `THREE.OrbitControls` instance per camera;
+   * with damping, residual spherical + pan values survive DICOM changes and the
+   * next `controls.update()` rewrites the pose — hence the drift on the 2nd pass.
+   * We remount the controls via `key={anatomySegmentSet}` and reset the pose here in
+   * `useLayoutEffect` so it is in place before the frame's first `update()`.
    *
-   * Zoom : au changement de segment on impose le zoom « défaut » (38), pas la valeur
-   * React du slider encore à jour — sinon un `zoom` obsolète casse le FOV de `fit*` vs
-   * la cible, effet de corps qui monte. Entre segment identique, seul le slider s’applique.
+   * Zoom: on a segment change we force the "default" zoom (38), not the still-current
+   * React slider value — otherwise a stale `zoom` breaks the `fit*` FOV vs the target
+   * (body drifts up). Within the same segment, only the slider applies.
    */
   useLayoutEffect(() => {
     const segmentKey = anatomySegmentSet;
@@ -158,7 +158,7 @@ export function FocusCamera({ zoomLevel = DEFAULT_ZOOM_SLIDER_LEVEL }) {
       const controls = controlsRef.current;
       if (controls && camera) {
         const rootY = getModelRootWorldY(anatomySegmentSet);
-        /* Aligné sur `ViewerCanvas` : caméra par défaut (zoom 38) avant le prochain fit. */
+        /* Aligned with `ViewerCanvas`: default camera (zoom 38) before the next fit. */
          
         camera.up.set(0, 1, 0);
         camera.position.set(0, 0.1, 3.19);
@@ -173,7 +173,7 @@ export function FocusCamera({ zoomLevel = DEFAULT_ZOOM_SLIDER_LEVEL }) {
       return;
     }
 
-    /* Même DICOM : zoom optique = slider uniquement (une seule écriture sur la cam). */
+    /* Same DICOM: optical zoom = slider only (a single write to the camera). */
     if (camera) {
        
       camera.zoom = zoomLevelToCameraZoom(zoomLevel);
@@ -195,7 +195,7 @@ export function FocusCamera({ zoomLevel = DEFAULT_ZOOM_SLIDER_LEVEL }) {
   useEffect(() => {
     const controls = controlsRef.current;
     if (!controls || !camera) return;
-    /* Pas de clamp tant que le bound monde du modèle n’est pas connu — évite le décalage avec rayons de repli. */
+    /* No clamp until the model's world bound is known — avoids the offset with fallback radii. */
     if (modelSphereRadius == null) return;
     const offset = new THREE.Vector3().subVectors(camera.position, controls.target);
     const len = offset.length();
@@ -228,7 +228,7 @@ export function FocusCamera({ zoomLevel = DEFAULT_ZOOM_SLIDER_LEVEL }) {
     const box = getWorldBoundingBox(modelGroup);
     if (!box) return;
 
-    /* Même zoom que le slider / reset anatomy — sinon distance FOV ≠ pose et le corps « bouge ». */
+    /* Same zoom as the slider / anatomy reset — otherwise FOV distance ≠ pose and the body "moves". */
     camera.zoom = zoomLevelToCameraZoom(zoomLevel);
     camera.updateProjectionMatrix();
 
@@ -288,7 +288,7 @@ export function FocusCamera({ zoomLevel = DEFAULT_ZOOM_SLIDER_LEVEL }) {
     defaultStateSavedRef.current = false;
     invalidate();
     // zoomLevel lu au cadrage mais volontairement hors deps : le slider ne doit pas relancer le fit (zoom optique seulement).
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- refit seulement chargement modèle / resize canvas
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refit only on model load / canvas resize
   }, [modelGroup, camera, invalidate, size.width, size.height]);
 
   useEffect(() => {
@@ -324,7 +324,7 @@ export function FocusCamera({ zoomLevel = DEFAULT_ZOOM_SLIDER_LEVEL }) {
     return () => setCameraOrbitFn(null);
   }, [camera, setCameraOrbitFn, invalidate]);
 
-  /** Zoom organe : réessaie plusieurs frames — les meshes peuvent arriver après `currentFocus` ou `modelGroup`. */
+  /** Organ zoom: retry across several frames — meshes can arrive after `currentFocus` or `modelGroup`. */
   useEffect(() => {
     if (!currentFocus) {
       setZoomAnimation(null);

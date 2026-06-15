@@ -32,7 +32,7 @@ function SegmentItem({ segmentName, isVisible, onToggle }) {
         {segmentName.replace(/-/g, ' ')}
       </span>
       <span className="text-xs text-text-secondary px-1.5 py-0.5 rounded bg-white/5 border border-white/10">
-        {SEGMENT_CATEGORIES[category]?.label || 'Autre'}
+        {SEGMENT_CATEGORIES[category]?.label || 'Other'}
       </span>
     </div>
   );

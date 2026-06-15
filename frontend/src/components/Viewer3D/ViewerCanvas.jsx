@@ -17,7 +17,7 @@ export function ViewerCanvas({
   isAutoSpinning,
   onProgress,
   anatomySegmentSet,
-  /** Vue 3D : 0–100, même formule que l’ancien `CameraZoomController` (évite double écriture sur `camera.zoom`). */
+  /** 3D view: 0–100, same formula as the old `CameraZoomController` (avoids a double write to `camera.zoom`). */
   zoomLevel = 38,
   /** Increment to remount Canvas + WebGL after load/render failures. */
   recoveryKey = 0,

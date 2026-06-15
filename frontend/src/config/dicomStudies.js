@@ -176,9 +176,9 @@ export async function fetchReportContent(reportId, signal) {
 }
 
 /**
- * Décalage vertical du groupe 3D (après le lift commun 0.7 dans ViewerCanvas).
- * Valeur négative = corps plus bas dans l’écran. À ajuster par export si le repère
- * OBJ n’est pas au même endroit (ex. Sandra apparait trop haut).
+ * Vertical offset of the 3D group (applied after the common 0.7 lift in ViewerCanvas).
+ * Negative value = body lower on screen. Tune per export when the OBJ origin
+ * is not in the same place (e.g. Sandra appears too high).
  * @type {Record<string, number>}
  */
 export const VIEWER_GROUP_Y_OFFSET_BY_SEGMENT_SET = {
@@ -195,10 +195,10 @@ export function getViewerGroupYOffset(segmentSetId) {
 }
 
 /**
- * Même Y que le groupe modèle dans `ViewerCanvas` (lift de base + offset par export).
- * La caméra par défaut doit cibler ce point en monde, pas (0,0,0), sinon le corps
- * semble mal placé dès qu’on change d’offset vertical par jeu de segments, ou au
- * retour sur un DICOM si le premier plan n’a pas le même cadrage.
+ * Same Y as the model group in `ViewerCanvas` (base lift + per-export offset).
+ * The default camera must target this world point, not (0,0,0), otherwise the
+ * body looks misplaced as soon as the per-segment-set vertical offset changes,
+ * or when returning to a DICOM whose first frame is not framed identically.
  */
 export const VIEWER_MODEL_BASE_LIFT_Y = 0.7;
 

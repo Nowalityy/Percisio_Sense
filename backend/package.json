@@ -1,12 +1,12 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "Medical 3D scanner chatbot backend (mock IA)",
+  "description": "Medical 3D imaging assistant backend — OpenAI-backed clinical analysis + MCP tools",
   "main": "index.js",
   "scripts": {
     "dev": "node --watch index.js",
     "start": "node index.js",
-    "test": "node --test test/",
+    "test": "node --test",
     "mcp": "node mcp/server.js"
   },
   "keywords": [],
