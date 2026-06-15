@@ -20,13 +20,11 @@ const SUGGESTIONS = [
 ];
 
 const AUTO_SUMMARY_PROMPT_PREFIX =
-  '[SYSTEM]: A new imaging report has been uploaded to the workspace.\n\n' +
-  'Your task:\n' +
-  '- Produce a concise, professional clinical summary using these headings: **Findings**, **Impression**, **Recommendations**.\n' +
-  '- Open with exactly one short sentence that frames the answer as a quick review of the scan report. ' +
-  'Example: "Following a focused review of the imaging report, here is a structured summary." ' +
-  'Write the opening line and the **entire** summary in **English**, even if the source document is in another language.\n' +
-  '- Summarize and interpret only; do not paste or reproduce lengthy verbatim excerpts of the source.\n\n' +
+  '[SYSTEM]: A new imaging report has been loaded. Its structured Findings, Impression, and Recommendations are ALREADY displayed in the Radiology Report panel beside this chat — do not repeat them here.\n\n' +
+  'Write a SHORT plain-language orientation for the clinician:\n' +
+  '- 2 to 3 sentences, in clear English, no headings, no bullet lists, no disclaimer.\n' +
+  '- State the single most important takeaway from the scan, then invite the user to ask follow-up questions.\n' +
+  '- Do NOT re-list the individual findings; the panel already shows them.\n\n' +
   '[DOCUMENT CONTENT]:\n';
 const CONTEXT_PROMPT_TEMPLATE =
   '[CONTEXT - ANALYZED DOCUMENT]:\n{report}\n\n---\n\n' +
@@ -212,7 +210,7 @@ function createMessage(from, text, cites = null) {
 
 /**
  * Grounding chips under the intro summary (design: `ca-cites`), derived from
- * the structured cards — e.g. `Findings · pancreas`, `Risks · adénopathie`.
+ * the structured cards — e.g. `Findings · pancreas`, `Risks · lymphadenopathy`.
  */
 function buildCitesFromCards(cards) {
   const list = Array.isArray(cards) ? cards : [];
@@ -293,11 +291,14 @@ async function sendChatRequest(
   const contentType = response.headers.get('content-type') || '';
   let payload = null;
 
-  if (response.body && !contentType.includes('application/json')) {
+  if (response.body && contentType.includes('text/event-stream')) {
+    payload = await readChatEventStream(response.body, onStreamChunk);
+  } else if (response.body && !contentType.includes('application/json')) {
+    // Legacy raw-text stream (older backend) — concatenate as the answer.
     const reader = response.body.getReader();
     const decoder = new TextDecoder();
     let streamedText = '';
-    while (true) {
+    for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
       streamedText += decoder.decode(value, { stream: true });
@@ -313,6 +314,60 @@ async function sendChatRequest(
     responseCache.set(cacheKey, { timestamp: Date.now(), payload });
     pruneResponseCache();
   }
+  return payload;
+}
+
+/**
+ * Parse the backend SSE chat stream into the payload shape the rest of the
+ * component expects ({ answer, uiActions, cards?, impression?, recommendations?, _meta }).
+ * Frames are `data: <json>\n\n`; `delta` carries reply tokens, `final` carries
+ * focus + structured panel data, and `[DONE]` terminates.
+ */
+async function readChatEventStream(body, onStreamChunk) {
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = '';
+  let answer = '';
+  const payload = { answer: '', uiActions: [] };
+
+  const handleFrame = (jsonStr) => {
+    if (jsonStr === '[DONE]') return;
+    let frame;
+    try {
+      frame = JSON.parse(jsonStr);
+    } catch {
+      return;
+    }
+    if (frame.type === 'delta' && typeof frame.text === 'string') {
+      answer += frame.text;
+      onStreamChunk?.(answer);
+    } else if (frame.type === 'final') {
+      if (frame.focus) payload.uiActions = [{ type: 'FOCUS_ORGAN', organ: frame.focus }];
+      if (Array.isArray(frame.cards)) payload.cards = frame.cards;
+      if (typeof frame.impression === 'string') payload.impression = frame.impression;
+      if (Array.isArray(frame.recommendations)) payload.recommendations = frame.recommendations;
+      if (frame.meta) payload._meta = frame.meta;
+    } else if (frame.type === 'error') {
+      throw new Error(frame.message || 'stream error');
+    }
+  };
+
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let sep;
+    while ((sep = buffer.indexOf('\n\n')) !== -1) {
+      const rawFrame = buffer.slice(0, sep);
+      buffer = buffer.slice(sep + 2);
+      const line = rawFrame.startsWith('data:') ? rawFrame.slice(5).trim() : rawFrame.trim();
+      if (line) handleFrame(line);
+    }
+  }
+  const tail = buffer.trim();
+  if (tail) handleFrame(tail.startsWith('data:') ? tail.slice(5).trim() : tail);
+
+  payload.answer = answer;
   return payload;
 }
 
@@ -362,6 +417,8 @@ export default function Chatbot() {
   const setCitedOrgans = useSceneStore((s) => s.setCitedOrgans);
   const setCitedOrganIndex = useSceneStore((s) => s.setCitedOrganIndex);
   const setLastReply = useSceneStore((s) => s.setLastReply);
+  const setLastImpression = useSceneStore((s) => s.setLastImpression);
+  const setLastRecommendations = useSceneStore((s) => s.setLastRecommendations);
   const analyzedReport = useSceneStore((s) => s.analyzedReport);
   const addToConversationHistory = useSceneStore((s) => s.addToConversationHistory);
   const setAnalyzing = useSceneStore((s) => s.setAnalyzing);
@@ -565,6 +622,8 @@ export default function Chatbot() {
         addToConversationHistory(intro);
         setLastReply(answer);
         setLastCards(cardsFromApi);
+        if (typeof data?.impression === 'string') setLastImpression(data.impression);
+        if (Array.isArray(data?.recommendations)) setLastRecommendations(data.recommendations);
         setLastMeta(data?._meta ?? null);
         setLastResponseFromCache(Boolean(data?._fromCache));
         applyCardsAndFocus(cardsFromApi, data?.uiActions ?? [], { autoFocus: false });
@@ -597,6 +656,8 @@ export default function Chatbot() {
     lastCards.length,
     addMessage,
     setLastReply,
+    setLastImpression,
+    setLastRecommendations,
     applyCardsAndFocus,
     enqueueChatRequest,
     startRequestLoading,
@@ -719,6 +780,13 @@ export default function Chatbot() {
         Array.isArray(data?.cards) && data.cards.length > 0 ? data.cards : null;
       if (cardsFromApi) {
         setLastCards(cardsFromApi);
+        /* Only refresh the panel's structured fields alongside fresh cards. */
+        if (typeof data?.impression === 'string' && data.impression.trim()) {
+          setLastImpression(data.impression);
+        }
+        if (Array.isArray(data?.recommendations) && data.recommendations.length > 0) {
+          setLastRecommendations(data.recommendations);
+        }
       }
       const cardsForApply = cardsFromApi ?? useSceneStore.getState().lastCards ?? [];
       setLastMeta(data?._meta ?? null);
@@ -916,6 +984,13 @@ export default function Chatbot() {
           <Icon name={isLoading ? 'dots' : 'arrow-up'} size={16} />
         </button>
       </form>
+
+      {/* Single standing disclaimer — replaces the per-message disclaimer blocks. */}
+      <p
+        style={{ flex: 'none', margin: 0, fontSize: 10.5, lineHeight: 1.4, color: 'var(--faint)', textAlign: 'center' }}
+      >
+        Clinical decision support — verify against the source report and clinical judgement.
+      </p>
 
       {lastError && (
         <p id="chat-error" className="sr-only" role="alert">An error occurred. Use Retry to try again.</p>

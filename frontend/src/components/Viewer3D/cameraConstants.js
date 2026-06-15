@@ -13,25 +13,25 @@ export const CAMERA = {
   /** Floor for focus distance — allows framing very small segments (e.g. auriculette). */
   FOCUS_DISTANCE_MIN: 0.42,
   /**
-   * Niveau 0–1 pour le zoom « organe » (clampZoomDistance) : 1 = le plus proche, &lt;1 = un peu plus loin.
-   * Sert surtout au chemin legacy sans cadrage FOV — garder modéré : le gros du cadrage vient du padding FOV ci‑dessous.
+   * 0–1 level for the "organ" zoom (clampZoomDistance): 1 = closest, <1 = a bit further.
+   * Mainly used by the legacy path without FOV framing — keep it moderate: most of the framing comes from the FOV padding below.
    */
   FOCUS_ORGAN_ZOOM_LEVEL: 0.88,
   /**
-   * Cadrage FOV (poumon, foie, cœur, …) : marge autour de la sphère englobante du maillage.
-   * Plus bas = zoom plus serré. Les vertèbres / très petits volumes : voir FOCUS_TINY_MESH_*.
+   * FOV framing (lung, liver, heart, …): margin around the mesh bounding sphere.
+   * Lower = tighter zoom. Vertebrae / very small volumes: see FOCUS_TINY_MESH_*.
    */
   FOCUS_ORGAN_FRAMING_PADDING: 1.24,
-  /** Recul après distance FOV (multiplicatif). */
+  /** Pull-back after the FOV distance (multiplicative). */
   FOCUS_ORGAN_DISTANCE_MULTIPLIER: 1.1,
-  /** Distance mini ≥ ce facteur × rayon sphère du segment ciblé. */
+  /** Minimum distance ≥ this factor × bounding-sphere radius of the targeted segment. */
   FOCUS_ORGAN_MIN_DISTANCE_FACTOR: 1.14,
   /**
-   * Si rayon sphère organe &lt; ce facteur × rayon sphère du corps → plancher de distance
-   * `FOCUS_TINY_MESH_MIN_RHO_FRAC` × rayon corps (ex. une vertèbre seule, moins de zoom extrême).
+   * If the organ sphere radius < this factor × body sphere radius → distance floor of
+   * `FOCUS_TINY_MESH_MIN_RHO_FRAC` × body radius (e.g. a single vertebra, less extreme zoom).
    */
   FOCUS_TINY_MESH_MAX_REL_TO_BODY: 0.25,
-  /** Distance caméra–cible mini pour ces petits maillages (fraction du rayon du corps). */
+  /** Minimum camera–target distance for these small meshes (fraction of the body radius). */
   FOCUS_TINY_MESH_MIN_RHO_FRAC: 1.12,
   /**
    * Orbit dolly limits are derived from the full model bounding sphere (see `getOrbitDistanceLimits`).
@@ -74,8 +74,8 @@ export const CAMERA = {
   ORBIT_POLAR_EPS: 0.06,
   /**
    * Default framing looks at midpoint between world `min.y` and `max.y` (+ this bias × height).
-   * Small positive ⇒ cible plus haute en monde ⇒ le corps se place un peu plus bas dans l’image
-   * (compense bbox « lourde » en bas / exports perchés dans le viewport).
+   * Small positive ⇒ higher target in world space ⇒ the body sits a bit lower in the image
+   * (compensates for a bottom-heavy bbox / exports that sit high in the viewport).
    */
   FIT_VERTICAL_TARGET_BIAS: 0.05,
 };

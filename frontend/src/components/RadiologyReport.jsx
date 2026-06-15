@@ -169,6 +169,8 @@ export default function RadiologyReport() {
   const analyzedReport = useSceneStore((s) => s.analyzedReport);
   const lastCards = useSceneStore((s) => s.lastCards);
   const lastReply = useSceneStore((s) => s.lastReply);
+  const lastImpression = useSceneStore((s) => s.lastImpression);
+  const lastRecommendations = useSceneStore((s) => s.lastRecommendations);
   const isAnalyzing = useSceneStore((s) => s.isAnalyzing);
   const currentFocus = useSceneStore((s) => s.currentFocus);
   const setFocus = useSceneStore((s) => s.setFocus);
@@ -182,8 +184,19 @@ export default function RadiologyReport() {
     [currentFocus, setFocus, clearCameraFocus]
   );
 
-  const impression = useMemo(() => extractSection(lastReply, 'Impression'), [lastReply]);
-  const recommendations = useMemo(() => toItems(extractSection(lastReply, 'Recommendations')), [lastReply]);
+  /* Prefer the backend's structured fields; fall back to parsing the chat
+     summary markdown (older responses / offline mode). */
+  const impression = useMemo(
+    () => (lastImpression && lastImpression.trim() ? lastImpression.trim() : extractSection(lastReply, 'Impression')),
+    [lastImpression, lastReply]
+  );
+  const recommendations = useMemo(
+    () =>
+      Array.isArray(lastRecommendations) && lastRecommendations.length > 0
+        ? lastRecommendations.map((r) => cleanItemText(r)).filter((r) => r.length > 2)
+        : toItems(extractSection(lastReply, 'Recommendations')),
+    [lastRecommendations, lastReply]
+  );
 
   const { findings, risks } = useMemo(() => {
     const all = Array.isArray(lastCards) ? lastCards : [];

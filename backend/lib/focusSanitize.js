@@ -112,7 +112,7 @@ function normalizeFocusToken(s) {
 const VERT_LETTER_MAX = { c: 7, t: 12, l: 5, s: 5 };
 
 /**
- * Parse "c7", "t12 vertebra", "vertèbre 7" → canonical `c7 vertebra` keys used by mesh names.
+ * Parse "c7", "t12 vertebra", "vertebra 7" → canonical `c7 vertebra` keys used by mesh names.
  * @param {string} lower - lowercased, whitespace-normalized text
  * @returns {string | null}
  */
@@ -129,7 +129,7 @@ function tryParseVertebraLower(lower) {
   m = lower.match(/\b(?:vert[eè]bre|vertebra)s?\s+(?:n[o°]?\s*)?(\d{1,2})\b/);
   if (m) {
     const num = parseInt(m[1], 10);
-    // "vertèbre 7" / "vertebra 7" — par défaut cervicales C1–C7 (cas le plus demandé en chat)
+    // "vertebra 7" / "vertèbre 7" — default to cervical C1–C7 (the most common chat request)
     if (num >= 1 && num <= 7) return `c${num} vertebra`;
     return null;
   }
