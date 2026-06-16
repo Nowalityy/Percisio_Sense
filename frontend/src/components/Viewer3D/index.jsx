@@ -363,7 +363,6 @@ export default function Viewer3D() {
       </div>
 
       <button type="button" className="av-home" onClick={handleReset} title="Reset the 3D view to the default angle and zoom" aria-label="Reset the 3D view">
-        <Icon name="focus-centered" size={15} />
         Reset view
       </button>
       </div>
