@@ -2,6 +2,7 @@ import { useState, useEffect, lazy, Suspense } from 'react';
 import { SkeletonPanel } from './components/SkeletonPanel.jsx';
 import RadiologyReport from './components/RadiologyReport.jsx';
 import { Icon, BrandMark } from './components/psUI.jsx';
+import { NotificationsMenu, UserMenu } from './components/TopBarMenus.jsx';
 import { useSceneStore } from './store.js';
 import {
   fetchReportContent,
@@ -167,10 +168,8 @@ function App() {
           </div>
         </div>
         <div className="ps-top-actions">
-          <button className="ps-btn icon sm" title="Notifications" aria-label="Notifications">
-            <Icon name="bell" size={17} />
-          </button>
-          <div className="ps-avatar">PS</div>
+          <NotificationsMenu />
+          <UserMenu initials="PS" />
         </div>
       </header>
 
