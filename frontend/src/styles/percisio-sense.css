@@ -257,12 +257,14 @@ button.av-nav { color: #8ea0b4; background: rgba(12,16,20,0.82);
 .av-zoom .track { width: 3px; height: 120px; background: rgba(255,255,255,0.14); border-radius: 2px; position: relative; }
 .av-zoom .knob { position: absolute; left: 50%; transform: translateX(-50%); width: 11px; height: 11px;
   border-radius: 50%; background: #00D4FF; box-shadow: 0 0 8px rgba(0,212,255,.6); }
+/* PER-60: labelled "Reset view" pill (was a bare home icon, ambiguous). */
 .av-home { position: absolute; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 35;
-  width: 40px; height: 40px; border-radius: var(--r-sm); display: grid; place-items: center; color: #c4d2e0;
-  background: rgba(12,16,20,0.82); border: 1px solid rgba(255,255,255,0.12); }
-/* design renders home as a <div>; ours is a working <button> — keep the same paint */
+  display: inline-flex; align-items: center; gap: 7px; height: 36px; padding: 0 14px;
+  border-radius: var(--r-sm); font-size: 12px; font-weight: 600; letter-spacing: -0.1px; color: #c4d2e0;
+  background: rgba(12,16,20,0.82); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.12); }
 button.av-home { color: #c4d2e0; background: rgba(12,16,20,0.82);
   border: 1px solid rgba(255,255,255,0.12); }
+.av-home:hover { color: #fff; border-color: rgba(255,255,255,0.22); }
 .av-scale { position: absolute; bottom: 20px; right: 18px; display: flex; align-items: center; gap: 8px; z-index: 35;
   font-family: var(--font-mono); font-size: 11px; color: #8ea0b4; }
 .av-scale .bar { width: 54px; height: 0; border-top: 2px solid #6a7e92; }
