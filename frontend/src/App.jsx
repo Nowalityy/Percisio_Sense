@@ -3,6 +3,7 @@ import { SkeletonPanel } from './components/SkeletonPanel.jsx';
 import RadiologyReport from './components/RadiologyReport.jsx';
 import { Icon, BrandMark } from './components/psUI.jsx';
 import { NotificationsMenu, UserMenu } from './components/TopBarMenus.jsx';
+import ShareDialog from './components/ShareDialog.jsx';
 import { useSceneStore } from './store.js';
 import {
   fetchReportContent,
@@ -103,6 +104,7 @@ function StripField({ label, value, mono }) {
 
 function PatientStrip({ study, meta }) {
   const analyzedReport = useSceneStore((s) => s.analyzedReport);
+  const [shareOpen, setShareOpen] = useState(false);
 
   const handlePrint = () => window.print();
   const handleExport = () => {
@@ -126,12 +128,15 @@ function PatientStrip({ study, meta }) {
       viewerImage: captureViewerImage(),
     });
   };
-  const handleShare = async () => {
-    try {
-      await navigator.clipboard?.writeText(window.location.href);
-    } catch {
-      /* clipboard unavailable */
-    }
+
+  const shareMeta = {
+    caseLabel: meta.caseLabel,
+    age: meta.age,
+    sexShort: meta.sexShort,
+    study: meta.exam,
+    referrer: study?.referrer,
+    acquired: study?.acquired,
+    dose: study?.dose,
   };
 
   const demographic = [meta.age ? `${meta.age}Y` : null, meta.sexShort].filter(Boolean).join(' ');
@@ -158,13 +163,17 @@ function PatientStrip({ study, meta }) {
         <button className="ps-btn ps-ghost sm" onClick={handleExport} disabled={!analyzedReport} title="Export a PDF report (3D view + findings)">
           <Icon name="download" size={14} /> Export
         </button>
-        <button className="ps-btn ps-secondary sm" onClick={handleShare} title="Copy a link to this case">
+        <button className="ps-btn ps-secondary sm" onClick={() => setShareOpen(true)} disabled={!analyzedReport} title="Share the report (email / WhatsApp), with optional anonymization">
           <Icon name="share-2" size={14} /> Share
         </button>
         <button className="ps-btn ps-primary sm" onClick={handlePrint} title="Print report">
           <Icon name="printer" size={14} /> Print report
         </button>
       </div>
+
+      {shareOpen && (
+        <ShareDialog meta={shareMeta} reportBy="Percisio AI · Radiology" onClose={() => setShareOpen(false)} />
+      )}
     </div>
   );
 }
