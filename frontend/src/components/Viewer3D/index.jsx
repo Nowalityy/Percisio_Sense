@@ -9,7 +9,6 @@ import { disposeRenderer } from '../../hooks/useDispose';
 import { useLeakDetector } from '../../hooks/useLeakDetector';
 import { buildVisibilityMapForMode } from '../../viewer-core/segmentRules';
 import { ViewerToolbar } from './ViewerToolbar';
-import { ViewerHistoryControls } from './ViewerHistoryControls';
 import {
   ViewerLoadingOverlay,
   ViewerAnalyzingOverlay,
@@ -317,14 +316,11 @@ export default function Viewer3D() {
         style={{ filter: isAnalyzing ? 'saturate(0.97)' : 'saturate(1)' }}
       >
       <ViewerToolbar viewMode={viewMode} viewModes={VIEW_MODES} onModeChange={setViewMode} />
-      <ViewerHistoryControls
-        historyIndex={historyIndex}
-        navigationHistoryLength={navigationHistory.length}
-        onNavigate={handleHistoryNavigation}
-      />
 
-      {/* Findings are navigated by clicking the Radiology Report; the av-home
-          button below resets the camera and clears the focus. */}
+      {/* PER-61: the prev/next direction arrows were removed (non-obvious,
+          mostly disabled, confusing). Undo/redo stays available via Ctrl+Z /
+          Ctrl+Shift+Z. Findings are navigated from the Radiology Report; the
+          av-home button below resets the camera and clears the focus. */}
       <ViewerCanvas
         isLowEndDevice={isLowEndDevice}
         maxDpr={PERFORMANCE_CONFIG.MAX_DPR}
