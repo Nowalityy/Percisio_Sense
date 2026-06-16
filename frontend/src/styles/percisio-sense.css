@@ -260,7 +260,7 @@ button.av-nav { color: #8ea0b4; background: rgba(12,16,20,0.82);
 /* PER-60: labelled "Reset view" pill (was a bare home icon, ambiguous).
    Raised above the DICOM readout / scale row so it never overlaps the
    "Layer: …" text on a narrow viewer pane. */
-.av-home { position: absolute; bottom: 54px; left: 50%; transform: translateX(-50%); z-index: 35;
+.av-home { position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%); z-index: 35;
   display: inline-flex; align-items: center; height: 28px; padding: 0 12px;
   border-radius: var(--r-sm); font-size: 11.5px; font-weight: 600; letter-spacing: -0.1px; color: #c4d2e0;
   background: rgba(12,16,20,0.82); backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.12); }
