@@ -40,7 +40,10 @@ export function ViewerCanvas({
         stencil: false,
         depth: true,
         logarithmicDepthBuffer: false,
-        preserveDrawingBuffer: false,
+        // PER-56: keep the drawing buffer so the PDF export can read the
+        // current frame via canvas.toDataURL(). In demand frameloop the last
+        // rendered frame persists, giving a correct snapshot on export.
+        preserveDrawingBuffer: true,
       }}
       onCreated={({ scene, gl }) => {
         // Always-dark imaging viewport (medical convention) — see .ps-viewport.

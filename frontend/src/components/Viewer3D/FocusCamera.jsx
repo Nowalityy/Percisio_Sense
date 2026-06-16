@@ -85,9 +85,10 @@ export function FocusCamera({ zoomLevel = DEFAULT_ZOOM_SLIDER_LEVEL }) {
   const setGetCameraState = useSceneStore((s) => s.setGetCameraState);
   const setGetDefaultCameraState = useSceneStore((s) => s.setGetDefaultCameraState);
   const setCameraOrbitFn = useSceneStore((s) => s.setCameraOrbitFn);
+  const setCaptureViewer = useSceneStore((s) => s.setCaptureViewer);
   const cameraAutoSpin = useSceneStore((s) => s.cameraAutoSpin);
   const pendingCameraRestore = useSceneStore((s) => s.pendingCameraRestore);
-  const { scene, camera, invalidate, size } = useThree();
+  const { gl, scene, camera, invalidate, size } = useThree();
 
   /**
    * demand-mode: a pending camera restore (Home button, history nav) only
@@ -96,6 +97,21 @@ export function FocusCamera({ zoomLevel = DEFAULT_ZOOM_SLIDER_LEVEL }) {
   useEffect(() => {
     if (pendingCameraRestore) invalidate();
   }, [pendingCameraRestore, invalidate]);
+
+  /**
+   * PER-56: expose a synchronous snapshot for the PDF export. In demand
+   * frameloop the drawing buffer is empty between frames, so a plain
+   * toDataURL() reads black — render one fresh frame first, then read it.
+   */
+  useEffect(() => {
+    const capture = () => {
+      gl.render(scene, camera);
+      return gl.domElement.toDataURL('image/png');
+    };
+    // store action wraps in a thunk so zustand keeps the fn as plain data.
+    setCaptureViewer(capture);
+    return () => setCaptureViewer(null);
+  }, [gl, scene, camera, setCaptureViewer]);
 
   const [zoomAnimation, setZoomAnimation] = useState(null);
   const [isInteracting, setIsInteracting] = useState(false);

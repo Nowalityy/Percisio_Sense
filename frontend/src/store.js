@@ -106,6 +106,11 @@ export const useSceneStore = create(
         cameraOrbit: { fn: null },
         setCameraOrbitFn: (fn) => set({ cameraOrbit: { fn: fn ?? null } }),
 
+        // PER-56: in-Canvas snapshot fn for the PDF export (renders one frame
+        // then reads the buffer). Wrapped so zustand keeps it as plain data.
+        captureViewer: null,
+        setCaptureViewer: (fn) => set({ captureViewer: typeof fn === 'function' ? fn : null }),
+
         // Auto-spin toggles a continuous azimuthal orbit of the camera in FocusCamera.
         cameraAutoSpin: false,
         setCameraAutoSpin: (value) => set({ cameraAutoSpin: Boolean(value) }),

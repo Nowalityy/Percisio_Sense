@@ -8,9 +8,34 @@ import {
   fetchReportContent,
   getDicomStudyById,
   getScanReportOptionById,
-  reportAssetUrl,
 } from './config/dicomStudies.js';
 import { parseCaseMeta } from './utils/caseMeta.js';
+import { exportReportPdf, captureViewerImage } from './utils/exportReportPdf.js';
+
+/** Shape the store's findings/risks cards into the export PDF's structure. */
+function shapeReportFromCards(cards) {
+  const all = Array.isArray(cards) ? cards : [];
+  const findings = all
+    .filter((c) => c?.id !== 'card-risks')
+    .map((c) => ({
+      title: c.title || 'Finding',
+      lines: String(c.content || '')
+        .split('\n')
+        .map((l) => l.replace(/^[-•\s]+/, '').trim())
+        .filter(Boolean),
+    }));
+  const riskCard = all.find((c) => c?.id === 'card-risks');
+  const risks = [];
+  if (riskCard) {
+    for (const m of String(riskCard.content || '').matchAll(
+      /\[(low|medium|high)\]\s*(?:clinical finding:?\s*)?([^[\n]+)/gi
+    )) {
+      const text = m[2].replace(/[\s;,-]+$/, '').trim();
+      if (text.length > 2) risks.push({ severity: m[1].toLowerCase(), text });
+    }
+  }
+  return { findings, risks };
+}
 
 // Lazy-load heavy chunks (Three.js + R3F + viewer, Chatbot) for better LCP and TTI
 const Viewer3D = lazy(() => import('./components/Viewer3D.jsx'));
@@ -77,13 +102,29 @@ function StripField({ label, value, mono }) {
 }
 
 function PatientStrip({ study, meta }) {
-  const selectedReportId = useSceneStore((s) => s.selectedReportId);
   const analyzedReport = useSceneStore((s) => s.analyzedReport);
 
   const handlePrint = () => window.print();
   const handleExport = () => {
-    const opt = getScanReportOptionById(selectedReportId);
-    if (opt) window.open(reportAssetUrl(opt.fileName), '_blank', 'noopener,noreferrer');
+    const st = useSceneStore.getState();
+    const { findings, risks } = shapeReportFromCards(st.lastCards);
+    exportReportPdf({
+      meta: {
+        caseLabel: meta.caseLabel,
+        age: meta.age,
+        sexShort: meta.sexShort,
+        study: meta.exam,
+        referrer: study?.referrer,
+        acquired: study?.acquired,
+        dose: study?.dose,
+      },
+      reportBy: 'Percisio AI · Radiology',
+      impression: st.lastImpression || '',
+      findings,
+      risks,
+      recommendations: Array.isArray(st.lastRecommendations) ? st.lastRecommendations : [],
+      viewerImage: captureViewerImage(),
+    });
   };
   const handleShare = async () => {
     try {
@@ -114,7 +155,7 @@ function PatientStrip({ study, meta }) {
       <StripField label="Acquired" value={study?.acquired ? `${study.acquired}${study.dose ? ` · ${study.dose}` : ''}` : ''} mono />
 
       <div className="row gap8" style={{ marginLeft: 'auto' }}>
-        <button className="ps-btn ps-ghost sm" onClick={handleExport} disabled={!analyzedReport} title="Open the source report">
+        <button className="ps-btn ps-ghost sm" onClick={handleExport} disabled={!analyzedReport} title="Export a PDF report (3D view + findings)">
           <Icon name="download" size={14} /> Export
         </button>
         <button className="ps-btn ps-secondary sm" onClick={handleShare} title="Copy a link to this case">
