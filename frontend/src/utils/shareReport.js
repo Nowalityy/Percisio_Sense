@@ -135,15 +135,6 @@ export function shareViaWhatsApp(text) {
   window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
 }
 
-export function shareViaTelegram(text) {
-  window.open(`https://t.me/share/url?url=&text=${encodeURIComponent(text)}`, '_blank', 'noopener,noreferrer');
-}
-
-export function shareViaSms(text) {
-  // `?&body=` works across iOS and Android best-effort.
-  window.location.href = `sms:?&body=${encodeURIComponent(text)}`;
-}
-
 /** Save the report text as a .txt file. */
 export function downloadReportText(filename, text) {
   const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
@@ -153,21 +144,6 @@ export function downloadReportText(filename, text) {
   a.download = filename;
   a.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
-}
-
-/** Whether the OS-level share sheet is available (mobile + some desktops). */
-export function hasNativeShare() {
-  return typeof navigator !== 'undefined' && typeof navigator.share === 'function';
-}
-
-/** Open the OS share sheet (Signal, Slack, AirDrop, …). */
-export async function nativeShare({ title, text }) {
-  try {
-    await navigator.share({ title, text });
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 export async function copyToClipboard(text) {

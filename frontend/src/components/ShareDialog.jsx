@@ -5,16 +5,12 @@ import {
   buildShareText,
   shareViaEmail,
   shareViaWhatsApp,
-  shareViaTelegram,
-  shareViaSms,
   downloadReportText,
-  hasNativeShare,
-  nativeShare,
   copyToClipboard,
 } from '../utils/shareReport.js';
 
 /**
- * Share the clinical report by email / WhatsApp / clipboard (PER-62).
+ * Share the clinical report by email / WhatsApp / download / clipboard (PER-62).
  *
  * Anonymization is ON by default; turning it OFF surfaces a prominent warning
  * because the shared text may then carry patient-identifying information.
@@ -50,14 +46,9 @@ export default function ShareDialog({ meta, reportBy, onClose }) {
   const targets = [
     { id: 'email', label: 'Email', icon: 'mail', onClick: () => shareViaEmail(subject, body) },
     { id: 'whatsapp', label: 'WhatsApp', icon: 'brand-whatsapp', onClick: () => shareViaWhatsApp(body) },
-    { id: 'telegram', label: 'Telegram', icon: 'brand-telegram', onClick: () => shareViaTelegram(body) },
-    { id: 'sms', label: 'SMS', icon: 'message', onClick: () => shareViaSms(body) },
     { id: 'download', label: 'Download', icon: 'file-download', onClick: () => downloadReportText(fileName, body) },
     { id: 'copy', label: copied ? 'Copied' : 'Copy text', icon: copied ? 'check' : 'copy', onClick: doCopy },
   ];
-  if (hasNativeShare()) {
-    targets.push({ id: 'more', label: 'More…', icon: 'dots', onClick: () => nativeShare({ title: subject, text: body }) });
-  }
 
   return (
     <div
@@ -140,7 +131,7 @@ export default function ShareDialog({ meta, reportBy, onClose }) {
         {/* Share targets */}
         <div style={{ padding: 14, borderTop: '1px solid var(--border)' }}>
           <div className="over" style={{ marginBottom: 8 }}>Share to</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
             {targets.map((t) => (
               <button
                 key={t.id}
