@@ -1,6 +1,7 @@
 import { memo, useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Icon, Badge, BrandMark } from './psUI.jsx';
+import ConfirmDialog from './ConfirmDialog.jsx';
 import { useSceneStore } from '../store.js';
 import {
   cardTitleToFocusKey,
@@ -366,6 +367,7 @@ export default function Chatbot() {
   const [lastResponseFromCache, setLastResponseFromCache] = useState(false);
   const [lastError, setLastError] = useState(null);
   const [reportAnalyzeTick, setReportAnalyzeTick] = useState(0);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
   const chatScrollRef = useRef(null);
   const lastReportKeyRef = useRef(null);
   const llmTurnsRef = useRef([]);
@@ -792,13 +794,8 @@ export default function Chatbot() {
     setLastError(null);
   }, [resetStore]);
 
-  const handleNewSessionClick = useCallback(() => {
-    if (
-      typeof window !== 'undefined' &&
-      !window.confirm('Start a new conversation? Messages and the loaded report will be cleared.')
-    ) {
-      return;
-    }
+  const handleResetConfirmed = useCallback(() => {
+    setShowResetConfirm(false);
     handleNewSession();
   }, [handleNewSession]);
 
@@ -874,7 +871,7 @@ export default function Chatbot() {
         <span style={{ marginLeft: 'auto' }}><Badge cls="green" dot>Grounded</Badge></span>
         <button
           type="button"
-          onClick={handleNewSessionClick}
+          onClick={() => setShowResetConfirm(true)}
           className="ps-btn icon sm"
           title="New conversation — clears messages and report"
           aria-label="New conversation — clears messages and report"
@@ -882,6 +879,18 @@ export default function Chatbot() {
           <Icon name="refresh" size={15} />
         </button>
       </div>
+
+      {showResetConfirm && (
+        <ConfirmDialog
+          title="Start a new conversation?"
+          message="All messages and the loaded report will be cleared. This can't be undone."
+          confirmLabel="New conversation"
+          cancelLabel="Cancel"
+          tone="danger"
+          onConfirm={handleResetConfirmed}
+          onCancel={() => setShowResetConfirm(false)}
+        />
+      )}
 
       {(queuedRequests > PERFORMANCE_CONFIG.API_MAX_INFLIGHT || lastResponseFromCache) && (
         <div className="row" style={{ flex: 'none', justifyContent: 'space-between', fontSize: 11, color: 'var(--muted)' }}>
