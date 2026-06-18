@@ -304,10 +304,13 @@ export const useSceneStore = create(
          *       in the report's source language).
          *  v3 — chat intro is now a short plain-language orientation (the old
          *       cached intro re-dumped the full structured report).
+         *  v4 — the auto-summary moved out of the chat into the Impression
+         *       panel; drop threads still carrying the old intro message so the
+         *       chat starts empty (PER-51).
          */
-        version: 3,
+        version: 4,
         migrate: (persistedState, fromVersion) => {
-          if (!persistedState || fromVersion >= 3) return persistedState;
+          if (!persistedState || fromVersion >= 4) return persistedState;
           return {
             ...persistedState,
             lastReply: '',

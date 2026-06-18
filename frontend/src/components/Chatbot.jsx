@@ -21,11 +21,11 @@ const SUGGESTIONS = [
 ];
 
 const AUTO_SUMMARY_PROMPT_PREFIX =
-  '[SYSTEM]: A new imaging report has been loaded. Its structured Findings, Impression, and Recommendations are ALREADY displayed in the Radiology Report panel beside this chat — do not repeat them here.\n\n' +
-  'Write a SHORT plain-language orientation for the clinician:\n' +
+  '[SYSTEM]: A new imaging report has been loaded.\n\n' +
+  'Write a concise clinical IMPRESSION of the scan for the report panel:\n' +
   '- 2 to 3 sentences, in clear English, no headings, no bullet lists, no disclaimer.\n' +
-  '- State the single most important takeaway from the scan, then invite the user to ask follow-up questions.\n' +
-  '- Do NOT re-list the individual findings; the panel already shows them.\n\n' +
+  '- State the principal diagnostic conclusion and the single most important takeaway.\n' +
+  '- Do NOT re-list every finding, and do NOT add meta-commentary or invitations to ask questions.\n\n' +
   '[DOCUMENT CONTENT]:\n';
 const CONTEXT_PROMPT_TEMPLATE =
   '[CONTEXT - ANALYZED DOCUMENT]:\n{report}\n\n---\n\n' +
@@ -147,7 +147,7 @@ const MessageBubble = memo(function MessageBubble({ from, text, isGreeting }) {
           </div>
           <h3 style={{ fontSize: 15, fontWeight: 600, color: 'var(--text)' }}>Clinical Assistant ready</h3>
           <p style={{ marginTop: 4, fontSize: 13, lineHeight: 1.55, color: 'var(--muted)' }}>
-            Grounded in the loaded report — ask about findings, anatomy, or next steps.
+            Ask me anything about your report.
           </p>
         </motion.div>
       </div>
@@ -581,17 +581,14 @@ export default function Chatbot() {
 
         autoSummaryDoneFpRef.current = reportFingerprint;
 
-        /* The intro summary lands in the chat (replacing the greeting hero,
-           like the design's content-first thread) AND feeds the Radiology
-           Report panel. Grounding chips come from the structured cards. */
+        /* PER-51: the auto-summary becomes the panel's Impression — it is NOT
+           posted to the chat, so the thread stays empty for the clinician's
+           own questions. Findings / Risks / Recommendations come from cards. */
         const answer = data?.answer ?? data?.reply ?? FALLBACK_REPLY_SUMMARY;
         const cardsFromApi = Array.isArray(data?.cards) ? data.cards : [];
-        const intro = createMessage('assistant', answer);
-        setMessages((prev) => [...prev.filter((m) => m.text !== GREETING), intro]);
-        addToConversationHistory(intro);
         setLastReply(answer);
         setLastCards(cardsFromApi);
-        if (typeof data?.impression === 'string') setLastImpression(data.impression);
+        setLastImpression(answer);
         if (Array.isArray(data?.recommendations)) setLastRecommendations(data.recommendations);
         setLastMeta(data?._meta ?? null);
         setLastResponseFromCache(Boolean(data?._fromCache));
@@ -949,7 +946,7 @@ export default function Chatbot() {
         <label htmlFor="chat-input" className="sr-only">Message</label>
         <input
           id="chat-input"
-          placeholder="Ask about findings, anatomy, or request analysis…"
+          placeholder="Ask me anything about your report"
           value={input}
           onChange={(e) => setInput(e.target.value)}
           disabled={composerDisabled}
