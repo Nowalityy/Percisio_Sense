@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { useLoader, useThree } from '@react-three/fiber';
 import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader';
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader';
+import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader';
 import { getSegmentColor, isSkinSegment } from './medicalColors';
 import { useSceneStore } from '../../store';
 import { getFocusSegmentSet } from './focusUtils';
@@ -161,21 +162,19 @@ function applyFocusStateToMesh(mesh, segmentName, isDimmed, skinOpacity) {
 // Component
 // -----------------------------------------------------------------------------
 
-export function Segment({ name, orderIndex = -1, onLoad }) {
-  const anatomySegmentSet = useSceneStore((s) => s.anatomySegmentSet);
-  const materials = useLoader(MTLLoader, segmentAbsoluteUrl(name, '.mtl', anatomySegmentSet));
-  const obj = useLoader(OBJLoader, segmentAbsoluteUrl(name, '.obj', anatomySegmentSet), (loader) => {
-    materials.preload();
-    loader.setMaterials(materials);
-  });
+/**
+ * Shared config for a loaded segment object (OBJ or GLB): clone it, apply the
+ * app's material/color/visibility/focus state, and keep the canvas in sync
+ * under `frameloop="demand"`. Returns the cloned object to render.
+ */
+function useConfiguredSegment(rawObject, name, orderIndex, onLoad) {
   const segmentVisibility = useSceneStore((s) => s.segmentVisibility);
   const currentFocus = useSceneStore((s) => s.currentFocus);
   const skinOpacity = useSceneStore((s) => s.skinOpacity);
-  const segmentObject = useMemo(() => obj.clone(true), [obj]);
-  // Canvas runs in `frameloop="demand"` (see ViewerCanvas) — three.js only
-  // redraws after `invalidate()`. Mutating mat.opacity in a useEffect does
-  // not trigger a re-render on its own, so we explicitly invalidate.
+  // Canvas runs in `frameloop="demand"` — three.js only redraws after
+  // `invalidate()`, so we call it whenever we mutate the scene graph.
   const invalidate = useThree((state) => state.invalidate);
+  const segmentObject = useMemo(() => rawObject.clone(true), [rawObject]);
 
   const isUserVisible = useMemo(
     () => segmentVisibility.get(name) !== false,
@@ -208,9 +207,8 @@ export function Segment({ name, orderIndex = -1, onLoad }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [name, orderIndex, segmentObject, onLoad, isUserVisible, invalidate]);
 
-  // Mount/unmount of the <primitive> below changes the scene graph without
-  // triggering a frame in `frameloop="demand"`. We must invalidate whenever
-  // visibility flips so toggling a segment off/on actually updates the canvas.
+  // Mount/unmount of the <primitive> changes the scene graph without triggering
+  // a frame in `frameloop="demand"`. Invalidate whenever visibility flips.
   useEffect(() => {
     if (!segmentObject) return;
     segmentObject.traverse((child) => {
@@ -227,7 +225,42 @@ export function Segment({ name, orderIndex = -1, onLoad }) {
     invalidate();
   }, [segmentObject, name, isDimmed, skinOpacity, invalidate]);
 
-  // Stay mounted even when filtered off so `centerModelInGroup` can measure the full body
-  // (`Box3` ignores invisible meshes unless we temporarily force-visible there).
+  return segmentObject;
+}
+
+/** Standard segment: Wavefront OBJ + MTL (the bulk of the anatomy). */
+function ObjSegment({ name, orderIndex = -1, onLoad }) {
+  const anatomySegmentSet = useSceneStore((s) => s.anatomySegmentSet);
+  const materials = useLoader(MTLLoader, segmentAbsoluteUrl(name, '.mtl', anatomySegmentSet));
+  const obj = useLoader(OBJLoader, segmentAbsoluteUrl(name, '.obj', anatomySegmentSet), (loader) => {
+    materials.preload();
+    loader.setMaterials(materials);
+  });
+  const segmentObject = useConfiguredSegment(obj, name, orderIndex, onLoad);
+  // Stay mounted even when filtered off so `centerModelInGroup` can measure the
+  // full body (`Box3` ignores invisible meshes unless force-visible there).
   return <primitive object={segmentObject} />;
+}
+
+/**
+ * GLB segment (PER fix-model-viewer): some exports (the skin) render as a
+ * wireframe in OBJ; the glTF/GLB equivalent is a clean TRIANGLES surface.
+ */
+function GltfSegment({ name, orderIndex = -1, onLoad }) {
+  const anatomySegmentSet = useSceneStore((s) => s.anatomySegmentSet);
+  const gltf = useLoader(GLTFLoader, segmentAbsoluteUrl(name, '.glb', anatomySegmentSet));
+  const segmentObject = useConfiguredSegment(gltf.scene, name, orderIndex, onLoad);
+  return <primitive object={segmentObject} />;
+}
+
+/**
+ * Segments shipped as GLB — a clean TRIANGLES surface where the OBJ export was
+ * a wireframe (PER fix-model-viewer). Only these load via GLTFLoader; every
+ * other segment stays OBJ. Add a name here once its `.glb` exists on the CDN.
+ */
+const GLB_SEGMENTS = new Set(['skinpercisio2']); // Fred's skin
+
+/** Pick the loader by what we ship as GLB; everything else → OBJ. */
+export function Segment(props) {
+  return GLB_SEGMENTS.has(props.name) ? <GltfSegment {...props} /> : <ObjSegment {...props} />;
 }
