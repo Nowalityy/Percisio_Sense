@@ -65,7 +65,17 @@ export function centerModelInGroup(
   rootGroup.scale.set(1, 1, 1);
   segmentsGroup.position.set(0, 0, 0);
 
+  // Force fresh world matrices for the whole subtree BEFORE measuring. Under
+  // `frameloop="demand"` the segments can mount in a burst (F5 with warm cache)
+  // without an intermediate render, so `matrixWorld` can be stale — especially
+  // nested GLB nodes (Fred's skin). `Box3.setFromObject` only updates each node
+  // relative to its (possibly stale) parent, so a stale ancestor leaks into the
+  // measured box → wrong center → body drifts. Forcing the update makes the
+  // measurement deterministic regardless of frame timing.
+  segmentsGroup.updateWorldMatrix(true, true);
+
   const box = withSubtreeForcedVisible(segmentsGroup, () => new Box3().setFromObject(segmentsGroup));
+  if (box.isEmpty()) return;
 
   const center = box.getCenter(new Vector3());
   const size = box.getSize(new Vector3());
@@ -74,6 +84,14 @@ export function centerModelInGroup(
 
   const maxDimension = Math.max(size.x, size.y, size.z);
   if (maxDimension === 0) return;
+
+  // `center` is world-space and therefore includes the parent lift (modelGroupY).
+  // Convert it into rootGroup-local space (segmentsGroup's parent frame) so the
+  // body's geometric center lands exactly on the rootGroup origin — i.e. world Y
+  // = modelGroupY, matching the camera's default target. Applying the raw world
+  // center as a local offset is what previously let the lift leak in (only when
+  // a frame had refreshed matrices) and caused the intermittent F5 vertical drift.
+  rootGroup.worldToLocal(center);
 
   const scale = MODEL_CORE.scaleFactor / maxDimension;
   rootGroup.scale.set(scale, scale, scale);

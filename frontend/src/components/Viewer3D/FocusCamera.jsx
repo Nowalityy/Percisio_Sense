@@ -58,10 +58,14 @@ function zoomLevelToCameraZoom(level) {
 
 const DEFAULT_CAMERA_ZOOM = zoomLevelToCameraZoom(DEFAULT_ZOOM_SLIDER_LEVEL);
 
-const DEFAULT_BODY_FIT_PADDING = 1.15;
+/** Body framing margin around the bounding sphere (1 = tight). Lower ⇒ bigger body. */
+const DEFAULT_BODY_FIT_PADDING = 1.05;
 
-/** Vertical offset (in sphere radii) for the slightly-elevated anterior view. */
+/** Vertical offset (in sphere radii) for the slightly-elevated anterior view (organ focus). */
 const FIT_ELEVATION = 0.07;
+
+/** Body default-view elevation: near head-on so the body stays vertically centered. */
+const DEFAULT_BODY_FIT_ELEVATION = 0.02;
 
 export function FocusCamera({ zoomLevel = DEFAULT_ZOOM_SLIDER_LEVEL }) {
   const controlsRef = useRef(null);
@@ -69,6 +73,15 @@ export function FocusCamera({ zoomLevel = DEFAULT_ZOOM_SLIDER_LEVEL }) {
   const rafThrottleRef = useRef(null);
   /** Last `modelGroup` for which the default framing was applied. */
   const lastFramedModelRef = useRef(null);
+  /**
+   * True once the user takes control (orbit / organ focus / auto-spin). While it
+   * is false we keep the right to RE-fit when the canvas size changes — this is
+   * the safety net against the F5 race: with a warm cache the model can appear
+   * before the layout (flex, scrollbar, fonts) settles, so the first fit may use
+   * a transient size; the final `ResizeObserver` then re-runs the fit. Once the
+   * user has moved the camera we stop auto-fitting so we never steal their view.
+   */
+  const userAdjustedRef = useRef(false);
   /** Bounding-sphere radius of `modelGroup` (world) — drives OrbitControls min/max dolly distance. */
   const [modelSphereRadius, setModelSphereRadius] = useState(null);
   /** Full model world AABB — polar limits use mesh `.min`/`.max` Y vs target, not fixed angles. */
@@ -158,6 +171,7 @@ export function FocusCamera({ zoomLevel = DEFAULT_ZOOM_SLIDER_LEVEL }) {
 
     if (segmentChanged) {
       lastFramedModelRef.current = null;
+      userAdjustedRef.current = false;
       defaultStateSavedRef.current = false;
       setModelSphereRadius(null);
       modelWorldBoxRef.current = null;
@@ -235,9 +249,27 @@ export function FocusCamera({ zoomLevel = DEFAULT_ZOOM_SLIDER_LEVEL }) {
    */
   useEffect(() => {
     if (!modelGroup || !camera) return;
-    if (lastFramedModelRef.current === modelGroup) return;
     const controls = controlsRef.current;
     if (!controls) return;
+
+    /*
+     * Re-fit if: new model, OR the canvas size changed while the user has not
+     * taken control yet. The 2nd case fixes the F5 race (warm cache): the first
+     * fit can land on a transient aspect, and it is the final `ResizeObserver`
+     * (deps `size.*`) that re-runs this with the correct size. Read live store
+     * state so a stale focus / auto-spin closure cannot wrongly skip the re-fit.
+     */
+    const live = useSceneStore.getState();
+    const userControlled =
+      userAdjustedRef.current || Boolean(live.currentFocus) || live.cameraAutoSpin;
+    if (lastFramedModelRef.current === modelGroup && userControlled) return;
+
+    /*
+     * Never lock in a fit computed on a degenerate canvas size: `camera.aspect`
+     * would be wrong AND we'd freeze it via `lastFramedModelRef`. Wait for the
+     * real measure — the ResizeObserver re-runs this effect via the size deps.
+     */
+    if (!(size.width > 0) || !(size.height > 0)) return;
 
     // Make sure all matrices reflect the freshly-applied centering/scaling.
     modelGroup.updateMatrixWorld(true);
@@ -252,7 +284,7 @@ export function FocusCamera({ zoomLevel = DEFAULT_ZOOM_SLIDER_LEVEL }) {
       box,
       camera,
       DEFAULT_BODY_FIT_PADDING,
-      FIT_ELEVATION,
+      DEFAULT_BODY_FIT_ELEVATION,
       CAMERA.FIT_VERTICAL_TARGET_BIAS
     );
     if (!fit) return;
@@ -346,6 +378,8 @@ export function FocusCamera({ zoomLevel = DEFAULT_ZOOM_SLIDER_LEVEL }) {
       setZoomAnimation(null);
       return undefined;
     }
+    // Organ focus = the user takes control: stop auto-re-fitting on resize.
+    userAdjustedRef.current = true;
     const controls = controlsRef.current;
     if (!controls || !camera) return undefined;
 
@@ -513,6 +547,7 @@ export function FocusCamera({ zoomLevel = DEFAULT_ZOOM_SLIDER_LEVEL }) {
       maxDistance={orbitLimits.max}
       onStart={() => {
         setIsInteracting(true);
+        userAdjustedRef.current = true;
         setZoomAnimation(null);
         if (useSceneStore.getState().cameraAutoSpin) {
           useSceneStore.getState().setCameraAutoSpin(false);
