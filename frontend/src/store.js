@@ -78,6 +78,16 @@ export const useSceneStore = create(
         isAnalyzing: false,
         setAnalyzing: (value) => set({ isAnalyzing: Boolean(value) }),
 
+        /**
+         * First-run onboarding tour (PER-66). `hasSeenOnboarding` is persisted
+         * so the tour auto-starts only once per user; `onboardingActive` is
+         * ephemeral UI state (relaunchable from the account menu).
+         */
+        hasSeenOnboarding: false,
+        onboardingActive: false,
+        startOnboarding: () => set({ onboardingActive: true }),
+        endOnboarding: () => set({ onboardingActive: false, hasSeenOnboarding: true }),
+
         // Camera state: getter is set by FocusCamera so history can capture current view
         getCameraState: null,
         setGetCameraState: (fn) => set({ getCameraState: fn }),
@@ -337,6 +347,7 @@ export const useSceneStore = create(
           lastMeta: state.lastMeta,
           lastImpression: state.lastImpression,
           lastRecommendations: state.lastRecommendations,
+          hasSeenOnboarding: state.hasSeenOnboarding,
         }),
         merge: (persistedState, currentState) => ({
           ...currentState,

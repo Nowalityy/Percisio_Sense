@@ -1,6 +1,7 @@
 import { useState, useEffect, lazy, Suspense } from 'react';
 import { SkeletonPanel } from './components/SkeletonPanel.jsx';
 import RadiologyReport from './components/RadiologyReport.jsx';
+import OnboardingTour from './components/OnboardingTour.jsx';
 import { Icon, BrandMark } from './components/psUI.jsx';
 import { NotificationsMenu, UserMenu } from './components/TopBarMenus.jsx';
 import ShareDialog from './components/ShareDialog.jsx';
@@ -243,7 +244,7 @@ function App() {
       {/* ============ WORKSPACE ============ */}
       <div className="clinic-grid">
         {/* viewer — full-height left column */}
-        <div className={`${paneCls('viewer')} ps-card av ps-viewport`} style={{ padding: 0, overflow: 'hidden', position: 'relative' }} aria-label="3D clinical viewer">
+        <div data-tour="viewer" className={`${paneCls('viewer')} ps-card av ps-viewport`} style={{ padding: 0, overflow: 'hidden', position: 'relative' }} aria-label="3D clinical viewer">
           {viewerUnlocked ? (
             <Suspense fallback={<PaneFallback lines={4} />}>
               <Viewer3D />
@@ -254,7 +255,7 @@ function App() {
         </div>
 
         {/* radiology report (centrepiece) */}
-        <div className={`${paneCls('report')} ps-card col`} style={{ minHeight: 0, overflow: 'hidden' }} aria-label="Radiology report">
+        <div data-tour="report" className={`${paneCls('report')} ps-card col`} style={{ minHeight: 0, overflow: 'hidden' }} aria-label="Radiology report">
           <CardHd icon="report-medical" title="Radiology Report" right={<span style={{ marginLeft: 'auto' }} className="wl-mono">{reportBy}</span>} />
           <div className="ps-divider" />
           <div className="scroll-y grow" style={{ minHeight: 0 }}>
@@ -263,12 +264,14 @@ function App() {
         </div>
 
         {/* clinical assistant */}
-        <div className={`${paneCls('assistant')} ps-card col`} style={{ minHeight: 0, overflow: 'hidden' }} aria-label="Clinical AI assistant">
+        <div data-tour="assistant" className={`${paneCls('assistant')} ps-card col`} style={{ minHeight: 0, overflow: 'hidden' }} aria-label="Clinical AI assistant">
           <Suspense fallback={<PaneFallback lines={3} />}>
             <Chatbot />
           </Suspense>
         </div>
       </div>
+
+      <OnboardingTour />
     </div>
   );
 }
