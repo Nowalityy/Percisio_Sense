@@ -4,6 +4,7 @@ import RadiologyReport from './components/RadiologyReport.jsx';
 import { Icon, BrandMark } from './components/psUI.jsx';
 import { NotificationsMenu, UserMenu } from './components/TopBarMenus.jsx';
 import ShareDialog from './components/ShareDialog.jsx';
+import LegalFooter from './components/LegalFooter.jsx';
 import { useSceneStore } from './store.js';
 import {
   fetchReportContent,
@@ -269,6 +270,8 @@ function App() {
           </Suspense>
         </div>
       </div>
+
+      <LegalFooter />
     </div>
   );
 }
