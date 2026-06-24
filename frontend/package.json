@@ -20,6 +20,7 @@
     "@react-three/fiber": "^9.5.0",
     "comlink": "^4.4.2",
     "framer-motion": "^12.38.0",
+    "html2canvas": "^1.4.1",
     "jspdf": "^4.2.1",
     "pdfjs-dist": "^4.10.38",
     "react": "^19.2.0",

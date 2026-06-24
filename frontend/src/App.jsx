@@ -11,7 +11,7 @@ import {
   getScanReportOptionById,
 } from './config/dicomStudies.js';
 import { parseCaseMeta } from './utils/caseMeta.js';
-import { exportReportPdf, captureViewerImage } from './utils/exportReportPdf.js';
+import { exportReportPdf, captureViewerImages } from './utils/exportReportPdf.js';
 
 /** Shape the store's findings/risks cards into the export PDF's structure. */
 function shapeReportFromCards(cards) {
@@ -110,7 +110,8 @@ function PatientStrip({ study, meta }) {
   const handleExport = () => {
     const st = useSceneStore.getState();
     const { findings, risks } = shapeReportFromCards(st.lastCards);
-    exportReportPdf({
+    Promise.resolve(
+      exportReportPdf({
       meta: {
         caseLabel: meta.caseLabel,
         age: meta.age,
@@ -124,8 +125,11 @@ function PatientStrip({ study, meta }) {
       impression: st.lastImpression || '',
       findings,
       risks,
-      recommendations: Array.isArray(st.lastRecommendations) ? st.lastRecommendations : [],
-      viewerImage: captureViewerImage(),
+        recommendations: Array.isArray(st.lastRecommendations) ? st.lastRecommendations : [],
+        viewerImages: captureViewerImages(),
+      })
+    ).catch((err) => {
+      console.error('PDF export failed', err);
     });
   };
 
