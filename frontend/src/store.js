@@ -121,6 +121,12 @@ export const useSceneStore = create(
         captureViewer: null,
         setCaptureViewer: (fn) => set({ captureViewer: typeof fn === 'function' ? fn : null }),
 
+        // PER-56: multi-angle snapshot fn — orbits the camera and captures N views,
+        // restoring the original pose afterwards. Used by the PDF export's 3D grid.
+        captureViewerAngles: null,
+        setCaptureViewerAngles: (fn) =>
+          set({ captureViewerAngles: typeof fn === 'function' ? fn : null }),
+
         // Auto-spin toggles a continuous azimuthal orbit of the camera in FocusCamera.
         cameraAutoSpin: false,
         setCameraAutoSpin: (value) => set({ cameraAutoSpin: Boolean(value) }),
