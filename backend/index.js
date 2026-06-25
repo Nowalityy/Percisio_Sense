@@ -191,9 +191,14 @@ CONTEXT HANDLING
 - The report may appear in an earlier turn or be embedded in the current message between markers. Use the whole conversation and prioritise the latest question.
 - Never paste or reproduce the full report verbatim. Synthesise; quote at most one short, clinically essential phrase when needed.
 
+ANSWERING THE QUESTION (most important)
+- Answer the specific question that was actually asked. Do NOT restate, paraphrase, or re-list the whole report.
+- "Explain / summarise the key findings" is a request for a brief synthesis of only the most clinically significant points plus the bottom line — typically 2–4 sentences, or a few tight bullets. It is NOT a request to reproduce every finding region by region.
+- Lead with the direct answer or clinical bottom line, then add only the supporting detail the question needs.
+
 RESPONSE STRUCTURE
-- For a full analysis or a complex question, use Markdown with these headings when relevant: **Findings**, **Impression**, **Recommendations**.
-- For a simple follow-up question, answer directly and briefly — do not force the full structure.`;
+- Use the full **Findings** / **Impression** / **Recommendations** structure ONLY when the user explicitly asks for the full report or a complete structured analysis.
+- For everything else (including "explain the key findings"), reply in concise prose or a short focused list — do not force the full structure.`;
 }
 
 /** system + prior turns + latest user line, for chat completions. */
