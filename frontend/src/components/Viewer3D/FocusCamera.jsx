@@ -99,6 +99,7 @@ export function FocusCamera({ zoomLevel = DEFAULT_ZOOM_SLIDER_LEVEL }) {
   const setGetDefaultCameraState = useSceneStore((s) => s.setGetDefaultCameraState);
   const setCameraOrbitFn = useSceneStore((s) => s.setCameraOrbitFn);
   const setCaptureViewer = useSceneStore((s) => s.setCaptureViewer);
+  const setCaptureViewerAngles = useSceneStore((s) => s.setCaptureViewerAngles);
   const cameraAutoSpin = useSceneStore((s) => s.cameraAutoSpin);
   const pendingCameraRestore = useSceneStore((s) => s.pendingCameraRestore);
   const { gl, scene, camera, invalidate, size } = useThree();
@@ -123,8 +124,58 @@ export function FocusCamera({ zoomLevel = DEFAULT_ZOOM_SLIDER_LEVEL }) {
     };
     // store action wraps in a thunk so zustand keeps the fn as plain data.
     setCaptureViewer(capture);
-    return () => setCaptureViewer(null);
-  }, [gl, scene, camera, setCaptureViewer]);
+
+    /**
+     * Capture several orbited views in one synchronous pass. We rotate the
+     * azimuth (theta) around the current OrbitControls target, render + read
+     * the buffer for each angle, then restore the original pose. Returns an
+     * array of { url, label }.
+     */
+    const captureAngles = (
+      angles = [
+        { dTheta: 0, label: 'Anterior' },
+        { dTheta: Math.PI / 2, label: 'Lateral · Left' },
+        { dTheta: Math.PI, label: 'Posterior' },
+        { dTheta: -Math.PI / 2, label: 'Lateral · Right' },
+      ]
+    ) => {
+      const controls = controlsRef.current;
+      if (!controls || !camera) return [];
+
+      const target = controls.target.clone();
+      const savedPos = camera.position.clone();
+      const savedUp = camera.up.clone();
+      const baseOffset = new THREE.Vector3().subVectors(camera.position, target);
+      const baseSpherical = new THREE.Spherical().setFromVector3(baseOffset);
+
+      const shots = [];
+      for (const { dTheta, label } of angles) {
+        const sph = baseSpherical.clone();
+        sph.theta = baseSpherical.theta + dTheta;
+        const offset = new THREE.Vector3().setFromSpherical(sph);
+        camera.position.copy(target).add(offset);
+        camera.up.set(0, 1, 0);
+        camera.lookAt(target);
+        camera.updateMatrixWorld();
+        gl.render(scene, camera);
+        shots.push({ url: gl.domElement.toDataURL('image/png'), label });
+      }
+
+      // Restore the user's original pose.
+      camera.position.copy(savedPos);
+      camera.up.copy(savedUp);
+      camera.lookAt(target);
+      controls.update();
+      invalidate();
+      return shots;
+    };
+    setCaptureViewerAngles(captureAngles);
+
+    return () => {
+      setCaptureViewer(null);
+      setCaptureViewerAngles(null);
+    };
+  }, [gl, scene, camera, invalidate, setCaptureViewer, setCaptureViewerAngles]);
 
   const [zoomAnimation, setZoomAnimation] = useState(null);
   const [isInteracting, setIsInteracting] = useState(false);

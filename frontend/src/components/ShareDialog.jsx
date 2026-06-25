@@ -10,12 +10,12 @@ import {
 } from '../utils/shareReport.js';
 
 /**
- * Share the clinical report by email / WhatsApp / download / clipboard (PER-62).
+ * Share the clinical report by copy / email / WhatsApp / download (PER-62).
  *
- * Anonymization is ON by default; turning it OFF surfaces a prominent warning
- * because the shared text may then carry patient-identifying information.
- * Sharing opens the user's mail client / WhatsApp pre-filled — nothing is
- * sent automatically.
+ * Clean single-surface modal (Figma/Loom-inspired): a prominent "Copy" primary
+ * action plus a row of channel buttons — no inline preview. Anonymization is ON
+ * by default; turning it OFF surfaces a prominent warning. Email/WhatsApp open
+ * the user's client PRE-FILLED — nothing is sent automatically.
  */
 export default function ShareDialog({ meta, reportBy, onClose }) {
   const [anonymize, setAnonymize] = useState(true);
@@ -43,17 +43,19 @@ export default function ShareDialog({ meta, reportBy, onClose }) {
 
   const fileName = `percisio-report-${String(meta?.caseLabel || 'case').replace(/[^\w.-]+/g, '_')}.txt`;
 
-  const targets = [
+  const channels = [
     { id: 'email', label: 'Email', icon: 'mail', onClick: () => shareViaEmail(subject, body) },
     { id: 'whatsapp', label: 'WhatsApp', icon: 'brand-whatsapp', onClick: () => shareViaWhatsApp(body) },
     { id: 'download', label: 'Download', icon: 'file-download', onClick: () => downloadReportText(fileName, body) },
-    { id: 'copy', label: copied ? 'Copied' : 'Copy text', icon: copied ? 'check' : 'copy', onClick: doCopy },
   ];
 
   return (
     <div
       onClick={onClose}
-      style={{ position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(8,12,18,0.45)', display: 'grid', placeItems: 'center', padding: 16 }}
+      style={{
+        position: 'fixed', inset: 0, zIndex: 100, background: 'rgba(8,12,18,0.55)',
+        backdropFilter: 'blur(2px)', display: 'grid', placeItems: 'center', padding: 16,
+      }}
       role="dialog"
       aria-modal="true"
       aria-label="Share report"
@@ -61,18 +63,31 @@ export default function ShareDialog({ meta, reportBy, onClose }) {
       <div
         onClick={(e) => e.stopPropagation()}
         className="ps-card"
-        style={{ width: 'min(480px, 96vw)', maxHeight: '90vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
+        style={{ width: 'min(420px, 96vw)', overflow: 'hidden' }}
       >
-        {/* Header */}
-        <div className="row gap10" style={{ padding: '14px 16px', borderBottom: '1px solid var(--border)' }}>
-          <Icon name="share-2" size={17} color="var(--accent)" />
-          <span style={{ fontSize: 14, fontWeight: 700 }}>Share report</span>
-          <button type="button" onClick={onClose} aria-label="Close" style={{ marginLeft: 'auto', color: 'var(--muted)', cursor: 'pointer', display: 'grid', placeItems: 'center' }}>
+        {/* Header — icon tile · title + subtitle · close */}
+        <div className="row gap10" style={{ padding: '16px 18px 14px', alignItems: 'flex-start' }}>
+          <span
+            aria-hidden
+            style={{ flex: 'none', width: 32, height: 32, borderRadius: 'var(--r-sm)', background: 'var(--accent-dim)', display: 'grid', placeItems: 'center' }}
+          >
+            <Icon name="share-2" size={16} color="var(--accent)" />
+          </span>
+          <span style={{ minWidth: 0 }}>
+            <span style={{ display: 'block', fontSize: 14.5, fontWeight: 700, color: 'var(--text)' }}>Share report</span>
+            <span style={{ display: 'block', fontSize: 11.5, color: 'var(--muted)' }}>A text summary — nothing is sent until you confirm.</span>
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            style={{ marginLeft: 'auto', color: 'var(--muted)', cursor: 'pointer', display: 'grid', placeItems: 'center' }}
+          >
             <Icon name="x" size={18} />
           </button>
         </div>
 
-        <div style={{ padding: 16, overflowY: 'auto' }}>
+        <div style={{ padding: '0 18px 18px' }}>
           {/* Anonymize toggle */}
           <button
             type="button"
@@ -115,30 +130,33 @@ export default function ShareDialog({ meta, reportBy, onClose }) {
             </div>
           )}
 
-          {/* Preview */}
-          <div className="over" style={{ marginTop: 16, marginBottom: 6 }}>Preview</div>
-          <pre
+          {/* Primary action — Copy (Figma-style prominent) */}
+          <button
+            type="button"
+            onClick={doCopy}
             style={{
-              margin: 0, maxHeight: 200, overflow: 'auto', padding: 12, borderRadius: 'var(--r-sm)',
-              background: 'var(--elevated)', border: '1px solid var(--border)', color: 'var(--text)',
-              fontFamily: 'var(--font-mono)', fontSize: 11, lineHeight: 1.5, whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%',
+              marginTop: 14, padding: '11px 14px', borderRadius: 'var(--r-sm)', cursor: 'pointer',
+              border: '1px solid transparent', background: 'var(--accent)', color: 'var(--accent-ink)',
+              fontSize: 13.5, fontWeight: 700,
             }}
+            onMouseEnter={(e) => (e.currentTarget.style.filter = 'brightness(1.07)')}
+            onMouseLeave={(e) => (e.currentTarget.style.filter = 'none')}
           >
-            {body}
-          </pre>
-        </div>
+            <Icon name={copied ? 'check' : 'copy'} size={17} color="var(--accent-ink)" />
+            {copied ? 'Copied to clipboard' : 'Copy report text'}
+          </button>
 
-        {/* Share targets */}
-        <div style={{ padding: 14, borderTop: '1px solid var(--border)' }}>
-          <div className="over" style={{ marginBottom: 8 }}>Share to</div>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-            {targets.map((t) => (
+          {/* Channels (Loom-style row) */}
+          <div className="over" style={{ margin: '16px 0 8px' }}>Or share via</div>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {channels.map((c) => (
               <button
-                key={t.id}
+                key={c.id}
                 type="button"
-                onClick={t.onClick}
+                onClick={c.onClick}
                 style={{
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
+                  flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6,
                   padding: '12px 6px', borderRadius: 'var(--r-sm)', cursor: 'pointer',
                   border: '1px solid var(--border-strong)', background: 'var(--elevated)',
                   color: 'var(--text)', fontSize: 12, fontWeight: 600,
@@ -146,8 +164,8 @@ export default function ShareDialog({ meta, reportBy, onClose }) {
                 onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'color-mix(in srgb, var(--accent) 45%, transparent)')}
                 onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--border-strong)')}
               >
-                <Icon name={t.icon} size={19} color="var(--accent)" />
-                {t.label}
+                <Icon name={c.icon} size={19} color="var(--accent)" />
+                {c.label}
               </button>
             ))}
           </div>
