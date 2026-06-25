@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from './psUI.jsx';
 import { useSceneStore } from '../store.js';
+import { LEGAL_COMPANY } from '../config/legalCompany.js';
+import TermsDialog from './TermsDialog.jsx';
 
 /**
  * Top-bar Notifications (bell) and User (avatar) menus.
@@ -129,10 +131,12 @@ const USER_ITEMS = [
 
 export function UserMenu({ initials = 'PS' }) {
   const { open, setOpen, ref } = useDropdown();
+  const [termsOpen, setTermsOpen] = useState(false);
   const startOnboarding = useSceneStore((s) => s.startOnboarding);
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
+      {termsOpen && <TermsDialog onClose={() => setTermsOpen(false)} />}
       <button
         type="button"
         className="ps-avatar"
@@ -177,8 +181,83 @@ export function UserMenu({ initials = 'PS' }) {
               </button>
             ))}
           </div>
+
+          <UserMenuLegal
+            onOpenTerms={() => {
+              setOpen(false);
+              setTermsOpen(true);
+            }}
+          />
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Legal/company footer inside the account menu (PER-58): a percisio.com
+ * backlink + Terms link, then compact imprint (entity, address, RCS, contact).
+ * Lives in the dropdown so it doesn't steal vertical space from the main app.
+ */
+function UserMenuLegal({ onOpenTerms }) {
+  const c = LEGAL_COMPANY;
+  const year = new Date().getFullYear();
+
+  const rowStyle = {
+    display: 'flex', alignItems: 'center', gap: 10, width: '100%',
+    padding: '9px 11px', borderRadius: 'var(--r-sm)', fontSize: 12.5, fontWeight: 500,
+    color: 'var(--text)', textDecoration: 'none', cursor: 'pointer', textAlign: 'left',
+    background: 'transparent', border: 'none',
+  };
+  const hoverOn = (e) => (e.currentTarget.style.background = 'var(--elevated)');
+  const hoverOff = (e) => (e.currentTarget.style.background = 'transparent');
+
+  const externalLinks = [
+    { icon: 'world', label: c.websiteLabel, href: c.websiteUrl },
+    { icon: 'mail', label: c.contactLabel, href: c.contactUrl },
+  ];
+
+  return (
+    <div style={{ borderTop: '1px solid var(--border)' }}>
+      <div style={{ padding: 5 }}>
+        <button
+          type="button"
+          role="menuitem"
+          onClick={onOpenTerms}
+          style={rowStyle}
+          onMouseEnter={hoverOn}
+          onMouseLeave={hoverOff}
+        >
+          <Icon name="file-text" size={16} color="var(--muted)" />
+          {c.termsLabel}
+          <Icon name="chevron-right" size={14} color="var(--faint)" style={{ marginLeft: 'auto' }} />
+        </button>
+        {externalLinks.map((l) => (
+          <a
+            key={l.href}
+            href={l.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            role="menuitem"
+            style={rowStyle}
+            onMouseEnter={hoverOn}
+            onMouseLeave={hoverOff}
+          >
+            <Icon name={l.icon} size={16} color="var(--muted)" />
+            {l.label}
+            <Icon name="external-link" size={13} color="var(--faint)" style={{ marginLeft: 'auto' }} />
+          </a>
+        ))}
+      </div>
+
+      <div style={{ padding: '11px 16px 13px', borderTop: '1px solid var(--border)', lineHeight: 1.5 }}>
+        <div style={{ fontSize: 11.5, fontWeight: 700, color: 'var(--muted)' }}>{c.legalName}</div>
+        <div style={{ fontSize: 11, color: 'var(--faint)', marginTop: 3 }}>{c.addressLine}</div>
+        <div style={{ fontSize: 11, color: 'var(--faint)' }}>{c.rcs}</div>
+        <div style={{ fontSize: 10.5, color: 'var(--faint)', marginTop: 9, fontFamily: 'var(--font-mono)' }}>
+          © {year} {c.legalName}
+        </div>
+      </div>
     </div>
   );
 }
