@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from './psUI.jsx';
+import { useSceneStore } from '../store.js';
 import { LEGAL_COMPANY } from '../config/legalCompany.js';
 import TermsDialog from './TermsDialog.jsx';
 
@@ -124,12 +125,14 @@ export function NotificationsMenu() {
 const USER_ITEMS = [
   { id: 'settings', icon: 'settings', label: 'Settings' },
   { id: 'help', icon: 'help-circle', label: 'Help & shortcuts' },
+  { id: 'tutorial', icon: 'route', label: 'Show tutorial again' },
   { id: 'signout', icon: 'logout', label: 'Sign out', danger: true },
 ];
 
 export function UserMenu({ initials = 'PS' }) {
   const { open, setOpen, ref } = useDropdown();
   const [termsOpen, setTermsOpen] = useState(false);
+  const startOnboarding = useSceneStore((s) => s.startOnboarding);
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
@@ -161,7 +164,10 @@ export function UserMenu({ initials = 'PS' }) {
                 key={it.id}
                 type="button"
                 role="menuitem"
-                onClick={() => setOpen(false)}
+                onClick={() => {
+                  setOpen(false);
+                  if (it.id === 'tutorial') startOnboarding();
+                }}
                 style={{
                   display: 'flex', alignItems: 'center', gap: 10, width: '100%',
                   padding: '9px 11px', borderRadius: 'var(--r-sm)', fontSize: 13, fontWeight: 500,
