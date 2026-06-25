@@ -7,4 +7,6 @@ export const LEGAL_COMPANY = {
   websiteLabel: 'percisio.com',
   contactUrl: 'https://www.percisio.com/contact',
   contactLabel: 'Contact',
+  termsUrl: 'https://www.percisio.com/legal/terms',
+  termsLabel: 'Terms & Conditions',
 };
