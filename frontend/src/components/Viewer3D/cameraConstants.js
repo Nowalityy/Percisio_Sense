@@ -74,10 +74,10 @@ export const CAMERA = {
   ORBIT_POLAR_EPS: 0.06,
   /**
    * Default framing looks at midpoint between world `min.y` and `max.y` (+ this bias × height).
-   * Small positive ⇒ higher target in world space ⇒ the body sits a bit lower in the image
-   * (compensates for a bottom-heavy bbox / exports that sit high in the viewport).
+   * 0 ⇒ aim at the true vertical center (body centered in the image). Positive pushes the
+   * body lower; negative raises it.
    */
-  FIT_VERTICAL_TARGET_BIAS: 0.05,
+  FIT_VERTICAL_TARGET_BIAS: 0,
 };
 
 /**
