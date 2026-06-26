@@ -29,7 +29,7 @@ const AUTO_SUMMARY_PROMPT_PREFIX =
   '[DOCUMENT CONTENT]:\n';
 const CONTEXT_PROMPT_TEMPLATE =
   '[CONTEXT - ANALYZED DOCUMENT]:\n{report}\n\n---\n\n' +
-  'Instructions: Answer using this document as the source. **Reply in English.** Do not repeat or paste the full report; use synthesis and short structured sections as appropriate.\n\n' +
+  'Instructions: Answer the specific question below using this document as the source. **Reply in English.** Synthesise — do not repeat, paste, or re-list the full report. Lead with the direct answer. Only use the full Findings/Impression/Recommendations structure if the question explicitly asks for the complete report; otherwise answer concisely.\n\n' +
   '[USER INQUIRY]:\n{question}';
 
 const FALLBACK_REPLY_SUMMARY = "I received the document, but I cannot summarize it.";
