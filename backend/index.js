@@ -489,7 +489,16 @@ if (process.env.NODE_ENV === 'production' && APP_MODE !== 'backend') {
         maxAge: '30d',
         immutable: true,
         setHeaders: (res, filePath) => {
-          if (filePath.endsWith('index.html')) res.setHeader('Cache-Control', 'no-cache');
+          // index.html and the branding assets under /favicon (icons, manifest)
+          // keep stable names, so they must be revalidated for new versions to
+          // propagate instead of waiting out the 30d immutable cache. Hashed
+          // JS/CSS keep the long immutable cache.
+          if (
+            filePath.endsWith('.html') ||
+            filePath.includes(`${path.sep}favicon${path.sep}`)
+          ) {
+            res.setHeader('Cache-Control', 'no-cache');
+          }
         },
       })
     );
