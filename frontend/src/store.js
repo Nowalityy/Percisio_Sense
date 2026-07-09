@@ -3,6 +3,11 @@ import { subscribeWithSelector, persist } from 'zustand/middleware';
 import { MAX_HISTORY_SIZE } from './utils/historyManager';
 import { DEFAULT_DICOM_STUDY_ID, DEFAULT_SCAN_REPORT_ID } from './config/dicomStudies';
 import { getDefaultAnatomySetId, normalizeAnatomySetId } from './segmentList';
+import {
+  ASSISTANT_WINDOW,
+  DEFAULT_ASSISTANT_TRIGGER_PLACEMENT,
+  isAssistantTriggerPlacement,
+} from './config/assistant';
 
 /**
  * Global store for the 3D scene and Chat.
@@ -87,6 +92,57 @@ export const useSceneStore = create(
         onboardingActive: false,
         startOnboarding: () => set({ onboardingActive: true }),
         endOnboarding: () => set({ onboardingActive: false, hasSeenOnboarding: true }),
+
+        /**
+         * Workspace layout (PER-77). 'three' = viewer + report + assistant
+         * columns (original). 'two' = report + hologram only; the assistant
+         * moves into a floating modal reachable via a trigger button.
+         */
+        workspaceLayout: 'three',
+        setWorkspaceLayout: (mode) =>
+          set(() => {
+            const next = mode === 'two' ? 'two' : 'three';
+            // Leaving the 2-col layout tidies up the floating assistant.
+            return next === 'two'
+              ? { workspaceLayout: 'two' }
+              : { workspaceLayout: 'three', assistantModalOpen: false };
+          }),
+
+        /**
+         * Floating clinical-assistant modal (PER-77), used in the 2-col layout.
+         * `open` is close/reopen; `windowState` is expand/collapse. Both are
+         * ephemeral — collapsing keeps the Chatbot mounted so the conversation
+         * context is never lost.
+         */
+        assistantModalOpen: false,
+        assistantWindowState: ASSISTANT_WINDOW.NORMAL,
+        openAssistantModal: () =>
+          set({ assistantModalOpen: true, assistantWindowState: ASSISTANT_WINDOW.NORMAL }),
+        closeAssistantModal: () => set({ assistantModalOpen: false }),
+        toggleAssistantModal: () =>
+          set((s) => ({
+            assistantModalOpen: !s.assistantModalOpen,
+            ...(s.assistantModalOpen ? {} : { assistantWindowState: ASSISTANT_WINDOW.NORMAL }),
+          })),
+        setAssistantWindowState: (state) =>
+          set(() => ({
+            assistantWindowState: Object.values(ASSISTANT_WINDOW).includes(state)
+              ? state
+              : ASSISTANT_WINDOW.NORMAL,
+          })),
+
+        /**
+         * Which trigger placement is active (PER-77). Persisted so a chosen
+         * option sticks; the full option list lives in `config/assistant.js`
+         * and is switchable at runtime to compare placements for review.
+         */
+        assistantTriggerPlacement: DEFAULT_ASSISTANT_TRIGGER_PLACEMENT,
+        setAssistantTriggerPlacement: (id) =>
+          set(() => ({
+            assistantTriggerPlacement: isAssistantTriggerPlacement(id)
+              ? id
+              : DEFAULT_ASSISTANT_TRIGGER_PLACEMENT,
+          })),
 
         // Camera state: getter is set by FocusCamera so history can capture current view
         getCameraState: null,
@@ -354,6 +410,8 @@ export const useSceneStore = create(
           lastImpression: state.lastImpression,
           lastRecommendations: state.lastRecommendations,
           hasSeenOnboarding: state.hasSeenOnboarding,
+          workspaceLayout: state.workspaceLayout,
+          assistantTriggerPlacement: state.assistantTriggerPlacement,
         }),
         merge: (persistedState, currentState) => ({
           ...currentState,

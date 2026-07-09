@@ -383,3 +383,158 @@ button.rp-item { color: var(--text); background: var(--surface); border: 1px sol
   .clinic-pane { display: none !important; }
   .clinic-pane.active { display: flex !important; }
 }
+
+/* ============================================================
+   PER-77 — 2-column (report + hologram) layout & assistant modal
+   ============================================================ */
+
+/* Two equal columns (report + hologram); assistant lives in a modal. */
+.clinic-grid.is-two-col { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 940px) {
+  .clinic-grid.is-two-col { grid-template-columns: 1fr; }
+}
+
+/* Segmented control (layout switch + trigger-placement review switch). */
+.ps-seg {
+  display: inline-flex; align-items: center; gap: 2px; padding: 2px;
+  background: var(--elevated); border: 1px solid var(--border); border-radius: var(--r-sm);
+}
+.ps-seg-btn {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  padding: 5px 10px; border-radius: var(--r-xs); border: 1px solid transparent;
+  font-size: 12px; font-weight: 600; color: var(--muted); background: transparent;
+  transition: all .13s ease; white-space: nowrap;
+}
+.ps-seg-btn:hover { color: var(--text); }
+.ps-seg-btn.on {
+  background: var(--surface); color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/* Trigger-placement review bar (2-col only). */
+.asst-place-bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 10px 18px; background: var(--surface); border-bottom: 1px solid var(--border);
+}
+.asst-place-label {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* Assistant trigger — icon-only sparkle button, reproducing the design spec's
+   five states exactly:
+     DEFAULT   bare glyph, no background
+     HOVER     glyph brightens (no background)
+     PRESSED   rounded square fills with an elevated surface
+     FOCUS     rounded square ring, no fill
+     DISABLED  desaturated / dimmed glyph
+   `--spark` drives the glyph colour so a placement can retint it locally. */
+.asst-spark-btn {
+  --spark: var(--accent);
+  width: 36px; height: 36px; border-radius: 10px; cursor: pointer;
+  display: grid; place-items: center;
+  background: transparent; border: 1px solid transparent; color: var(--spark);
+  transition: color .13s ease, background .13s ease, border-color .13s ease,
+              box-shadow .13s ease, transform .13s ease;
+}
+.asst-spark-btn:hover { color: var(--accent-2); }
+.asst-spark-btn:active,
+.asst-spark-btn.on { background: var(--elevated); color: var(--spark); }
+.asst-spark-btn:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--spark) 55%, transparent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+.asst-spark-btn:disabled {
+  color: color-mix(in srgb, var(--spark) 40%, var(--muted));
+  cursor: not-allowed; background: transparent;
+}
+
+/* Hologram-bar placement: floats over the top-right of the 3D viewer.
+   The viewer is always dark, so the button gets the frosted panel treatment of
+   the other viewer toolbars and the spec's mint star reads exactly as designed. */
+.asst-holo-trigger { position: absolute; top: 14px; right: 14px; z-index: 50; }
+.asst-holo-trigger .asst-spark-btn {
+  --spark: #5EEAD4;
+  background: rgba(12,16,20,0.82); backdrop-filter: blur(8px);
+  border-color: rgba(255,255,255,0.10);
+}
+.asst-holo-trigger .asst-spark-btn:hover { color: #8FF3E3; }
+.asst-holo-trigger .asst-spark-btn:active,
+.asst-holo-trigger .asst-spark-btn.on { background: rgba(255,255,255,0.10); }
+
+/* Floating action button placement — same button, elevated so it stays visible
+   over scrolling content. */
+.asst-spark-btn.fab {
+  position: fixed; right: 22px; bottom: 22px; z-index: 90;
+  width: 46px; height: 46px; border-radius: 13px;
+  background: var(--surface); border-color: var(--border-strong);
+  box-shadow: var(--shadow-pop);
+}
+.asst-spark-btn.fab:hover { transform: translateY(-1px); }
+.asst-spark-btn.fab:active { transform: none; background: var(--elevated); }
+
+/* Floating assistant window.
+   z-index 95 sits above the workspace (panels/toolbars ≤ 50) but BELOW the
+   dialogs it can spawn — the in-chat "New conversation" ConfirmDialog (110) and
+   ShareDialog (100) — so those are never hidden behind the window. */
+.asst-modal {
+  position: fixed; z-index: 95; display: flex; flex-direction: column;
+  background: var(--surface); border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg); box-shadow: var(--shadow-pop); overflow: hidden;
+  /* Grows out of the launcher in the bottom-right corner (§modal-motion). */
+  transform-origin: bottom right;
+  animation: asst-modal-in 170ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes asst-modal-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.94); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .asst-modal { animation: none; }
+}
+.asst-modal.state-normal {
+  right: 22px; bottom: 22px;
+  width: min(400px, calc(100vw - 32px));
+  height: min(620px, calc(100dvh - 130px));
+}
+.asst-modal.state-expanded {
+  right: 22px; bottom: 22px; top: 92px;
+  width: min(720px, calc(100vw - 44px));
+}
+.asst-modal.state-collapsed {
+  right: 22px; bottom: 22px;
+  width: min(340px, calc(100vw - 32px));
+  height: auto;
+}
+.asst-modal.state-collapsed .asst-modal-body { display: none; }
+
+.asst-modal-hd {
+  flex: none; display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-bottom: 1px solid var(--border); background: var(--elevated);
+}
+.asst-modal-avatar {
+  flex: none; width: 26px; height: 26px; border-radius: var(--r-sm);
+  display: grid; place-items: center;
+  background: var(--accent-dim); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.asst-modal-title { font-size: 13.5px; font-weight: 700; letter-spacing: -0.2px; }
+.asst-modal-actions { margin-left: auto; display: flex; align-items: center; gap: 2px; }
+.asst-modal-btn {
+  width: 32px; height: 32px; border-radius: var(--r-sm); cursor: pointer;
+  display: grid; place-items: center; color: var(--muted);
+  background: transparent; border: 1px solid transparent; transition: all .13s ease;
+}
+.asst-modal-btn:hover { color: var(--text); background: var(--surface); border-color: var(--border); }
+.asst-modal-body { flex: 1; min-height: 0; display: flex; }
+.asst-modal-body > * { flex: 1; min-height: 0; }
+
+/* On narrow screens the window fills most of the viewport. */
+@media (max-width: 620px) {
+  .asst-modal.state-normal,
+  .asst-modal.state-expanded {
+    left: 12px; right: 12px; bottom: 12px; top: auto;
+    width: auto; height: min(76dvh, 640px);
+  }
+  .asst-modal.state-collapsed { left: 12px; right: 12px; width: auto; }
+}
