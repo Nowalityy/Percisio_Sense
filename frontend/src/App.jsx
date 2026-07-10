@@ -151,12 +151,12 @@ function PatientStrip({ study, meta }) {
 
   return (
     <div className="clinic-strip">
-      <div className="row gap12">
-        <div className="wl-mod" style={{ width: 40, height: 40 }}>
-          <Icon name="user" size={20} />
+      <div className="row gap10">
+        <div className="wl-mod" style={{ width: 34, height: 34, flex: 'none' }}>
+          <Icon name="user" size={17} />
         </div>
-        <div className="col">
-          <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.3px' }}>{meta.caseLabel || 'No case selected'}</span>
+        <div className="col" style={{ minWidth: 0 }}>
+          <span style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: '-0.3px' }}>{meta.caseLabel || 'No case selected'}</span>
           <span className="wl-mono">Synthetic{demographic ? ` · ${demographic}` : ''}</span>
         </div>
       </div>
