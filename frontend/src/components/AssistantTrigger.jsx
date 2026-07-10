@@ -18,22 +18,22 @@ import { ASSISTANT_TRIGGER_ICON } from '../config/assistant.js';
  * @param {boolean} active       true while the modal is open (pressed state).
  */
 export default function AssistantTrigger({ variant = 'bar', active = false, disabled = false, onClick, label = 'Clinical Assistant' }) {
-  const fab = variant === 'fab';
-  const size = fab ? 19 : 18;
-  const glyph =
-    ASSISTANT_TRIGGER_ICON === 'spark' ? <SparkIcon size={size} /> : <Icon name={ASSISTANT_TRIGGER_ICON} size={size} />;
+  const size = variant === 'fab' ? 20 : 18;
   return (
     <button
       type="button"
-      className={`asst-spark-btn ${fab ? 'fab' : ''} ${active ? 'on' : ''}`}
+      className={`asst-spark-btn ${variant === 'fab' ? 'fab' : ''} ${active ? 'on' : ''}`}
       onClick={onClick}
       disabled={disabled}
       aria-label={label}
       aria-pressed={active}
       title={label}
     >
-      {glyph}
-      {fab && <span className="asst-fab-label">Clinical Assistant</span>}
+      {ASSISTANT_TRIGGER_ICON === 'spark' ? (
+        <SparkIcon size={size} />
+      ) : (
+        <Icon name={ASSISTANT_TRIGGER_ICON} size={size} />
+      )}
     </button>
   );
 }

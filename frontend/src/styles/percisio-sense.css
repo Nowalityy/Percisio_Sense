@@ -465,29 +465,14 @@ button.rp-item { color: var(--text); background: var(--surface); border: 1px sol
 
 /* Floating action button placement — same button, elevated so it stays visible
    over scrolling content. */
-/* Extended FAB — accent-filled labelled call-to-action so it's unmistakably
-   the way to open the clinical assistant (PER-77 review feedback). */
 .asst-spark-btn.fab {
-  position: fixed; right: 24px; bottom: 24px; z-index: 90;
-  width: auto; height: 50px; padding: 0 20px 0 17px; border-radius: 999px;
-  display: inline-flex; align-items: center; gap: 9px;
-  --spark: var(--accent-ink);
-  background: var(--accent); color: var(--accent-ink); border-color: transparent;
-  font-size: 14px; font-weight: 700; letter-spacing: -0.1px; white-space: nowrap;
-  box-shadow: var(--shadow-pop), 0 0 0 6px var(--accent-ring);
+  position: fixed; right: 22px; bottom: 22px; z-index: 90;
+  width: 46px; height: 46px; border-radius: 13px;
+  background: var(--surface); border-color: var(--border-strong);
+  box-shadow: var(--shadow-pop);
 }
-.asst-spark-btn.fab:hover { transform: translateY(-1px); filter: brightness(1.06); }
-.asst-spark-btn.fab:active { transform: none; filter: none; background: var(--accent); }
-.asst-spark-btn.fab:focus-visible {
-  border-color: transparent;
-  box-shadow: var(--shadow-pop), 0 0 0 4px var(--accent-ring), 0 0 0 6px var(--accent);
-}
-.asst-fab-label { line-height: 1; }
-@media (max-width: 620px) {
-  /* Compact to icon-only on small screens to save space. */
-  .asst-spark-btn.fab { padding: 0; width: 50px; justify-content: center; gap: 0; }
-  .asst-fab-label { display: none; }
-}
+.asst-spark-btn.fab:hover { transform: translateY(-1px); }
+.asst-spark-btn.fab:active { transform: none; background: var(--elevated); }
 
 /* Floating assistant window.
    z-index 95 sits above the workspace (panels/toolbars ≤ 50) but BELOW the
