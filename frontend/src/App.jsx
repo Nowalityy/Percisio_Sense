@@ -163,11 +163,13 @@ function PatientStrip({ study, meta }) {
 
       <div className="ps-top-sep" />
 
-      <StripField label="Study" value={meta.exam} />
-      <StripField label="Referrer" value={study?.referrer} />
-      <StripField label="Acquired" value={study?.acquired ? `${study.acquired}${study.dose ? ` · ${study.dose}` : ''}` : ''} mono />
+      <div className="cs-fields">
+        <StripField label="Study" value={meta.exam} />
+        <StripField label="Referrer" value={study?.referrer} />
+        <StripField label="Acquired" value={study?.acquired ? `${study.acquired}${study.dose ? ` · ${study.dose}` : ''}` : ''} mono />
+      </div>
 
-      <div className="row gap8" style={{ marginLeft: 'auto' }}>
+      <div className="cs-actions">
         <button className="ps-btn ps-ghost sm" onClick={handleExport} disabled={!analyzedReport} title="Export a PDF report (3D view + findings)">
           <Icon name="download" size={14} /> Export
         </button>
@@ -303,9 +305,12 @@ function App() {
         </div>
       </header>
 
-      {/* ============ PATIENT STRIP ============ */}
+      {/* ===== WORKSPACE BODY — vertical patient rail (laptop+) beside the main area ===== */}
+      <div className="clinic-body">
+      {/* PATIENT STRIP — vertical rail on wide screens, horizontal band on mobile */}
       <PatientStrip study={study} meta={meta} />
 
+      <div className="clinic-main">
       {/* ===== TRIGGER-PLACEMENT REVIEW SWITCHER — design review only (?triggerReview=1) ===== */}
       {twoCol && reviewMode && (
         <div className="asst-place-bar">
@@ -379,6 +384,8 @@ function App() {
           </div>
         )}
       </div>
+      </div>{/* /clinic-main */}
+      </div>{/* /clinic-body */}
 
       {/* Floating assistant modal + FAB trigger (2-col layout) */}
       {twoCol && (
