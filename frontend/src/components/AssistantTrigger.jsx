@@ -18,7 +18,7 @@ import { ASSISTANT_TRIGGER_ICON } from '../config/assistant.js';
  * @param {'bar'|'fab'} variant
  * @param {boolean} active  true while the modal is open (pressed state).
  */
-export default function AssistantTrigger({ variant = 'bar', active = false, disabled = false, onClick, label = 'Clinical Assistant' }) {
+export default function AssistantTrigger({ variant = 'bar', active = false, disabled = false, onClick, label = 'Clinical Assistant', tourId }) {
   const glyph =
     ASSISTANT_TRIGGER_ICON === 'spark' ? <SparkIcon size={16} /> : <Icon name={ASSISTANT_TRIGGER_ICON} size={16} />;
 
@@ -32,6 +32,7 @@ export default function AssistantTrigger({ variant = 'bar', active = false, disa
         aria-label={label}
         aria-pressed={active}
         title={label}
+        data-tour={tourId}
       >
         <span className="asst-pill-spark" aria-hidden>{glyph}</span>
         <span className="asst-pill-text">Assistant IA</span>

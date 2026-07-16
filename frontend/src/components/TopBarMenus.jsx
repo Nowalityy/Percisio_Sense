@@ -56,7 +56,11 @@ const NOTIFICATIONS = [
 export function NotificationsMenu({ openUp = false }) {
   const { open, setOpen, ref } = useDropdown();
   const unread = NOTIFICATIONS.filter((n) => n.unread).length;
-  const popoverStyle = openUp ? { ...POPOVER_STYLE, top: 'auto', bottom: 'calc(100% + 8px)' } : POPOVER_STYLE;
+  // openUp = sidebar-footer placement: open upward AND to the right (left:0),
+  // since the account cluster sits at the bottom-left of the screen.
+  const popoverStyle = openUp
+    ? { ...POPOVER_STYLE, top: 'auto', bottom: 'calc(100% + 8px)', right: 'auto', left: 0 }
+    : POPOVER_STYLE;
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
@@ -130,28 +134,46 @@ const USER_ITEMS = [
   { id: 'signout', icon: 'logout', label: 'Sign out', danger: true },
 ];
 
-export function UserMenu({ initials = 'PS', openUp = false }) {
+export function UserMenu({ initials = 'PS', openUp = false, chip = false, name = 'Percisio Sense', role = 'Clinician' }) {
   const { open, setOpen, ref } = useDropdown();
   const [termsOpen, setTermsOpen] = useState(false);
   const startOnboarding = useSceneStore((s) => s.startOnboarding);
   const popoverStyle = openUp
-    ? { ...POPOVER_STYLE, width: 232, top: 'auto', bottom: 'calc(100% + 8px)' }
+    ? { ...POPOVER_STYLE, width: 232, top: 'auto', bottom: 'calc(100% + 8px)', right: 'auto', left: 0 }
     : { ...POPOVER_STYLE, width: 232 };
 
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
+    <div ref={ref} className={chip ? 'cs-user-wrap' : undefined} style={{ position: 'relative', ...(chip ? { flex: 1, minWidth: 0 } : {}) }}>
       {termsOpen && <TermsDialog onClose={() => setTermsOpen(false)} />}
-      <button
-        type="button"
-        className="ps-avatar"
-        aria-label="Account menu"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-        style={{ cursor: 'pointer' }}
-      >
-        {initials}
-      </button>
+      {chip ? (
+        <button
+          type="button"
+          className="cs-user-chip"
+          aria-label="Account menu"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+        >
+          <span className="ps-avatar">{initials}</span>
+          <span className="cs-user-meta">
+            <span className="cs-user-name">{name}</span>
+            <span className="cs-user-role">{role}</span>
+          </span>
+          <Icon name={open ? 'chevron-down' : 'chevron-up'} size={15} className="cs-user-chev" />
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="ps-avatar"
+          aria-label="Account menu"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+          style={{ cursor: 'pointer' }}
+        >
+          {initials}
+        </button>
+      )}
 
       {open && (
         <div style={popoverStyle} role="menu" aria-label="Account">

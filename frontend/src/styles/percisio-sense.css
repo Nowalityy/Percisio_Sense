@@ -138,6 +138,16 @@
 .ps-ghost { color: var(--muted); border-color: var(--border-strong); }
 .ps-ghost:hover { color: var(--text); background: var(--elevated); }
 
+/* Keyboard focus rings — consistent visible focus across custom controls
+   (UI/UX §1 focus-states). */
+.ps-btn:focus-visible,
+.ps-seg-btn:focus-visible,
+.asst-modal-btn:focus-visible,
+button.clinic-mtab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* ============================================================
    BADGES / CHIPS / DOTS
    ============================================================ */
@@ -370,7 +380,44 @@ button.rp-item { color: var(--text); background: var(--surface); border: 1px sol
   padding: 14px 12px; background: var(--surface); border-right: 1px solid var(--border);
   overflow: visible;
 }
+/* Scrollable stack above the account footer: absorbs overflow on short
+   viewports so the account row stays visible; account dropdowns live outside
+   it (in the overflow:visible sidebar) so they're never clipped. */
+.cs-scroll {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
+  display: flex; flex-direction: column; align-items: stretch; gap: 12px;
+}
 .cs-brand { gap: 10px; }
+.cs-brand .ps-brand-tt { min-width: 0; }
+.cs-brand .ps-brand-name, .cs-brand .ps-brand-sub {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Sidebar collapse (fold/unfold the info panel). */
+.clinic-sidebar { transition: width .18s ease; }
+.cs-collapse-btn {
+  margin-left: auto; flex: none; width: 30px; height: 30px; border-radius: var(--r-sm);
+  display: grid; place-items: center; color: var(--muted); cursor: pointer;
+  background: transparent; border: 1px solid transparent; transition: all .13s ease;
+}
+.cs-collapse-btn:hover { color: var(--text); background: var(--elevated); border-color: var(--border); }
+.cs-collapse-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+@media (min-width: 941px) {
+  /* Collapsed = slim rail: keep the toggle + account icons, hide the details. */
+  .clinic-sidebar.collapsed { width: 60px; padding: 14px 8px; }
+  .clinic-sidebar.collapsed .cs-scroll { align-items: center; }
+  .clinic-sidebar.collapsed .ps-logo,
+  .clinic-sidebar.collapsed .ps-brand-tt,
+  .clinic-sidebar.collapsed .ps-seg,
+  .clinic-sidebar.collapsed .cs-patient,
+  .clinic-sidebar.collapsed .cs-user-meta,
+  .clinic-sidebar.collapsed .cs-user-chev { display: none; }
+  .clinic-sidebar.collapsed .cs-brand { justify-content: center; gap: 0; }
+  .clinic-sidebar.collapsed .cs-collapse-btn { margin-left: 0; }
+  .clinic-sidebar.collapsed .cs-account { flex-direction: column; gap: 8px; align-items: center; }
+  .clinic-sidebar.collapsed button.cs-user-chip { width: auto; padding: 4px; }
+}
 .clinic-sidebar .ps-seg { width: 100%; }
 .clinic-sidebar .ps-seg-btn { flex: 1; justify-content: center; }
 .clinic-sidebar .ps-top-sep { width: 100%; height: 1px; margin: 2px 0; }
@@ -383,8 +430,23 @@ button.rp-item { color: var(--text); background: var(--surface); border: 1px sol
 .cs-actions .ps-btn { width: 100%; justify-content: flex-start; }
 .cs-account {
   display: flex; align-items: center; gap: 8px;
-  padding-top: 10px; border-top: 1px solid var(--border);
+  margin-top: 2px; padding-top: 10px; border-top: 1px solid var(--border);
 }
+/* Account chip — avatar + name + role as a subtle clickable row, the standard
+   sidebar-footer pattern (clearer than a coloured ring, no teal-on-teal). */
+button.cs-user-chip {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 6px 8px; border-radius: var(--r-md); cursor: pointer; text-align: left;
+  background: transparent; border: 1px solid transparent;
+  transition: background .13s ease, border-color .13s ease;
+}
+button.cs-user-chip:hover { background: var(--elevated); border-color: var(--border); }
+button.cs-user-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cs-user-chip .ps-avatar { width: 34px; height: 34px; flex: none; }
+.cs-user-meta { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.cs-user-name { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cs-user-role { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cs-user-chip .cs-user-chev { margin-left: auto; color: var(--faint); flex: none; }
 
 .clinic-grid {
   flex: 1; min-height: 0; display: grid; gap: 16px; padding: 16px;
@@ -400,9 +462,15 @@ button.rp-item { color: var(--text); background: var(--surface); border: 1px sol
   .clinic-body { flex-direction: column; }
   .clinic-sidebar {
     flex: none; width: auto; flex-direction: row; align-items: center; flex-wrap: wrap;
-    gap: 14px; padding: 12px 16px; overflow: visible;
+    gap: 12px 14px; padding: 12px 16px; overflow: visible;
     border-right: none; border-bottom: 1px solid var(--border);
   }
+  /* Wrapper collapses so its children flow into the horizontal band. */
+  .cs-scroll { display: contents; }
+  /* Collapse control is desktop-only; the mobile band is always expanded. */
+  .cs-collapse-btn { display: none; }
+  /* Save space on mobile — the platform subtitle is redundant in the band. */
+  .cs-brand .ps-brand-sub { display: none; }
   .clinic-sidebar .ps-seg { width: auto; }
   .clinic-sidebar .ps-seg-btn { flex: none; }
   .clinic-sidebar .ps-top-sep { width: 1px; height: 30px; margin: 0; }
@@ -410,6 +478,9 @@ button.rp-item { color: var(--text); background: var(--surface); border: 1px sol
   .cs-actions { flex-direction: row; gap: 8px; margin-top: 0; }
   .cs-actions .ps-btn { width: auto; justify-content: center; }
   .cs-account { padding-top: 0; border-top: none; margin-left: auto; }
+  /* Collapse the account chip to just the avatar in the mobile band. */
+  .cs-user-chip .cs-user-meta, .cs-user-chip .cs-user-chev { display: none; }
+  button.cs-user-chip { padding: 4px; }
   .clinic-grid {
     grid-template-columns: 1fr; grid-template-rows: 1fr; padding: 12px;
   }
@@ -518,7 +589,8 @@ button.asst-pill {
   position: fixed; right: 24px; bottom: 24px; z-index: 90;
   display: inline-flex; align-items: center; gap: 9px;
   height: 44px; padding: 4px 5px 4px 16px; border-radius: 999px;
-  background: color-mix(in srgb, var(--accent) 92%, #000);
+  /* Darkened accent so white 13px/600 label clears 4.5:1 (UI/UX §6). */
+  background: color-mix(in srgb, var(--accent) 84%, #000);
   border: 0; color: #fff; cursor: pointer;
   box-shadow: var(--shadow-pop), inset 0 1px 0 rgba(255,255,255,0.16);
   transition: transform .14s ease, box-shadow .2s ease;
@@ -604,7 +676,7 @@ button.asst-pill:focus-visible { outline: none; box-shadow: var(--shadow-pop), 0
 .asst-modal-title { font-size: 13.5px; font-weight: 700; letter-spacing: -0.2px; }
 .asst-modal-actions { margin-left: auto; display: flex; align-items: center; gap: 2px; }
 .asst-modal-btn {
-  width: 32px; height: 32px; border-radius: var(--r-sm); cursor: pointer;
+  width: 34px; height: 34px; border-radius: var(--r-sm); cursor: pointer;
   display: grid; place-items: center; color: var(--muted);
   background: transparent; border: 1px solid transparent; transition: all .13s ease;
 }

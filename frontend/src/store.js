@@ -98,6 +98,10 @@ export const useSceneStore = create(
          * columns (original). 'two' = report + hologram only; the assistant
          * moves into a floating modal reachable via a trigger button.
          */
+        /** Collapsed state of the left sidebar (PER-77). Persisted preference. */
+        sidebarCollapsed: false,
+        toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
+
         workspaceLayout: 'three',
         setWorkspaceLayout: (mode) =>
           set(() => {
@@ -411,6 +415,7 @@ export const useSceneStore = create(
           lastRecommendations: state.lastRecommendations,
           hasSeenOnboarding: state.hasSeenOnboarding,
           workspaceLayout: state.workspaceLayout,
+          sidebarCollapsed: state.sidebarCollapsed,
           assistantTriggerPlacement: state.assistantTriggerPlacement,
         }),
         merge: (persistedState, currentState) => ({

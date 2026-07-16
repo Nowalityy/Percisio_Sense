@@ -240,6 +240,8 @@ function App() {
   const selectedDicom = useSceneStore((s) => s.selectedDicom);
   const workspaceLayout = useSceneStore((s) => s.workspaceLayout);
   const setWorkspaceLayout = useSceneStore((s) => s.setWorkspaceLayout);
+  const sidebarCollapsed = useSceneStore((s) => s.sidebarCollapsed);
+  const toggleSidebar = useSceneStore((s) => s.toggleSidebar);
   const triggerPlacement = useSceneStore((s) => s.assistantTriggerPlacement);
   const setTriggerPlacement = useSceneStore((s) => s.setAssistantTriggerPlacement);
   const assistantModalOpen = useSceneStore((s) => s.assistantModalOpen);
@@ -285,30 +287,44 @@ function App() {
       <div className="clinic-body">
       {/* SIDEBAR — brand · layout toggle · patient · actions · account.
           Vertical column on laptop+, horizontal band on mobile. */}
-      <aside className="clinic-sidebar">
-        <div className="ps-brand cs-brand">
-          <div className="ps-logo"><BrandMark /></div>
-          <div className="ps-brand-tt">
-            <span className="ps-brand-name">Percisio <b>Sense</b></span>
-            <span className="ps-brand-sub">AI Clinical Imaging Platform</span>
+      <aside className={`clinic-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
+        {/* Scrollable stack — brand · toggle · patient · actions. Keeps the
+            account footer below always visible on short viewports (P2.4). */}
+        <div className="cs-scroll">
+          <div className="ps-brand cs-brand">
+            <div className="ps-logo"><BrandMark /></div>
+            <div className="ps-brand-tt">
+              <span className="ps-brand-name">Percisio <b>Sense</b></span>
+              <span className="ps-brand-sub">AI Clinical Imaging Platform</span>
+            </div>
+            <button
+              type="button"
+              className="cs-collapse-btn"
+              onClick={toggleSidebar}
+              aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              aria-expanded={!sidebarCollapsed}
+              title={sidebarCollapsed ? 'Expand panel' : 'Collapse panel'}
+            >
+              <Icon name={sidebarCollapsed ? 'layout-sidebar-left-expand' : 'layout-sidebar-left-collapse'} size={18} />
+            </button>
           </div>
+
+          <Segmented
+            options={LAYOUT_OPTIONS}
+            value={workspaceLayout}
+            onChange={setWorkspaceLayout}
+            ariaLabel="Workspace layout"
+          />
+          {showTrigger('header') && (
+            <AssistantTrigger variant="bar" active={assistantModalOpen} onClick={toggleAssistantModal} />
+          )}
+
+          <PatientStrip study={study} meta={meta} />
         </div>
 
-        <Segmented
-          options={LAYOUT_OPTIONS}
-          value={workspaceLayout}
-          onChange={setWorkspaceLayout}
-          ariaLabel="Workspace layout"
-        />
-        {showTrigger('header') && (
-          <AssistantTrigger variant="bar" active={assistantModalOpen} onClick={toggleAssistantModal} />
-        )}
-
-        <PatientStrip study={study} meta={meta} />
-
         <div className="cs-account">
+          <UserMenu initials="PS" openUp chip />
           <NotificationsMenu openUp />
-          <UserMenu initials="PS" openUp />
         </div>
       </aside>
 
@@ -393,7 +409,7 @@ function App() {
       {twoCol && (
         <>
           {showTrigger('fab') && !assistantModalOpen && (
-            <AssistantTrigger variant="fab" active={assistantModalOpen} onClick={toggleAssistantModal} />
+            <AssistantTrigger variant="fab" active={assistantModalOpen} onClick={toggleAssistantModal} tourId="assistant" />
           )}
           <AssistantModal />
         </>
