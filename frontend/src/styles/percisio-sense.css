@@ -416,7 +416,21 @@ button.rp-item { color: var(--text); background: var(--surface); border: 1px sol
   .clinic-sidebar.collapsed .cs-brand { justify-content: center; gap: 0; }
   .clinic-sidebar.collapsed .cs-collapse-btn { margin-left: 0; }
   .clinic-sidebar.collapsed .cs-account { flex-direction: column; gap: 8px; align-items: center; }
-  .clinic-sidebar.collapsed button.cs-user-chip { width: auto; padding: 4px; }
+  /* Account chip → avatar-only icon, same footprint as the bell, centered.
+     The wrapper's inline `flex:1` must be overridden (hence !important) or it
+     stretches and the chip overflows the slim rail. */
+  .clinic-sidebar.collapsed .cs-user-wrap {
+    flex: 0 0 auto !important; width: 36px !important; min-width: 0 !important;
+    display: flex; justify-content: center;
+  }
+  .clinic-sidebar.collapsed .cs-user-meta,
+  .clinic-sidebar.collapsed .cs-user-chev { display: none !important; }
+  .clinic-sidebar.collapsed button.cs-user-chip {
+    width: 36px; padding: 0; gap: 0; justify-content: center;
+    background: transparent; border-color: transparent;
+  }
+  /* Bell matches the avatar footprint so the stacked icons line up. */
+  .clinic-sidebar.collapsed .cs-account .ps-btn.icon { width: 36px; height: 36px; }
 }
 .clinic-sidebar .ps-seg { width: 100%; }
 .clinic-sidebar .ps-seg-btn { flex: 1; justify-content: center; }
