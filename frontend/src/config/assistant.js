@@ -16,6 +16,13 @@
 export const ASSISTANT_TRIGGER_ICON = 'spark';
 
 /**
+ * Visible text on the floating launcher pill — a sample clinical question shown
+ * as a placeholder prompt (the button's accessible name stays "Clinical
+ * Assistant"). Swap this string to change the example question.
+ */
+export const ASSISTANT_LAUNCHER_PROMPT = 'What are the key findings?';
+
+/**
  * Trigger placement options proposed for review (PER-77 acceptance criteria).
  * The active one is chosen via `assistantTriggerPlacement` in the store, so the
  * options can be flipped through and compared side-by-side at runtime.

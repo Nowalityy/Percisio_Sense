@@ -1,5 +1,5 @@
 import { Icon, SparkIcon, BrandMark } from './psUI.jsx';
-import { ASSISTANT_TRIGGER_ICON } from '../config/assistant.js';
+import { ASSISTANT_TRIGGER_ICON, ASSISTANT_LAUNCHER_PROMPT } from '../config/assistant.js';
 
 /**
  * Opens the clinical-assistant modal in the 2-column layout (PER-77).
@@ -35,7 +35,7 @@ export default function AssistantTrigger({ variant = 'bar', active = false, disa
         data-tour={tourId}
       >
         <span className="asst-pill-spark" aria-hidden>{glyph}</span>
-        <span className="asst-pill-text">Assistant IA</span>
+        <span className="asst-pill-text">{ASSISTANT_LAUNCHER_PROMPT}</span>
         <span className="asst-pill-ava" aria-hidden><BrandMark size={16} /></span>
       </button>
     );

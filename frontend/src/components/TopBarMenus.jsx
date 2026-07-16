@@ -153,6 +153,7 @@ export function UserMenu({ initials = 'PS', openUp = false, chip = false, name =
           aria-haspopup="menu"
           aria-expanded={open}
           onClick={() => setOpen((v) => !v)}
+          title="Account"
         >
           <span className="ps-avatar">{initials}</span>
           <span className="cs-user-meta">

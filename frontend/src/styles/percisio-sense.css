@@ -395,8 +395,11 @@ button.rp-item { color: var(--text); background: var(--surface); border: 1px sol
 
 /* Sidebar collapse (fold/unfold the info panel). */
 .clinic-sidebar { transition: width .18s ease; }
+@media (prefers-reduced-motion: reduce) {
+  .clinic-sidebar { transition: none; }
+}
 .cs-collapse-btn {
-  margin-left: auto; flex: none; width: 30px; height: 30px; border-radius: var(--r-sm);
+  margin-left: auto; flex: none; width: 34px; height: 34px; border-radius: var(--r-sm);
   display: grid; place-items: center; color: var(--muted); cursor: pointer;
   background: transparent; border: 1px solid transparent; transition: all .13s ease;
 }
@@ -632,7 +635,7 @@ button.asst-pill:focus-visible { outline: none; box-shadow: var(--shadow-pop), 0
    viewer's scale readout above it so the launcher never covers it. */
 .layout-two-col .av-scale { bottom: 78px; }
 .asst-pill-spark { display: grid; place-items: center; color: #fff; }
-.asst-pill-text { font-size: 13px; font-weight: 600; color: #fff; white-space: nowrap; letter-spacing: -0.1px; }
+.asst-pill-text { font-size: 13px; font-weight: 500; color: #fff; white-space: nowrap; letter-spacing: -0.1px; }
 .asst-pill-ava {
   width: 32px; height: 32px; flex: none; border-radius: 50%; margin-left: 2px;
   background: #fff; display: grid; place-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.18);
