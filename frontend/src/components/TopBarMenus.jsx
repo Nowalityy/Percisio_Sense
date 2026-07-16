@@ -53,9 +53,10 @@ const NOTIFICATIONS = [
   { id: 3, icon: 'inbox', cls: 'cyan', title: 'New study assigned', body: 'Thoraco-abdomino-pelvic CT — Case F.', when: '1 h ago', unread: false },
 ];
 
-export function NotificationsMenu() {
+export function NotificationsMenu({ openUp = false }) {
   const { open, setOpen, ref } = useDropdown();
   const unread = NOTIFICATIONS.filter((n) => n.unread).length;
+  const popoverStyle = openUp ? { ...POPOVER_STYLE, top: 'auto', bottom: 'calc(100% + 8px)' } : POPOVER_STYLE;
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
@@ -82,7 +83,7 @@ export function NotificationsMenu() {
       </button>
 
       {open && (
-        <div style={POPOVER_STYLE} role="menu" aria-label="Notifications">
+        <div style={popoverStyle} role="menu" aria-label="Notifications">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
             <span style={{ fontSize: 13, fontWeight: 700 }}>Notifications</span>
             <span className="over">{unread} new</span>
@@ -129,10 +130,13 @@ const USER_ITEMS = [
   { id: 'signout', icon: 'logout', label: 'Sign out', danger: true },
 ];
 
-export function UserMenu({ initials = 'PS' }) {
+export function UserMenu({ initials = 'PS', openUp = false }) {
   const { open, setOpen, ref } = useDropdown();
   const [termsOpen, setTermsOpen] = useState(false);
   const startOnboarding = useSceneStore((s) => s.startOnboarding);
+  const popoverStyle = openUp
+    ? { ...POPOVER_STYLE, width: 232, top: 'auto', bottom: 'calc(100% + 8px)' }
+    : { ...POPOVER_STYLE, width: 232 };
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
@@ -150,7 +154,7 @@ export function UserMenu({ initials = 'PS' }) {
       </button>
 
       {open && (
-        <div style={{ ...POPOVER_STYLE, width: 232 }} role="menu" aria-label="Account">
+        <div style={popoverStyle} role="menu" aria-label="Account">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
             <span className="ps-avatar" style={{ width: 36, height: 36 }}>{initials}</span>
             <div style={{ minWidth: 0 }}>

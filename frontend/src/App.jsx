@@ -150,7 +150,7 @@ function PatientStrip({ study, meta }) {
   const demographic = [meta.age ? `${meta.age}Y` : null, meta.sexShort].filter(Boolean).join(' ');
 
   return (
-    <div className="clinic-strip">
+    <div className="cs-patient">
       <div className="row gap10">
         <div className="wl-mod" style={{ width: 34, height: 34, flex: 'none' }}>
           <Icon name="user" size={17} />
@@ -281,34 +281,36 @@ function App() {
 
   return (
     <div className={`ps ps-light ps-app ${twoCol ? 'layout-two-col' : 'layout-three-col'}`}>
-      {/* ============ TOP BAR ============ */}
-      <header className="ps-top">
-        <div className="ps-brand">
+      {/* ===== WORKSPACE BODY — unified left sidebar + main area (PER-77) ===== */}
+      <div className="clinic-body">
+      {/* SIDEBAR — brand · layout toggle · patient · actions · account.
+          Vertical column on laptop+, horizontal band on mobile. */}
+      <aside className="clinic-sidebar">
+        <div className="ps-brand cs-brand">
           <div className="ps-logo"><BrandMark /></div>
           <div className="ps-brand-tt">
             <span className="ps-brand-name">Percisio <b>Sense</b></span>
             <span className="ps-brand-sub">AI Clinical Imaging Platform</span>
           </div>
         </div>
-        <div className="ps-top-actions">
-          <Segmented
-            options={LAYOUT_OPTIONS}
-            value={workspaceLayout}
-            onChange={setWorkspaceLayout}
-            ariaLabel="Workspace layout"
-          />
-          {showTrigger('header') && (
-            <AssistantTrigger variant="bar" active={assistantModalOpen} onClick={toggleAssistantModal} />
-          )}
-          <NotificationsMenu />
-          <UserMenu initials="PS" />
-        </div>
-      </header>
 
-      {/* ===== WORKSPACE BODY — vertical patient rail (laptop+) beside the main area ===== */}
-      <div className="clinic-body">
-      {/* PATIENT STRIP — vertical rail on wide screens, horizontal band on mobile */}
-      <PatientStrip study={study} meta={meta} />
+        <Segmented
+          options={LAYOUT_OPTIONS}
+          value={workspaceLayout}
+          onChange={setWorkspaceLayout}
+          ariaLabel="Workspace layout"
+        />
+        {showTrigger('header') && (
+          <AssistantTrigger variant="bar" active={assistantModalOpen} onClick={toggleAssistantModal} />
+        )}
+
+        <PatientStrip study={study} meta={meta} />
+
+        <div className="cs-account">
+          <NotificationsMenu openUp />
+          <UserMenu initials="PS" openUp />
+        </div>
+      </aside>
 
       <div className="clinic-main">
       {/* ===== TRIGGER-PLACEMENT REVIEW SWITCHER — design review only (?triggerReview=1) ===== */}

@@ -362,18 +362,29 @@ button.rp-item { color: var(--text); background: var(--surface); border: 1px sol
 .clinic-body { flex: 1; min-height: 0; display: flex; }
 .clinic-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 
-/* Patient strip — compact vertical rail on laptop/desktop. */
-.clinic-strip {
-  flex: none; width: 204px; align-self: stretch;
-  display: flex; flex-direction: column; align-items: stretch; gap: 10px;
-  padding: 12px; background: var(--surface); border-right: 1px solid var(--border);
-  overflow-y: auto;
+/* Left sidebar — brand · layout toggle · patient · actions · account.
+   overflow:visible so the bottom account dropdowns can escape the column. */
+.clinic-sidebar {
+  flex: none; width: 212px; align-self: stretch;
+  display: flex; flex-direction: column; align-items: stretch; gap: 12px;
+  padding: 14px 12px; background: var(--surface); border-right: 1px solid var(--border);
+  overflow: visible;
 }
-.clinic-strip .ps-top-sep { width: 100%; height: 1px; margin: 2px 0; }
+.cs-brand { gap: 10px; }
+.clinic-sidebar .ps-seg { width: 100%; }
+.clinic-sidebar .ps-seg-btn { flex: 1; justify-content: center; }
+.clinic-sidebar .ps-top-sep { width: 100%; height: 1px; margin: 2px 0; }
+/* PatientStrip renders as display:contents so its rows are direct sidebar flex
+   children (lets cs-actions' margin-top:auto push the bottom cluster down). */
+.cs-patient { display: contents; }
 .cs-fields { display: flex; flex-direction: column; gap: 9px; }
 /* 8px gap between the action buttons kept (touch-spacing rule). */
 .cs-actions { display: flex; flex-direction: column; gap: 8px; margin-top: auto; }
 .cs-actions .ps-btn { width: 100%; justify-content: flex-start; }
+.cs-account {
+  display: flex; align-items: center; gap: 8px;
+  padding-top: 10px; border-top: 1px solid var(--border);
+}
 
 .clinic-grid {
   flex: 1; min-height: 0; display: grid; gap: 16px; padding: 16px;
@@ -385,17 +396,20 @@ button.rp-item { color: var(--text); background: var(--surface); border: 1px sol
 .clinic-pane { min-height: 0; min-width: 0; }
 .clinic-mobile-tabs { display: none; }
 @media (max-width: 940px) {
-  /* Narrow: stack the body and lay the strip back out as a horizontal band. */
+  /* Narrow: stack the body and lay the sidebar back out as a horizontal band. */
   .clinic-body { flex-direction: column; }
-  .clinic-strip {
+  .clinic-sidebar {
     flex: none; width: auto; flex-direction: row; align-items: center; flex-wrap: wrap;
-    gap: 16px; padding: 14px 18px; overflow: visible;
+    gap: 14px; padding: 12px 16px; overflow: visible;
     border-right: none; border-bottom: 1px solid var(--border);
   }
-  .clinic-strip .ps-top-sep { width: 1px; height: 30px; }
+  .clinic-sidebar .ps-seg { width: auto; }
+  .clinic-sidebar .ps-seg-btn { flex: none; }
+  .clinic-sidebar .ps-top-sep { width: 1px; height: 30px; margin: 0; }
   .cs-fields { flex-direction: row; flex-wrap: wrap; gap: 16px; }
-  .cs-actions { flex-direction: row; gap: 8px; margin-top: 0; margin-left: auto; }
+  .cs-actions { flex-direction: row; gap: 8px; margin-top: 0; }
   .cs-actions .ps-btn { width: auto; justify-content: center; }
+  .cs-account { padding-top: 0; border-top: none; margin-left: auto; }
   .clinic-grid {
     grid-template-columns: 1fr; grid-template-rows: 1fr; padding: 12px;
   }
@@ -489,14 +503,59 @@ button.rp-item { color: var(--text); background: var(--surface); border: 1px sol
 
 /* Floating action button placement — same button, elevated so it stays visible
    over scrolling content. */
-.asst-spark-btn.fab {
-  position: fixed; right: 22px; bottom: 22px; z-index: 90;
-  width: 46px; height: 46px; border-radius: 13px;
-  background: var(--surface); border-color: var(--border-strong);
-  box-shadow: var(--shadow-pop);
+/* Floating "Assistant IA" launcher — a prompt-style pill (spark · label ·
+   brand avatar) so it clearly reads as the way to talk to the AI (PER-77). */
+/* `button.asst-pill` (0,1,1) — must out-specify the `.ps button` reset that
+   strips background/border from single-class button variants (see PORT NOTES). */
+/* Animatable angle for the border's conic gradient (smooth sweep). */
+@property --asst-a { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+
+/* `button.asst-pill` (0,1,1) out-specifies the `.ps button` reset (PORT NOTES).
+   Accent-teal launcher with an animated gradient BORDER — a crisp light that
+   runs around the rim (no blur/halo). Reads as a premium AI CTA and stands out
+   on both the dark 3D viewer and the light workspace. */
+button.asst-pill {
+  position: fixed; right: 24px; bottom: 24px; z-index: 90;
+  display: inline-flex; align-items: center; gap: 9px;
+  height: 44px; padding: 4px 5px 4px 16px; border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 92%, #000);
+  border: 0; color: #fff; cursor: pointer;
+  box-shadow: var(--shadow-pop), inset 0 1px 0 rgba(255,255,255,0.16);
+  transition: transform .14s ease, box-shadow .2s ease;
 }
-.asst-spark-btn.fab:hover { transform: translateY(-1px); }
-.asst-spark-btn.fab:active { transform: none; background: var(--elevated); }
+/* Masked conic-gradient ring: a bright cyan glint travels along the border. */
+button.asst-pill::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1px;
+  pointer-events: none;
+  background: conic-gradient(from var(--asst-a),
+    rgba(54,224,255,0.4) 0deg, #ffffff 40deg, rgba(54,224,255,0.9) 85deg,
+    rgba(54,224,255,0.3) 200deg, rgba(54,224,255,0.4) 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  animation: asst-pill-glow 3.6s linear infinite;
+}
+button.asst-pill:hover { transform: translateY(-1px); box-shadow: var(--shadow-pop), inset 0 1px 0 rgba(255,255,255,0.22); }
+button.asst-pill:active { transform: none; }
+button.asst-pill:focus-visible { outline: none; box-shadow: var(--shadow-pop), 0 0 0 3px var(--accent-ring); }
+@keyframes asst-pill-glow { to { --asst-a: 360deg; } }
+@media (prefers-reduced-motion: reduce) {
+  button.asst-pill::before { animation: none; }
+}
+/* In 2-col the pill floats over the viewer's bottom-right corner — lift the
+   viewer's scale readout above it so the launcher never covers it. */
+.layout-two-col .av-scale { bottom: 78px; }
+.asst-pill-spark { display: grid; place-items: center; color: #fff; }
+.asst-pill-text { font-size: 13px; font-weight: 600; color: #fff; white-space: nowrap; letter-spacing: -0.1px; }
+.asst-pill-ava {
+  width: 32px; height: 32px; flex: none; border-radius: 50%; margin-left: 2px;
+  background: #fff; display: grid; place-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.18);
+}
+@media (max-width: 520px) {
+  /* Collapse to just the avatar bubble on very small screens. */
+  .asst-pill { padding: 6px; gap: 0; }
+  .asst-pill-spark, .asst-pill-text { display: none; }
+}
 
 /* Floating assistant window.
    z-index 95 sits above the workspace (panels/toolbars ≤ 50) but BELOW the
