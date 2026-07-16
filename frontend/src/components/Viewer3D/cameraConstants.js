@@ -77,7 +77,9 @@ export const CAMERA = {
    * Small positive ⇒ higher target in world space ⇒ the body sits a bit lower in the image
    * (compensates for a bottom-heavy bbox / exports that sit high in the viewport).
    */
-  FIT_VERTICAL_TARGET_BIAS: 0.05,
+  /* Negative = aim below the body's mid-height so the model sits HIGHER in the
+     viewport, clearing the bottom overlay controls (Reset view / scale). */
+  FIT_VERTICAL_TARGET_BIAS: -0.012,
 };
 
 /**

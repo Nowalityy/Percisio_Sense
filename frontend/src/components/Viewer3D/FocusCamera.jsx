@@ -58,7 +58,7 @@ function zoomLevelToCameraZoom(level) {
 
 const DEFAULT_CAMERA_ZOOM = zoomLevelToCameraZoom(DEFAULT_ZOOM_SLIDER_LEVEL);
 
-const DEFAULT_BODY_FIT_PADDING = 1.15;
+const DEFAULT_BODY_FIT_PADDING = 1.25;
 
 /** Vertical offset (in sphere radii) for the slightly-elevated anterior view. */
 const FIT_ELEVATION = 0.07;

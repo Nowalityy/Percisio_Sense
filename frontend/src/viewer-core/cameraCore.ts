@@ -49,6 +49,40 @@ export function getCameraDistanceForSphereRadius(
   return Math.max(verticalDistance, horizontalDistance) * padding;
 }
 
+/**
+ * Camera distance so a world-space BOX (given per-axis extents) fits the viewport,
+ * fitting width→horizontal FOV and height→vertical FOV independently.
+ *
+ * Unlike {@link getCameraDistanceForSphereRadius}, this does not fit the enclosing
+ * sphere's diameter, so a tall model in a narrow/portrait viewport fills the
+ * height instead of being pushed far back to fit the sphere across the width
+ * (which left the body small with large vertical margins). Half the depth is
+ * added so the box's near face isn't clipped. Assumes the anterior view where
+ * X→horizontal, Y→vertical, Z→view axis.
+ */
+export function getCameraDistanceForBoxExtents(
+  extentX: number,
+  extentY: number,
+  extentZ: number,
+  camera: PerspectiveCamera,
+  padding: number
+): number {
+  const fovEffDeg =
+    typeof camera.getEffectiveFOV === 'function'
+      ? camera.getEffectiveFOV()
+      : (camera.fov ?? 50);
+  const vHalf = ((fovEffDeg * Math.PI) / 180) / 2;
+  const aspect = camera.aspect && camera.aspect > 0 ? camera.aspect : 1;
+  const hHalf = Math.atan(Math.tan(vHalf) * aspect);
+  const halfW = Math.max(extentX, 0) / 2;
+  const halfH = Math.max(extentY, 0) / 2;
+  const halfD = Math.max(extentZ, 0) / 2;
+  const distV = halfH / Math.tan(vHalf);
+  const distH = halfW / Math.tan(hHalf);
+  const dist = Math.max(distV, distH) * padding + halfD;
+  return Number.isFinite(dist) && dist > 0 ? dist : NaN;
+}
+
 export type ComputeOrganFocusOptions = {
   /** When set, distance matches viewport framing (same idea as `fitCameraToBoundingBox`). */
   framingCamera?: PerspectiveCamera | null;
@@ -216,10 +250,15 @@ export function fitCameraToBoundingBox(
     box.min.z + extentZ * 0.5
   );
 
-  // Distance to fit the bounding sphere in the *narrower* of vertical/horizontal FOV.
-  // PerspectiveCamera.zoom scales the projected view; use effective FOV or distance is wrong,
-  // which mis-centres framing after swaps / slider zoom residue.
-  const distance = getCameraDistanceForSphereRadius(radius, camera, padding);
+  // Fit the actual box extents per axis (width→horizontal, height→vertical) so a
+  // tall body fills a narrow/portrait viewport instead of being sized to the
+  // enclosing sphere's diameter. Falls back to the sphere fit if degenerate.
+  // PerspectiveCamera.zoom scales the projected view; effective FOV is used or
+  // the distance is wrong, which mis-centres framing after swaps / slider zoom.
+  let distance = getCameraDistanceForBoxExtents(extentX, extentY, extentZ, camera, padding);
+  if (!Number.isFinite(distance) || distance <= 0) {
+    distance = getCameraDistanceForSphereRadius(radius, camera, padding);
+  }
 
   // Anterior view convention: camera in front of patient on +Z, slightly above.
   const position = new Vector3(
