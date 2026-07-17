@@ -20,7 +20,7 @@ export function SparkIcon({ size = 18, style, ...rest }) {
     <svg
       width={size}
       height={size}
-      viewBox="0 0 24 24"
+      viewBox="0.4 -2 24 24"
       fill="currentColor"
       aria-hidden
       style={{ display: 'block', ...style }}
