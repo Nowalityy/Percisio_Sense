@@ -1,6 +1,6 @@
 import { memo, useState, useEffect, useCallback, useRef, useLayoutEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Icon, Badge, BrandMark } from './psUI.jsx';
+import { Icon, BrandMark } from './psUI.jsx';
 import ConfirmDialog from './ConfirmDialog.jsx';
 import { useSceneStore } from '../store.js';
 import {
@@ -156,7 +156,7 @@ const MessageBubble = memo(function MessageBubble({ from, text, isGreeting }) {
 
   return (
     <div className={`ca-msg ${isUser ? 'doc' : 'ai'}`} role="listitem">
-      <div className={`ca-ava ${isUser ? 'doc' : 'ai'}`}>{isUser ? 'ME' : <BrandMark size={16} />}</div>
+      {!isUser && <div className="ca-ava ai"><BrandMark size={16} /></div>}
       <div className="grow">
         <div className="ca-bubble">
           {isUser ? (
@@ -395,7 +395,17 @@ export default function Chatbot() {
   const lastCards = useSceneStore((s) => s.lastCards);
   const setLastCards = useSceneStore((s) => s.setLastCards);
   const setLastMeta = useSceneStore((s) => s.setLastMeta);
+  const pendingAssistantPrompt = useSceneStore((s) => s.pendingAssistantPrompt);
+  const setPendingAssistantPrompt = useSceneStore((s) => s.setPendingAssistantPrompt);
 
+  // Launcher proposal: drop the suggested question into the composer (not sent),
+  // so the user can send or edit it. Consumed once, then cleared.
+  useEffect(() => {
+    if (pendingAssistantPrompt) {
+      setInput(pendingAssistantPrompt);
+      setPendingAssistantPrompt(null);
+    }
+  }, [pendingAssistantPrompt, setPendingAssistantPrompt]);
 
   const handleFocus = useCallback(
     (focus) => {
@@ -865,9 +875,9 @@ export default function Chatbot() {
       <div className="row gap12" style={{ flex: 'none' }}>
         <Icon name="sparkles" size={17} color="var(--accent)" />
         <span style={{ fontSize: 14, fontWeight: 700, letterSpacing: '-0.2px' }}>Clinical Assistant</span>
-        <span style={{ marginLeft: 'auto' }}><Badge cls="green" dot>Grounded</Badge></span>
         <button
           type="button"
+          style={{ marginLeft: 'auto' }}
           onClick={() => setShowResetConfirm(true)}
           className="ps-btn icon sm"
           title="New conversation — clears messages and report"

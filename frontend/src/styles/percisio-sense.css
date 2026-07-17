@@ -328,7 +328,10 @@ button.rp-item { color: var(--text); background: var(--surface); border: 1px sol
   font-size: 11px; font-weight: 700; }
 .ca-bubble { font-size: 13px; line-height: 1.6; color: var(--text); }
 .ca-msg.doc { flex-direction: row-reverse; }
-.ca-msg.doc .ca-bubble { background: var(--accent-dim); border: 1px solid color-mix(in srgb,var(--accent) 22%, transparent);
+/* No avatar on user messages — right-align the bubble so it hugs its content. */
+.ca-msg.doc .grow { display: flex; justify-content: flex-end; }
+.ca-msg.doc .ca-bubble { display: inline-block; max-width: 88%; background: var(--accent-dim);
+  border: 1px solid color-mix(in srgb,var(--accent) 22%, transparent);
   padding: 9px 12px; border-radius: var(--r-sm); }
 .ca-cites { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
 .ca-cite { display: inline-flex; align-items: center; gap: 5px; font-family: var(--font-mono); font-size: 10.5px;
@@ -606,7 +609,7 @@ button.asst-pill {
   position: fixed; right: 24px; bottom: 24px; z-index: 90;
   display: inline-flex; align-items: center; gap: 9px;
   height: 44px; padding: 4px 5px 4px 13px; border-radius: 999px;
-  /* Darkened accent so white 13px/600 label clears 4.5:1 (UI/UX §6). */
+  /* Darkened accent so the white label clears 4.5:1 (UI/UX §6). */
   background: color-mix(in srgb, var(--accent) 84%, #000);
   border: 0; color: #fff; cursor: pointer;
   box-shadow: var(--shadow-pop), inset 0 1px 0 rgba(255,255,255,0.16);
@@ -631,6 +634,8 @@ button.asst-pill:focus-visible { outline: none; box-shadow: var(--shadow-pop), 0
 @media (prefers-reduced-motion: reduce) {
   button.asst-pill::before { animation: none; }
 }
+/* In 2-col the pill floats over the viewer's bottom-right corner — lift the
+   viewer's scale readout above it so the launcher never covers it. */
 /* In 2-col the pill floats over the viewer's bottom-right corner — lift the
    viewer's scale readout above it so the launcher never covers it. */
 .layout-two-col .av-scale { bottom: 78px; }

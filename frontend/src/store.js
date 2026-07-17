@@ -102,7 +102,7 @@ export const useSceneStore = create(
         sidebarCollapsed: false,
         toggleSidebar: () => set((s) => ({ sidebarCollapsed: !s.sidebarCollapsed })),
 
-        workspaceLayout: 'three',
+        workspaceLayout: 'two',
         setWorkspaceLayout: (mode) =>
           set(() => {
             const next = mode === 'two' ? 'two' : 'three';
@@ -120,6 +120,14 @@ export const useSceneStore = create(
          */
         assistantModalOpen: false,
         assistantWindowState: ASSISTANT_WINDOW.NORMAL,
+        /**
+         * Prompt proposal from the launcher pill. When set, the Chatbot pre-fills
+         * its composer with it (a suggestion the user can send or edit) — it is
+         * NOT auto-sent. The Chatbot clears it once consumed.
+         */
+        pendingAssistantPrompt: null,
+        setPendingAssistantPrompt: (text) =>
+          set({ pendingAssistantPrompt: typeof text === 'string' ? text : null }),
         openAssistantModal: () =>
           set({ assistantModalOpen: true, assistantWindowState: ASSISTANT_WINDOW.NORMAL }),
         closeAssistantModal: () => set({ assistantModalOpen: false }),
