@@ -8,7 +8,7 @@ import ShareDialog from './components/ShareDialog.jsx';
 import AssistantModal from './components/AssistantModal.jsx';
 import AssistantTrigger from './components/AssistantTrigger.jsx';
 import { useSceneStore } from './store.js';
-import { ASSISTANT_TRIGGER_PLACEMENTS } from './config/assistant.js';
+import { ASSISTANT_TRIGGER_PLACEMENTS, ASSISTANT_LAUNCHER_PROMPT } from './config/assistant.js';
 import {
   fetchReportContent,
   getDicomStudyById,
@@ -246,6 +246,15 @@ function App() {
   const setTriggerPlacement = useSceneStore((s) => s.setAssistantTriggerPlacement);
   const assistantModalOpen = useSceneStore((s) => s.assistantModalOpen);
   const toggleAssistantModal = useSceneStore((s) => s.toggleAssistantModal);
+  const openAssistantModal = useSceneStore((s) => s.openAssistantModal);
+  const setPendingAssistantPrompt = useSceneStore((s) => s.setPendingAssistantPrompt);
+
+  // Launcher pill: open the assistant and drop the sample question into the
+  // composer as a PROPOSAL (the user sends/edits it — it is not auto-answered).
+  const openAssistantWithProposal = () => {
+    setPendingAssistantPrompt(ASSISTANT_LAUNCHER_PROMPT);
+    openAssistantModal();
+  };
   const viewerUnlocked = Boolean(selectedDicom);
   const study = getDicomStudyById(selectedDicom);
   const meta = parseCaseMeta(study);
@@ -409,7 +418,7 @@ function App() {
       {twoCol && (
         <>
           {showTrigger('fab') && !assistantModalOpen && (
-            <AssistantTrigger variant="fab" active={assistantModalOpen} onClick={toggleAssistantModal} tourId="assistant" />
+            <AssistantTrigger variant="fab" active={assistantModalOpen} onClick={openAssistantWithProposal} tourId="assistant" />
           )}
           <AssistantModal />
         </>
