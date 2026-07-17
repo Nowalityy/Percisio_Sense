@@ -58,8 +58,8 @@ function zoomLevelToCameraZoom(level) {
 
 const DEFAULT_CAMERA_ZOOM = zoomLevelToCameraZoom(DEFAULT_ZOOM_SLIDER_LEVEL);
 
-/** Body framing margin around the bounding sphere (1 = tight). Lower ⇒ bigger body. */
-const DEFAULT_BODY_FIT_PADDING = 1.05;
+/** Body framing margin (1 = tight). Tuned for the 2-col layout + box-extent fit. */
+const DEFAULT_BODY_FIT_PADDING = 1.25;
 
 /** Vertical offset (in sphere radii) for the slightly-elevated anterior view (organ focus). */
 const FIT_ELEVATION = 0.07;

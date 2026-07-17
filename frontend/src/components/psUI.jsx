@@ -12,6 +12,25 @@ export function Icon({ name, size = 16, color, style = {}, className = '', ...re
   );
 }
 
+/** Four-point sparkle glyph — assistant trigger spec (PER-77).
+    Single smooth concave star, fills `currentColor` so the button's CSS
+    states (default/hover/pressed/focus/disabled) drive its colour. */
+export function SparkIcon({ size = 18, style, ...rest }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0.4 -2 24 24"
+      fill="currentColor"
+      aria-hidden
+      style={{ display: 'block', ...style }}
+      {...rest}
+    >
+      <path d="M12 1.55c.1-.54.77-.54.87 0 .8 4.6 3.06 6.94 7.72 7.9.53.1.53.99 0 1.1-4.66.96-6.92 3.3-7.72 7.9-.1.54-.77.54-.87 0-.8-4.6-3.06-6.94-7.72-7.9-.53-.11-.53-1 0-1.1 4.66-.96 6.92-3.3 7.72-7.9Z" />
+    </svg>
+  );
+}
+
 export function Badge({ cls = 'gray', dot = false, fill = false, children, style }) {
   return (
     <span className={`ps-bdg ${fill ? 'fill-' + cls : 'bdg-' + cls}`} style={style}>

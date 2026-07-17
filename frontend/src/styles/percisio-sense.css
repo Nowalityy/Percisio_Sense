@@ -138,6 +138,16 @@
 .ps-ghost { color: var(--muted); border-color: var(--border-strong); }
 .ps-ghost:hover { color: var(--text); background: var(--elevated); }
 
+/* Keyboard focus rings — consistent visible focus across custom controls
+   (UI/UX §1 focus-states). */
+.ps-btn:focus-visible,
+.ps-seg-btn:focus-visible,
+.asst-modal-btn:focus-visible,
+button.clinic-mtab:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 /* ============================================================
    BADGES / CHIPS / DOTS
    ============================================================ */
@@ -357,10 +367,103 @@ button.rp-item { color: var(--text); background: var(--surface); border: 1px sol
    ============================================================ */
 .ps-app { height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
 
-.clinic-strip {
-  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
-  padding: 14px 18px; background: var(--surface); border-bottom: 1px solid var(--border);
+/* Body splits into the vertical patient rail + the main workspace so the strip
+   no longer steals vertical height from the 3D view on laptops (PER-77 review). */
+.clinic-body { flex: 1; min-height: 0; display: flex; }
+.clinic-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+/* Left sidebar — brand · layout toggle · patient · actions · account.
+   overflow:visible so the bottom account dropdowns can escape the column. */
+.clinic-sidebar {
+  flex: none; width: 212px; align-self: stretch;
+  display: flex; flex-direction: column; align-items: stretch; gap: 12px;
+  padding: 14px 12px; background: var(--surface); border-right: 1px solid var(--border);
+  overflow: visible;
 }
+/* Scrollable stack above the account footer: absorbs overflow on short
+   viewports so the account row stays visible; account dropdowns live outside
+   it (in the overflow:visible sidebar) so they're never clipped. */
+.cs-scroll {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
+  display: flex; flex-direction: column; align-items: stretch; gap: 12px;
+}
+.cs-brand { gap: 10px; }
+.cs-brand .ps-brand-tt { min-width: 0; }
+.cs-brand .ps-brand-name, .cs-brand .ps-brand-sub {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Sidebar collapse (fold/unfold the info panel). */
+.clinic-sidebar { transition: width .18s ease; }
+@media (prefers-reduced-motion: reduce) {
+  .clinic-sidebar { transition: none; }
+}
+.cs-collapse-btn {
+  margin-left: auto; flex: none; width: 34px; height: 34px; border-radius: var(--r-sm);
+  display: grid; place-items: center; color: var(--muted); cursor: pointer;
+  background: transparent; border: 1px solid transparent; transition: all .13s ease;
+}
+.cs-collapse-btn:hover { color: var(--text); background: var(--elevated); border-color: var(--border); }
+.cs-collapse-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+@media (min-width: 941px) {
+  /* Collapsed = slim rail: keep the toggle + account icons, hide the details. */
+  .clinic-sidebar.collapsed { width: 60px; padding: 14px 8px; }
+  .clinic-sidebar.collapsed .cs-scroll { align-items: center; }
+  .clinic-sidebar.collapsed .ps-logo,
+  .clinic-sidebar.collapsed .ps-brand-tt,
+  .clinic-sidebar.collapsed .ps-seg,
+  .clinic-sidebar.collapsed .cs-patient,
+  .clinic-sidebar.collapsed .cs-user-meta,
+  .clinic-sidebar.collapsed .cs-user-chev { display: none; }
+  .clinic-sidebar.collapsed .cs-brand { justify-content: center; gap: 0; }
+  .clinic-sidebar.collapsed .cs-collapse-btn { margin-left: 0; }
+  .clinic-sidebar.collapsed .cs-account { flex-direction: column; gap: 8px; align-items: center; }
+  /* Account chip → avatar-only icon, same footprint as the bell, centered.
+     The wrapper's inline `flex:1` must be overridden (hence !important) or it
+     stretches and the chip overflows the slim rail. */
+  .clinic-sidebar.collapsed .cs-user-wrap {
+    flex: 0 0 auto !important; width: 36px !important; min-width: 0 !important;
+    display: flex; justify-content: center;
+  }
+  .clinic-sidebar.collapsed .cs-user-meta,
+  .clinic-sidebar.collapsed .cs-user-chev { display: none !important; }
+  .clinic-sidebar.collapsed button.cs-user-chip {
+    width: 36px; padding: 0; gap: 0; justify-content: center;
+    background: transparent; border-color: transparent;
+  }
+  /* Bell matches the avatar footprint so the stacked icons line up. */
+  .clinic-sidebar.collapsed .cs-account .ps-btn.icon { width: 36px; height: 36px; }
+}
+.clinic-sidebar .ps-seg { width: 100%; }
+.clinic-sidebar .ps-seg-btn { flex: 1; justify-content: center; }
+.clinic-sidebar .ps-top-sep { width: 100%; height: 1px; margin: 2px 0; }
+/* PatientStrip renders as display:contents so its rows are direct sidebar flex
+   children (lets cs-actions' margin-top:auto push the bottom cluster down). */
+.cs-patient { display: contents; }
+.cs-fields { display: flex; flex-direction: column; gap: 9px; }
+/* 8px gap between the action buttons kept (touch-spacing rule). */
+.cs-actions { display: flex; flex-direction: column; gap: 8px; margin-top: auto; }
+.cs-actions .ps-btn { width: 100%; justify-content: flex-start; }
+.cs-account {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 2px; padding-top: 10px; border-top: 1px solid var(--border);
+}
+/* Account chip — avatar + name + role as a subtle clickable row, the standard
+   sidebar-footer pattern (clearer than a coloured ring, no teal-on-teal). */
+button.cs-user-chip {
+  display: flex; align-items: center; gap: 10px; width: 100%;
+  padding: 6px 8px; border-radius: var(--r-md); cursor: pointer; text-align: left;
+  background: transparent; border: 1px solid transparent;
+  transition: background .13s ease, border-color .13s ease;
+}
+button.cs-user-chip:hover { background: var(--elevated); border-color: var(--border); }
+button.cs-user-chip:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cs-user-chip .ps-avatar { width: 34px; height: 34px; flex: none; }
+.cs-user-meta { display: flex; flex-direction: column; min-width: 0; line-height: 1.2; }
+.cs-user-name { font-size: 13px; font-weight: 600; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cs-user-role { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cs-user-chip .cs-user-chev { margin-left: auto; color: var(--faint); flex: none; }
 
 .clinic-grid {
   flex: 1; min-height: 0; display: grid; gap: 16px; padding: 16px;
@@ -372,6 +475,29 @@ button.rp-item { color: var(--text); background: var(--surface); border: 1px sol
 .clinic-pane { min-height: 0; min-width: 0; }
 .clinic-mobile-tabs { display: none; }
 @media (max-width: 940px) {
+  /* Narrow: stack the body and lay the sidebar back out as a horizontal band. */
+  .clinic-body { flex-direction: column; }
+  .clinic-sidebar {
+    flex: none; width: auto; flex-direction: row; align-items: center; flex-wrap: wrap;
+    gap: 12px 14px; padding: 12px 16px; overflow: visible;
+    border-right: none; border-bottom: 1px solid var(--border);
+  }
+  /* Wrapper collapses so its children flow into the horizontal band. */
+  .cs-scroll { display: contents; }
+  /* Collapse control is desktop-only; the mobile band is always expanded. */
+  .cs-collapse-btn { display: none; }
+  /* Save space on mobile — the platform subtitle is redundant in the band. */
+  .cs-brand .ps-brand-sub { display: none; }
+  .clinic-sidebar .ps-seg { width: auto; }
+  .clinic-sidebar .ps-seg-btn { flex: none; }
+  .clinic-sidebar .ps-top-sep { width: 1px; height: 30px; margin: 0; }
+  .cs-fields { flex-direction: row; flex-wrap: wrap; gap: 16px; }
+  .cs-actions { flex-direction: row; gap: 8px; margin-top: 0; }
+  .cs-actions .ps-btn { width: auto; justify-content: center; }
+  .cs-account { padding-top: 0; border-top: none; margin-left: auto; }
+  /* Collapse the account chip to just the avatar in the mobile band. */
+  .cs-user-chip .cs-user-meta, .cs-user-chip .cs-user-chev { display: none; }
+  button.cs-user-chip { padding: 4px; }
   .clinic-grid {
     grid-template-columns: 1fr; grid-template-rows: 1fr; padding: 12px;
   }
@@ -382,4 +508,208 @@ button.rp-item { color: var(--text); background: var(--surface); border: 1px sol
   button.clinic-mtab.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   .clinic-pane { display: none !important; }
   .clinic-pane.active { display: flex !important; }
+}
+
+/* ============================================================
+   PER-77 — 2-column (report + hologram) layout & assistant modal
+   ============================================================ */
+
+/* Two equal columns (report + hologram); assistant lives in a modal. */
+.clinic-grid.is-two-col { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 940px) {
+  .clinic-grid.is-two-col { grid-template-columns: 1fr; }
+}
+
+/* Segmented control (layout switch + trigger-placement review switch). */
+.ps-seg {
+  display: inline-flex; align-items: center; gap: 2px; padding: 2px;
+  background: var(--elevated); border: 1px solid var(--border); border-radius: var(--r-sm);
+}
+.ps-seg-btn {
+  display: inline-flex; align-items: center; gap: 6px; cursor: pointer;
+  padding: 5px 10px; border-radius: var(--r-xs); border: 1px solid transparent;
+  font-size: 12px; font-weight: 600; color: var(--muted); background: transparent;
+  transition: all .13s ease; white-space: nowrap;
+}
+.ps-seg-btn:hover { color: var(--text); }
+.ps-seg-btn.on {
+  background: var(--surface); color: var(--accent);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+
+/* Trigger-placement review bar (2-col only). */
+.asst-place-bar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 10px 18px; background: var(--surface); border-bottom: 1px solid var(--border);
+}
+.asst-place-label {
+  font-size: 11px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* Assistant trigger — icon-only sparkle button, reproducing the design spec's
+   five states exactly:
+     DEFAULT   bare glyph, no background
+     HOVER     glyph brightens (no background)
+     PRESSED   rounded square fills with an elevated surface
+     FOCUS     rounded square ring, no fill
+     DISABLED  desaturated / dimmed glyph
+   `--spark` drives the glyph colour so a placement can retint it locally. */
+.asst-spark-btn {
+  --spark: var(--accent);
+  width: 36px; height: 36px; border-radius: 10px; cursor: pointer;
+  display: grid; place-items: center;
+  background: transparent; border: 1px solid transparent; color: var(--spark);
+  transition: color .13s ease, background .13s ease, border-color .13s ease,
+              box-shadow .13s ease, transform .13s ease;
+}
+.asst-spark-btn:hover { color: var(--accent-2); }
+.asst-spark-btn:active,
+.asst-spark-btn.on { background: var(--elevated); color: var(--spark); }
+.asst-spark-btn:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--spark) 55%, transparent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+.asst-spark-btn:disabled {
+  color: color-mix(in srgb, var(--spark) 40%, var(--muted));
+  cursor: not-allowed; background: transparent;
+}
+
+/* Hologram-bar placement: floats over the top-right of the 3D viewer.
+   The viewer is always dark, so the button gets the frosted panel treatment of
+   the other viewer toolbars and the spec's mint star reads exactly as designed. */
+.asst-holo-trigger { position: absolute; top: 14px; right: 14px; z-index: 50; }
+.asst-holo-trigger .asst-spark-btn {
+  --spark: #5EEAD4;
+  background: rgba(12,16,20,0.82); backdrop-filter: blur(8px);
+  border-color: rgba(255,255,255,0.10);
+}
+.asst-holo-trigger .asst-spark-btn:hover { color: #8FF3E3; }
+.asst-holo-trigger .asst-spark-btn:active,
+.asst-holo-trigger .asst-spark-btn.on { background: rgba(255,255,255,0.10); }
+
+/* Floating action button placement — same button, elevated so it stays visible
+   over scrolling content. */
+/* Floating "Assistant IA" launcher — a prompt-style pill (spark · label ·
+   brand avatar) so it clearly reads as the way to talk to the AI (PER-77). */
+/* `button.asst-pill` (0,1,1) — must out-specify the `.ps button` reset that
+   strips background/border from single-class button variants (see PORT NOTES). */
+/* Animatable angle for the border's conic gradient (smooth sweep). */
+@property --asst-a { syntax: '<angle>'; initial-value: 0deg; inherits: false; }
+
+/* `button.asst-pill` (0,1,1) out-specifies the `.ps button` reset (PORT NOTES).
+   Accent-teal launcher with an animated gradient BORDER — a crisp light that
+   runs around the rim (no blur/halo). Reads as a premium AI CTA and stands out
+   on both the dark 3D viewer and the light workspace. */
+button.asst-pill {
+  position: fixed; right: 24px; bottom: 24px; z-index: 90;
+  display: inline-flex; align-items: center; gap: 9px;
+  height: 44px; padding: 4px 5px 4px 13px; border-radius: 999px;
+  /* Darkened accent so white 13px/600 label clears 4.5:1 (UI/UX §6). */
+  background: color-mix(in srgb, var(--accent) 84%, #000);
+  border: 0; color: #fff; cursor: pointer;
+  box-shadow: var(--shadow-pop), inset 0 1px 0 rgba(255,255,255,0.16);
+  transition: transform .14s ease, box-shadow .2s ease;
+}
+/* Masked conic-gradient ring: a bright cyan glint travels along the border. */
+button.asst-pill::before {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; padding: 1px;
+  pointer-events: none;
+  background: conic-gradient(from var(--asst-a),
+    rgba(54,224,255,0.4) 0deg, #ffffff 40deg, rgba(54,224,255,0.9) 85deg,
+    rgba(54,224,255,0.3) 200deg, rgba(54,224,255,0.4) 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+          mask-composite: exclude;
+  animation: asst-pill-glow 3.6s linear infinite;
+}
+button.asst-pill:hover { transform: translateY(-1px); box-shadow: var(--shadow-pop), inset 0 1px 0 rgba(255,255,255,0.22); }
+button.asst-pill:active { transform: none; }
+button.asst-pill:focus-visible { outline: none; box-shadow: var(--shadow-pop), 0 0 0 3px var(--accent-ring); }
+@keyframes asst-pill-glow { to { --asst-a: 360deg; } }
+@media (prefers-reduced-motion: reduce) {
+  button.asst-pill::before { animation: none; }
+}
+/* In 2-col the pill floats over the viewer's bottom-right corner — lift the
+   viewer's scale readout above it so the launcher never covers it. */
+.layout-two-col .av-scale { bottom: 78px; }
+.asst-pill-text { font-size: 13px; font-weight: 500; color: #fff; white-space: nowrap; letter-spacing: -0.1px; }
+/* White circle avatar holding the (recentered) teal sparkle, on the right. */
+.asst-pill-ava {
+  width: 32px; height: 32px; flex: none; border-radius: 50%; margin-left: 2px;
+  background: #fff; color: var(--accent); display: grid; place-items: center;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.18);
+}
+/* Plain white sparkle on the left (no circle). */
+.asst-pill-end { flex: none; display: grid; place-items: center; color: #fff; }
+@media (max-width: 520px) {
+  /* Collapse to just the avatar bubble on very small screens. */
+  .asst-pill { padding: 6px; gap: 0; }
+  .asst-pill-spark, .asst-pill-text { display: none; }
+}
+
+/* Floating assistant window.
+   z-index 95 sits above the workspace (panels/toolbars ≤ 50) but BELOW the
+   dialogs it can spawn — the in-chat "New conversation" ConfirmDialog (110) and
+   ShareDialog (100) — so those are never hidden behind the window. */
+.asst-modal {
+  position: fixed; z-index: 95; display: flex; flex-direction: column;
+  background: var(--surface); border: 1px solid var(--border-strong);
+  border-radius: var(--r-lg); box-shadow: var(--shadow-pop); overflow: hidden;
+  /* Grows out of the launcher in the bottom-right corner (§modal-motion). */
+  transform-origin: bottom right;
+  animation: asst-modal-in 170ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes asst-modal-in {
+  from { opacity: 0; transform: translateY(6px) scale(0.94); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .asst-modal { animation: none; }
+}
+.asst-modal.state-normal {
+  right: 22px; bottom: 22px;
+  width: min(400px, calc(100vw - 32px));
+  height: min(620px, calc(100dvh - 130px));
+}
+.asst-modal.state-expanded {
+  right: 22px; bottom: 22px; top: 92px;
+  width: min(720px, calc(100vw - 44px));
+}
+.asst-modal.state-collapsed {
+  right: 22px; bottom: 22px;
+  width: min(340px, calc(100vw - 32px));
+  height: auto;
+}
+.asst-modal.state-collapsed .asst-modal-body { display: none; }
+
+.asst-modal-hd {
+  flex: none; display: flex; align-items: center; gap: 10px;
+  padding: 10px 12px; border-bottom: 1px solid var(--border); background: var(--elevated);
+}
+.asst-modal-avatar {
+  flex: none; width: 26px; height: 26px; border-radius: var(--r-sm);
+  display: grid; place-items: center;
+  background: var(--accent-dim); border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+}
+.asst-modal-title { font-size: 13.5px; font-weight: 700; letter-spacing: -0.2px; }
+.asst-modal-actions { margin-left: auto; display: flex; align-items: center; gap: 2px; }
+.asst-modal-btn {
+  width: 34px; height: 34px; border-radius: var(--r-sm); cursor: pointer;
+  display: grid; place-items: center; color: var(--muted);
+  background: transparent; border: 1px solid transparent; transition: all .13s ease;
+}
+.asst-modal-btn:hover { color: var(--text); background: var(--surface); border-color: var(--border); }
+.asst-modal-body { flex: 1; min-height: 0; display: flex; }
+.asst-modal-body > * { flex: 1; min-height: 0; }
+
+/* On narrow screens the window fills most of the viewport. */
+@media (max-width: 620px) {
+  .asst-modal.state-normal,
+  .asst-modal.state-expanded {
+    left: 12px; right: 12px; bottom: 12px; top: auto;
+    width: auto; height: min(76dvh, 640px);
+  }
+  .asst-modal.state-collapsed { left: 12px; right: 12px; width: auto; }
 }

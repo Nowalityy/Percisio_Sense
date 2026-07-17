@@ -77,7 +77,9 @@ export const CAMERA = {
    * 0 ⇒ aim at the true vertical center (body centered in the image). Positive pushes the
    * body lower; negative raises it.
    */
-  FIT_VERTICAL_TARGET_BIAS: 0,
+  /* Negative = aim below the body's mid-height so the model sits HIGHER in the
+     viewport, clearing the bottom overlay controls (Reset view / scale). */
+  FIT_VERTICAL_TARGET_BIAS: -0.012,
 };
 
 /**

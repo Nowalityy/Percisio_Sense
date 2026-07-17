@@ -5,7 +5,10 @@ import OnboardingTour from './components/OnboardingTour.jsx';
 import { Icon, BrandMark } from './components/psUI.jsx';
 import { NotificationsMenu, UserMenu } from './components/TopBarMenus.jsx';
 import ShareDialog from './components/ShareDialog.jsx';
+import AssistantModal from './components/AssistantModal.jsx';
+import AssistantTrigger from './components/AssistantTrigger.jsx';
 import { useSceneStore } from './store.js';
+import { ASSISTANT_TRIGGER_PLACEMENTS } from './config/assistant.js';
 import {
   fetchReportContent,
   getDicomStudyById,
@@ -147,24 +150,26 @@ function PatientStrip({ study, meta }) {
   const demographic = [meta.age ? `${meta.age}Y` : null, meta.sexShort].filter(Boolean).join(' ');
 
   return (
-    <div className="clinic-strip">
-      <div className="row gap12">
-        <div className="wl-mod" style={{ width: 40, height: 40 }}>
-          <Icon name="user" size={20} />
+    <div className="cs-patient">
+      <div className="row gap10">
+        <div className="wl-mod" style={{ width: 34, height: 34, flex: 'none' }}>
+          <Icon name="user" size={17} />
         </div>
-        <div className="col">
-          <span style={{ fontSize: 15, fontWeight: 700, letterSpacing: '-0.3px' }}>{meta.caseLabel || 'No case selected'}</span>
+        <div className="col" style={{ minWidth: 0 }}>
+          <span style={{ fontSize: 13.5, fontWeight: 700, letterSpacing: '-0.3px' }}>{meta.caseLabel || 'No case selected'}</span>
           <span className="wl-mono">Synthetic{demographic ? ` · ${demographic}` : ''}</span>
         </div>
       </div>
 
       <div className="ps-top-sep" />
 
-      <StripField label="Study" value={meta.exam} />
-      <StripField label="Referrer" value={study?.referrer} />
-      <StripField label="Acquired" value={study?.acquired ? `${study.acquired}${study.dose ? ` · ${study.dose}` : ''}` : ''} mono />
+      <div className="cs-fields">
+        <StripField label="Study" value={meta.exam} />
+        <StripField label="Referrer" value={study?.referrer} />
+        <StripField label="Acquired" value={study?.acquired ? `${study.acquired}${study.dose ? ` · ${study.dose}` : ''}` : ''} mono />
+      </div>
 
-      <div className="row gap8" style={{ marginLeft: 'auto' }}>
+      <div className="cs-actions">
         <button className="ps-btn ps-ghost sm" onClick={handleExport} disabled={!analyzedReport} title="Export a PDF report (3D view + findings)">
           <Icon name="download" size={14} /> Export
         </button>
@@ -194,50 +199,156 @@ function CardHd({ icon, title, right }) {
   );
 }
 
-const MOBILE_PANES = [
+const MOBILE_PANES_THREE = [
   { id: 'viewer', label: 'Viewer' },
   { id: 'report', label: 'Report' },
   { id: 'assistant', label: 'Assistant' },
+];
+const MOBILE_PANES_TWO = [
+  { id: 'report', label: 'Report' },
+  { id: 'viewer', label: 'Hologram' },
+];
+
+/** Small segmented control used for the workspace-layout and trigger-placement switchers. */
+function Segmented({ options, value, onChange, ariaLabel }) {
+  return (
+    <div className="ps-seg" role="group" aria-label={ariaLabel}>
+      {options.map((opt) => (
+        <button
+          key={opt.id}
+          type="button"
+          className={`ps-seg-btn ${value === opt.id ? 'on' : ''}`}
+          aria-pressed={value === opt.id}
+          onClick={() => onChange(opt.id)}
+          title={opt.hint || opt.label}
+        >
+          {opt.icon && <Icon name={opt.icon} size={14} />}
+          <span>{opt.label}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+const LAYOUT_OPTIONS = [
+  { id: 'three', label: '3-col', icon: 'layout-columns', hint: 'Viewer · Report · Assistant' },
+  { id: 'two', label: '2-col', icon: 'layout-sidebar-right', hint: 'Report + Hologram (assistant in a modal)' },
 ];
 
 function App() {
   const [mobilePane, setMobilePane] = useState('report');
   const selectedDicom = useSceneStore((s) => s.selectedDicom);
+  const workspaceLayout = useSceneStore((s) => s.workspaceLayout);
+  const setWorkspaceLayout = useSceneStore((s) => s.setWorkspaceLayout);
+  const sidebarCollapsed = useSceneStore((s) => s.sidebarCollapsed);
+  const toggleSidebar = useSceneStore((s) => s.toggleSidebar);
+  const triggerPlacement = useSceneStore((s) => s.assistantTriggerPlacement);
+  const setTriggerPlacement = useSceneStore((s) => s.setAssistantTriggerPlacement);
+  const assistantModalOpen = useSceneStore((s) => s.assistantModalOpen);
+  const toggleAssistantModal = useSceneStore((s) => s.toggleAssistantModal);
   const viewerUnlocked = Boolean(selectedDicom);
   const study = getDicomStudyById(selectedDicom);
   const meta = parseCaseMeta(study);
   const reportBy = 'Percisio AI · Radiology';
   useDefaultReportLoader();
 
-  const paneCls = (id) => `clinic-pane ${mobilePane === id ? 'active' : ''}`;
+  const twoCol = workspaceLayout === 'two';
+  const mobilePanes = twoCol ? MOBILE_PANES_TWO : MOBILE_PANES_THREE;
+
+  // Derived so switching layouts can't strand the selection on a pane the new
+  // layout doesn't have (2-col has no assistant pane) without a setState effect.
+  const activePane = mobilePanes.some((p) => p.id === mobilePane) ? mobilePane : mobilePanes[0].id;
+
+  const paneCls = (id) => `clinic-pane ${activePane === id ? 'active' : ''}`;
+
+  // Placement of the assistant trigger. The product ships ONE committed
+  // placement — the floating action button — so the launcher is unambiguous and
+  // never competes with the layout toggle. The four candidate placements from
+  // PER-77 remain comparable for design review via the `?triggerReview=1` flag,
+  // which reveals the placement switcher and honours the persisted selection.
+  const reviewMode =
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).has('triggerReview');
+  const effectivePlacement = reviewMode ? triggerPlacement : 'fab';
+  const showTrigger = (place) => twoCol && effectivePlacement === place;
+
+  const reportRight = (
+    <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: 10 }}>
+      <span className="wl-mono">{reportBy}</span>
+      {showTrigger('report-bar') && (
+        <AssistantTrigger variant="bar" active={assistantModalOpen} onClick={toggleAssistantModal} />
+      )}
+    </span>
+  );
 
   return (
-    <div className="ps ps-light ps-app">
-      {/* ============ TOP BAR ============ */}
-      <header className="ps-top">
-        <div className="ps-brand">
-          <div className="ps-logo"><BrandMark /></div>
-          <div className="ps-brand-tt">
-            <span className="ps-brand-name">Percisio <b>Sense</b></span>
-            <span className="ps-brand-sub">AI Clinical Imaging Platform</span>
+    <div className={`ps ps-light ps-app ${twoCol ? 'layout-two-col' : 'layout-three-col'}`}>
+      {/* ===== WORKSPACE BODY — unified left sidebar + main area (PER-77) ===== */}
+      <div className="clinic-body">
+      {/* SIDEBAR — brand · layout toggle · patient · actions · account.
+          Vertical column on laptop+, horizontal band on mobile. */}
+      <aside className={`clinic-sidebar ${sidebarCollapsed ? 'collapsed' : ''}`}>
+        {/* Scrollable stack — brand · toggle · patient · actions. Keeps the
+            account footer below always visible on short viewports (P2.4). */}
+        <div className="cs-scroll">
+          <div className="ps-brand cs-brand">
+            <div className="ps-logo"><BrandMark /></div>
+            <div className="ps-brand-tt">
+              <span className="ps-brand-name">Percisio <b>Sense</b></span>
+              <span className="ps-brand-sub">AI Clinical Imaging Platform</span>
+            </div>
+            <button
+              type="button"
+              className="cs-collapse-btn"
+              onClick={toggleSidebar}
+              aria-label={sidebarCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              aria-expanded={!sidebarCollapsed}
+              title={sidebarCollapsed ? 'Expand panel' : 'Collapse panel'}
+            >
+              <Icon name={sidebarCollapsed ? 'layout-sidebar-left-expand' : 'layout-sidebar-left-collapse'} size={18} />
+            </button>
           </div>
-        </div>
-        <div className="ps-top-actions">
-          <NotificationsMenu />
-          <UserMenu initials="PS" />
-        </div>
-      </header>
 
-      {/* ============ PATIENT STRIP ============ */}
-      <PatientStrip study={study} meta={meta} />
+          <Segmented
+            options={LAYOUT_OPTIONS}
+            value={workspaceLayout}
+            onChange={setWorkspaceLayout}
+            ariaLabel="Workspace layout"
+          />
+          {showTrigger('header') && (
+            <AssistantTrigger variant="bar" active={assistantModalOpen} onClick={toggleAssistantModal} />
+          )}
+
+          <PatientStrip study={study} meta={meta} />
+        </div>
+
+        <div className="cs-account">
+          <UserMenu initials="PS" openUp chip />
+          <NotificationsMenu openUp />
+        </div>
+      </aside>
+
+      <div className="clinic-main">
+      {/* ===== TRIGGER-PLACEMENT REVIEW SWITCHER — design review only (?triggerReview=1) ===== */}
+      {twoCol && reviewMode && (
+        <div className="asst-place-bar">
+          <span className="asst-place-label">Assistant trigger · review</span>
+          <Segmented
+            options={ASSISTANT_TRIGGER_PLACEMENTS}
+            value={triggerPlacement}
+            onChange={setTriggerPlacement}
+            ariaLabel="Assistant trigger placement"
+          />
+        </div>
+      )}
 
       {/* ============ MOBILE SWITCHER ============ */}
       <div className="clinic-mobile-tabs">
-        {MOBILE_PANES.map((p) => (
+        {mobilePanes.map((p) => (
           <button
             key={p.id}
             type="button"
-            className={`clinic-mtab ${mobilePane === p.id ? 'on' : ''}`}
+            className={`clinic-mtab ${activePane === p.id ? 'on' : ''}`}
             onClick={() => setMobilePane(p.id)}
           >
             {p.label}
@@ -246,9 +357,28 @@ function App() {
       </div>
 
       {/* ============ WORKSPACE ============ */}
-      <div className="clinic-grid">
-        {/* viewer — full-height left column */}
-        <div data-tour="viewer" className={`${paneCls('viewer')} ps-card av ps-viewport`} style={{ padding: 0, overflow: 'hidden', position: 'relative' }} aria-label="3D clinical viewer">
+      <div className={`clinic-grid ${twoCol ? 'is-two-col' : ''}`}>
+        {/* radiology report — leftmost in 2-col, centre column in 3-col */}
+        <div
+          data-tour="report"
+          className={`${paneCls('report')} ps-card col`}
+          style={{ minHeight: 0, overflow: 'hidden', order: twoCol ? 1 : 2 }}
+          aria-label="Radiology report"
+        >
+          <CardHd icon="report-medical" title="Radiology Report" right={reportRight} />
+          <div className="ps-divider" />
+          <div className="scroll-y grow" style={{ minHeight: 0 }}>
+            <RadiologyReport />
+          </div>
+        </div>
+
+        {/* viewer / hologram */}
+        <div
+          data-tour="viewer"
+          className={`${paneCls('viewer')} ps-card av ps-viewport`}
+          style={{ padding: 0, overflow: 'hidden', position: 'relative', order: twoCol ? 2 : 1 }}
+          aria-label="3D clinical viewer"
+        >
           {viewerUnlocked ? (
             <Suspense fallback={<PaneFallback lines={4} />}>
               <Viewer3D />
@@ -256,24 +386,34 @@ function App() {
           ) : (
             <LockedViewerPlaceholder />
           )}
+          {showTrigger('hologram-bar') && (
+            <div className="asst-holo-trigger">
+              <AssistantTrigger variant="bar" active={assistantModalOpen} onClick={toggleAssistantModal} />
+            </div>
+          )}
         </div>
 
-        {/* radiology report (centrepiece) */}
-        <div data-tour="report" className={`${paneCls('report')} ps-card col`} style={{ minHeight: 0, overflow: 'hidden' }} aria-label="Radiology report">
-          <CardHd icon="report-medical" title="Radiology Report" right={<span style={{ marginLeft: 'auto' }} className="wl-mono">{reportBy}</span>} />
-          <div className="ps-divider" />
-          <div className="scroll-y grow" style={{ minHeight: 0 }}>
-            <RadiologyReport />
+        {/* clinical assistant — fixed column only in the 3-col layout */}
+        {!twoCol && (
+          <div data-tour="assistant" className={`${paneCls('assistant')} ps-card col`} style={{ minHeight: 0, overflow: 'hidden', order: 3 }} aria-label="Clinical AI assistant">
+            <Suspense fallback={<PaneFallback lines={3} />}>
+              <Chatbot />
+            </Suspense>
           </div>
-        </div>
-
-        {/* clinical assistant */}
-        <div data-tour="assistant" className={`${paneCls('assistant')} ps-card col`} style={{ minHeight: 0, overflow: 'hidden' }} aria-label="Clinical AI assistant">
-          <Suspense fallback={<PaneFallback lines={3} />}>
-            <Chatbot />
-          </Suspense>
-        </div>
+        )}
       </div>
+      </div>{/* /clinic-main */}
+      </div>{/* /clinic-body */}
+
+      {/* Floating assistant modal + FAB trigger (2-col layout) */}
+      {twoCol && (
+        <>
+          {showTrigger('fab') && !assistantModalOpen && (
+            <AssistantTrigger variant="fab" active={assistantModalOpen} onClick={toggleAssistantModal} tourId="assistant" />
+          )}
+          <AssistantModal />
+        </>
+      )}
 
       <OnboardingTour />
     </div>

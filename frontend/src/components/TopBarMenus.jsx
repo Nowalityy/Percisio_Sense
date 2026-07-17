@@ -53,9 +53,14 @@ const NOTIFICATIONS = [
   { id: 3, icon: 'inbox', cls: 'cyan', title: 'New study assigned', body: 'Thoraco-abdomino-pelvic CT — Case F.', when: '1 h ago', unread: false },
 ];
 
-export function NotificationsMenu() {
+export function NotificationsMenu({ openUp = false }) {
   const { open, setOpen, ref } = useDropdown();
   const unread = NOTIFICATIONS.filter((n) => n.unread).length;
+  // openUp = sidebar-footer placement: open upward AND to the right (left:0),
+  // since the account cluster sits at the bottom-left of the screen.
+  const popoverStyle = openUp
+    ? { ...POPOVER_STYLE, top: 'auto', bottom: 'calc(100% + 8px)', right: 'auto', left: 0 }
+    : POPOVER_STYLE;
 
   return (
     <div ref={ref} style={{ position: 'relative' }}>
@@ -82,7 +87,7 @@ export function NotificationsMenu() {
       </button>
 
       {open && (
-        <div style={POPOVER_STYLE} role="menu" aria-label="Notifications">
+        <div style={popoverStyle} role="menu" aria-label="Notifications">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
             <span style={{ fontSize: 13, fontWeight: 700 }}>Notifications</span>
             <span className="over">{unread} new</span>
@@ -129,28 +134,50 @@ const USER_ITEMS = [
   { id: 'signout', icon: 'logout', label: 'Sign out', danger: true },
 ];
 
-export function UserMenu({ initials = 'PS' }) {
+export function UserMenu({ initials = 'PS', openUp = false, chip = false, name = 'Percisio Sense', role = 'Clinician' }) {
   const { open, setOpen, ref } = useDropdown();
   const [termsOpen, setTermsOpen] = useState(false);
   const startOnboarding = useSceneStore((s) => s.startOnboarding);
+  const popoverStyle = openUp
+    ? { ...POPOVER_STYLE, width: 232, top: 'auto', bottom: 'calc(100% + 8px)', right: 'auto', left: 0 }
+    : { ...POPOVER_STYLE, width: 232 };
 
   return (
-    <div ref={ref} style={{ position: 'relative' }}>
+    <div ref={ref} className={chip ? 'cs-user-wrap' : undefined} style={{ position: 'relative', ...(chip ? { flex: 1, minWidth: 0 } : {}) }}>
       {termsOpen && <TermsDialog onClose={() => setTermsOpen(false)} />}
-      <button
-        type="button"
-        className="ps-avatar"
-        aria-label="Account menu"
-        aria-haspopup="menu"
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
-        style={{ cursor: 'pointer' }}
-      >
-        {initials}
-      </button>
+      {chip ? (
+        <button
+          type="button"
+          className="cs-user-chip"
+          aria-label="Account menu"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+          title="Account"
+        >
+          <span className="ps-avatar">{initials}</span>
+          <span className="cs-user-meta">
+            <span className="cs-user-name">{name}</span>
+            <span className="cs-user-role">{role}</span>
+          </span>
+          <Icon name={open ? 'chevron-down' : 'chevron-up'} size={15} className="cs-user-chev" />
+        </button>
+      ) : (
+        <button
+          type="button"
+          className="ps-avatar"
+          aria-label="Account menu"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          onClick={() => setOpen((v) => !v)}
+          style={{ cursor: 'pointer' }}
+        >
+          {initials}
+        </button>
+      )}
 
       {open && (
-        <div style={{ ...POPOVER_STYLE, width: 232 }} role="menu" aria-label="Account">
+        <div style={popoverStyle} role="menu" aria-label="Account">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
             <span className="ps-avatar" style={{ width: 36, height: 36 }}>{initials}</span>
             <div style={{ minWidth: 0 }}>
