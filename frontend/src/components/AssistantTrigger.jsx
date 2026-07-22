@@ -34,9 +34,6 @@ export default function AssistantTrigger({ variant = 'bar', active = false, disa
         title={label}
         data-tour={tourId}
       >
-        <span className="asst-pill-end" aria-hidden>
-          {ASSISTANT_TRIGGER_ICON === 'spark' ? <SparkIcon size={16} /> : <Icon name={ASSISTANT_TRIGGER_ICON} size={16} />}
-        </span>
         <span className="asst-pill-text">{ASSISTANT_LAUNCHER_PROMPT}</span>
         <span className="asst-pill-ava" aria-hidden>{glyph}</span>
       </button>
