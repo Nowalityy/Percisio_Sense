@@ -608,7 +608,7 @@ button.cs-user-chip:focus-visible { outline: 2px solid var(--accent); outline-of
 button.asst-pill {
   position: fixed; right: 24px; bottom: 24px; z-index: 90;
   display: inline-flex; align-items: center; gap: 9px;
-  height: 44px; padding: 4px 5px 4px 13px; border-radius: 999px;
+  height: 44px; padding: 4px 5px 4px 16px; border-radius: 999px;
   /* Darkened accent so the white label clears 4.5:1 (UI/UX §6). */
   background: color-mix(in srgb, var(--accent) 84%, #000);
   border: 0; color: #fff; cursor: pointer;
@@ -646,8 +646,6 @@ button.asst-pill:focus-visible { outline: none; box-shadow: var(--shadow-pop), 0
   background: #fff; color: var(--accent); display: grid; place-items: center;
   box-shadow: 0 1px 2px rgba(0,0,0,0.18);
 }
-/* Plain white sparkle on the left (no circle). */
-.asst-pill-end { flex: none; display: grid; place-items: center; color: #fff; }
 @media (max-width: 520px) {
   /* Collapse to just the avatar bubble on very small screens. */
   .asst-pill { padding: 6px; gap: 0; }
