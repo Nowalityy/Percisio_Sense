@@ -94,10 +94,13 @@ function useDefaultReportLoader() {
 }
 
 /** One labelled column in the patient header strip. */
-function StripField({ label, value, mono }) {
+/** `secondary` fields are dropped in the mobile band, where the sidebar is a
+    horizontal strip and every row it costs pushes the report further down.
+    Both values are repeated in the report pane itself. */
+function StripField({ label, value, mono, secondary }) {
   if (!value) return null;
   return (
-    <div className="col gap6" style={{ minWidth: 0 }}>
+    <div className={`col gap6${secondary ? ' cs-field-secondary' : ''}`} style={{ minWidth: 0 }}>
       <span className="over">{label}</span>
       <span className={mono ? 'wl-mono' : undefined} style={mono ? { color: 'var(--text)' } : { fontSize: 13, fontWeight: 600 }}>
         {value}
@@ -165,8 +168,8 @@ function PatientStrip({ study, meta }) {
 
       <div className="cs-fields">
         <StripField label="Study" value={meta.exam} />
-        <StripField label="Referrer" value={study?.referrer} />
-        <StripField label="Acquired" value={study?.acquired ? `${study.acquired}${study.dose ? ` · ${study.dose}` : ''}` : ''} mono />
+        <StripField label="Referrer" value={study?.referrer} secondary />
+        <StripField label="Acquired" value={study?.acquired ? `${study.acquired}${study.dose ? ` · ${study.dose}` : ''}` : ''} mono secondary />
       </div>
 
       <div className="cs-actions">
@@ -314,7 +317,19 @@ function App() {
               aria-expanded={!sidebarCollapsed}
               title={sidebarCollapsed ? 'Expand panel' : 'Collapse panel'}
             >
-              <Icon name={sidebarCollapsed ? 'layout-sidebar-left-expand' : 'layout-sidebar-left-collapse'} size={18} />
+              {/* Two glyphs, one per breakpoint: the sidebar icons read as
+                  "fold left" which is meaningless for the horizontal mobile
+                  band, where the panel folds upward. CSS picks the right one. */}
+              <Icon
+                className="cs-collapse-ico-wide"
+                name={sidebarCollapsed ? 'layout-sidebar-left-expand' : 'layout-sidebar-left-collapse'}
+                size={18}
+              />
+              <Icon
+                className="cs-collapse-ico-narrow"
+                name={sidebarCollapsed ? 'chevron-down' : 'chevron-up'}
+                size={18}
+              />
             </button>
           </div>
 

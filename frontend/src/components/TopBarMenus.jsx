@@ -87,7 +87,9 @@ export function NotificationsMenu({ openUp = false }) {
       </button>
 
       {open && (
-        <div style={popoverStyle} role="menu" aria-label="Notifications">
+        <>
+        <div className="ps-menu-backdrop" onClick={() => setOpen(false)} aria-hidden />
+        <div className="ps-menu-pop" style={popoverStyle} role="menu" aria-label="Notifications">
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
             <span style={{ fontSize: 13, fontWeight: 700 }}>Notifications</span>
             <span className="over">{unread} new</span>
@@ -122,6 +124,7 @@ export function NotificationsMenu({ openUp = false }) {
             Mark all as read
           </button>
         </div>
+        </>
       )}
     </div>
   );
@@ -177,7 +180,9 @@ export function UserMenu({ initials = 'PS', openUp = false, chip = false, name =
       )}
 
       {open && (
-        <div style={popoverStyle} role="menu" aria-label="Account">
+        <>
+        <div className="ps-menu-backdrop" onClick={() => setOpen(false)} aria-hidden />
+        <div className="ps-menu-pop" style={popoverStyle} role="menu" aria-label="Account">
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderBottom: '1px solid var(--border)' }}>
             <span className="ps-avatar" style={{ width: 36, height: 36 }}>{initials}</span>
             <div style={{ minWidth: 0 }}>
@@ -216,6 +221,7 @@ export function UserMenu({ initials = 'PS', openUp = false, chip = false, name =
             }}
           />
         </div>
+        </>
       )}
     </div>
   );

@@ -39,6 +39,13 @@ body,
   height: 100%;
 }
 
+/* The shell manages its own scrolling; without this, dragging the 3D viewer or
+   over-scrolling a pane triggers pull-to-refresh / rubber-banding on mobile. */
+html,
+body {
+  overscroll-behavior: none;
+}
+
 body {
   margin: 0;
   color: var(--text-primary); /* BRAND: #62C5EF */

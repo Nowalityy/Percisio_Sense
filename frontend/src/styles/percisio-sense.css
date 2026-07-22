@@ -408,6 +408,13 @@ button.rp-item { color: var(--text); background: var(--surface); border: 1px sol
 }
 .cs-collapse-btn:hover { color: var(--text); background: var(--elevated); border-color: var(--border); }
 .cs-collapse-btn:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Breakpoint-specific collapse glyph. `Icon` sets display inline, so these
+   overrides have to be !important to win. */
+.cs-collapse-ico-narrow { display: none !important; }
+@media (max-width: 940px) {
+  .cs-collapse-ico-wide { display: none !important; }
+  .cs-collapse-ico-narrow { display: inline-flex !important; }
+}
 
 @media (min-width: 941px) {
   /* Collapsed = slim rail: keep the toggle + account icons, hide the details. */
@@ -482,13 +489,25 @@ button.cs-user-chip:focus-visible { outline: 2px solid var(--accent); outline-of
   .clinic-body { flex-direction: column; }
   .clinic-sidebar {
     flex: none; width: auto; flex-direction: row; align-items: center; flex-wrap: wrap;
-    gap: 12px 14px; padding: 12px 16px; overflow: visible;
+    gap: 10px 14px; overflow: visible;
+    padding: max(10px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right))
+             10px max(14px, env(safe-area-inset-left));
     border-right: none; border-bottom: 1px solid var(--border);
   }
   /* Wrapper collapses so its children flow into the horizontal band. */
   .cs-scroll { display: contents; }
-  /* Collapse control is desktop-only; the mobile band is always expanded. */
-  .cs-collapse-btn { display: none; }
+  /* The band is the tallest thing between the user and the report, so it must
+     be foldable here too. Previously the control was hidden and every
+     `.collapsed` rule sat in the min-width:941px block, so on a phone the band
+     could not be dismissed at all. Collapsed keeps brand + account (the way
+     back), and drops the layout toggle, patient details and actions. */
+  .cs-collapse-btn { display: grid; }
+  .clinic-sidebar.collapsed .ps-seg,
+  .clinic-sidebar.collapsed .cs-patient,
+  .clinic-sidebar.collapsed .cs-fields,
+  .clinic-sidebar.collapsed .cs-actions,
+  .clinic-sidebar.collapsed .ps-top-sep { display: none; }
+  .clinic-sidebar.collapsed { gap: 8px; }
   /* Save space on mobile — the platform subtitle is redundant in the band. */
   .cs-brand .ps-brand-sub { display: none; }
   .clinic-sidebar .ps-seg { width: auto; }
@@ -502,15 +521,88 @@ button.cs-user-chip:focus-visible { outline: 2px solid var(--accent); outline-of
   .cs-user-chip .cs-user-meta, .cs-user-chip .cs-user-chev { display: none; }
   button.cs-user-chip { padding: 4px; }
   .clinic-grid {
-    grid-template-columns: 1fr; grid-template-rows: 1fr; padding: 12px;
+    grid-template-columns: 1fr; grid-template-rows: 1fr;
+    padding: 12px max(12px, env(safe-area-inset-right))
+             max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
   }
-  .clinic-mobile-tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
-    padding: 12px 12px 0; }
-  button.clinic-mtab { font-size: 12px; font-weight: 600; padding: 8px; border-radius: 999px;
+  /* Secondary metadata costs a whole extra row in the band. */
+  .cs-field-secondary { display: none; }
+  /* Auto-flow instead of a hard 3 columns: the 2-col layout only has two tabs
+     and was leaving a dead third of the row empty. */
+  .clinic-mobile-tabs { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 6px;
+    padding: 12px max(12px, env(safe-area-inset-right)) 0 max(12px, env(safe-area-inset-left)); }
+  button.clinic-mtab { font-size: 13px; font-weight: 600; padding: 8px; border-radius: 999px;
+    min-height: 44px;
     border: 1px solid var(--border); color: var(--muted); background: var(--surface); }
   button.clinic-mtab.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
   .clinic-pane { display: none !important; }
   .clinic-pane.active { display: flex !important; }
+}
+
+/* ============================================================
+   TOUCH ERGONOMICS (any touch device, not only narrow ones)
+   ============================================================ */
+
+/* iOS Safari zooms the page in whenever a focused text field renders below
+   16px, and does not zoom back out afterwards. */
+@media (pointer: coarse) {
+  .ca-input input,
+  .ps-select,
+  .ps input[type='text'],
+  .ps input[type='search'],
+  .ps input[type='email'],
+  .ps textarea { font-size: 16px; }
+
+  /* Hit areas: WCAG 2.5.5 asks for 44px. Viewer chrome floats over a small
+     pane, so it settles at 40px rather than crowding the canvas. */
+  .ps-btn.sm { min-height: 40px; padding: 9px 14px; }
+  .ps-btn.icon.sm { width: 40px; height: 40px; }
+  .ca-send { width: 40px; height: 40px; }
+  .ca-sug { padding: 9px 14px; }
+  .av-tab { min-height: 40px; }
+  .av-nav { width: 40px; height: 40px; }
+  .av-zoom button { width: 32px; height: 32px; }
+  .ps-seg-btn { min-height: 40px; }
+  button.cs-user-chip { min-height: 44px; }
+}
+
+/* Narrow viewer pane: drop the decorative orientation cube (it collides with
+   the tool row) and shorten the zoom slider so it clears the readout. */
+@container (max-width: 430px) {
+  .av-cube { display: none; }
+  .av-zoom .track { height: 64px; }
+  .av-readout { font-size: 10px; }
+}
+
+/* Drag/pinch in the 3D canvas must not scroll the page behind it. */
+.ps-viewport canvas { touch-action: none; }
+
+/* ============================================================
+   ACCOUNT / NOTIFICATION MENUS ON MOBILE
+   ============================================================ */
+/* On desktop the account cluster sits at the bottom-LEFT of the sidebar, so the
+   panels anchor with `left: 0`. In the mobile band `.cs-account` is pushed to
+   the far RIGHT by `margin-left: auto`, so that same anchor ran the panel off
+   the right edge — clipped, and with no reachable way to dismiss it. Below
+   940px they become a bottom sheet with a tap-to-close backdrop. The desktop
+   anchor is set inline (JS), which is why these need !important. */
+.ps-menu-backdrop { display: none; }
+@media (max-width: 940px) {
+  .ps-menu-backdrop {
+    display: block; position: fixed; inset: 0; z-index: 49;
+    background: rgba(8, 12, 18, 0.45);
+  }
+  .ps-menu-pop {
+    position: fixed !important;
+    top: auto !important;
+    bottom: max(12px, env(safe-area-inset-bottom)) !important;
+    left: max(12px, env(safe-area-inset-left)) !important;
+    right: max(12px, env(safe-area-inset-right)) !important;
+    width: auto !important;
+    max-height: 72dvh;
+    overflow-y: auto !important;
+    z-index: 50;
+  }
 }
 
 /* ============================================================

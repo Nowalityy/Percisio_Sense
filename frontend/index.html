@@ -9,7 +9,7 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon/favicon-16x16.png?v=2" />
     <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png?v=2" />
     <link rel="manifest" href="/favicon/site.webmanifest?v=2" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -61,6 +61,9 @@
       #app-shell {
         display: flex;
         height: 100vh;
+        height: 100dvh;
+        padding: env(safe-area-inset-top) env(safe-area-inset-right)
+          env(safe-area-inset-bottom) env(safe-area-inset-left);
         background: #f8fafc;
         font-family: 'Inter', sans-serif;
       }
@@ -71,6 +74,11 @@
         display: flex;
         align-items: center;
         justify-content: center;
+      }
+      /* The app renders a single pane below this width (see .clinic-grid), so
+         the boot skeleton must not paint a two-column desktop layout there. */
+      @media (max-width: 940px) {
+        #shell-viewer { display: none; }
       }
       #shell-assistant {
         flex: 1;
